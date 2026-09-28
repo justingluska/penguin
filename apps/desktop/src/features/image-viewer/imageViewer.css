@@ -1,0 +1,89 @@
+/* Image viewer (ImageViewer.tsx): a full-window lightbox. Dark in both
+   themes, like every photo viewer: the picture is what matters. Motion uses
+   the shared tokens, which drop to 0ms under reduced motion. */
+
+.iv {
+  position: fixed; inset: 0; z-index: 60;
+  display: flex; flex-direction: column;
+  background: rgba(10, 10, 12, .95);
+  -webkit-backdrop-filter: blur(18px) saturate(.9); backdrop-filter: blur(18px) saturate(.9);
+  color: #f2f2f4;
+  outline: none;
+  animation: iv-in var(--dur-quick) var(--ease-glide);
+  -webkit-user-select: none; user-select: none;
+}
+@keyframes iv-in { from { opacity: 0; } }
+.overlay-titlebar .iv { padding-top: var(--titlebar-h); }
+
+.iv-bar {
+  flex: none; display: flex; align-items: center; gap: 4px;
+  height: 52px; padding: 0 10px 0 18px;
+}
+.iv-title { min-width: 0; }
+.iv-name { font-size: var(--text-sm); font-weight: 600; color: #fff; }
+.iv-meta { font-size: var(--text-xs); color: rgba(255, 255, 255, .58); }
+.iv-count { font-size: var(--text-xs); color: rgba(255, 255, 255, .58); padding: 0 8px; white-space: nowrap; }
+.iv-sep { width: 1px; height: 18px; margin: 0 4px; background: rgba(255, 255, 255, .16); }
+
+.iv-btn {
+  display: inline-flex; align-items: center; gap: 6px; flex: none;
+  height: 30px; padding: 0 10px; border: 0; border-radius: var(--radius-md);
+  background: transparent; color: rgba(255, 255, 255, .86);
+  font: inherit; font-size: var(--text-xs); font-weight: 500; cursor: default;
+  transition: background-color var(--dur-instant) var(--ease-out), color var(--dur-instant) var(--ease-out);
+}
+.iv-btn:hover:not(:disabled) { background: rgba(255, 255, 255, .1); color: #fff; }
+.iv-btn:disabled { opacity: .4; }
+.iv-btn .kbd { height: 16px; min-width: 16px; font-size: 10px; background: rgba(255, 255, 255, .1); color: rgba(255, 255, 255, .7); border-color: rgba(255, 255, 255, .14); box-shadow: none; }
+/* The "Drag" grip: drag it out to Finder or another app (fileDrag.ts). */
+.iv-grip { cursor: grab; }
+.iv-grip:active { cursor: grabbing; }
+.iv-zoom .iv-btn { min-width: 76px; justify-content: center; font-variant-numeric: tabular-nums; }
+
+.iv-stage {
+  position: relative; flex: 1; min-height: 0; overflow: hidden;
+  cursor: default; touch-action: none;
+}
+.iv-img {
+  position: absolute; left: 50%; top: 50%; max-width: none; max-height: none;
+  transform-origin: center center;
+  cursor: zoom-in;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, .45);
+  image-rendering: auto;
+  animation: iv-pop var(--dur-row) var(--ease-glide);
+  will-change: transform;
+}
+@keyframes iv-pop { from { opacity: 0; } }
+.iv-img.is-animated { transition: transform var(--dur-row) var(--ease-glide); }
+.iv-stage.is-small .iv-img { cursor: zoom-in; }
+.iv-stage.is-zoomed .iv-img { cursor: grab; }
+.iv-stage.is-zoomed.is-dragging, .iv-stage.is-zoomed.is-dragging .iv-img { cursor: grabbing; }
+
+.iv-nav {
+  position: absolute; top: 50%; z-index: 1;
+  width: 40px; height: 40px; margin-top: -20px; border: 0; border-radius: 50%;
+  display: grid; place-items: center;
+  background: rgba(30, 30, 34, .72); color: #fff;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, .35);
+  opacity: .82; cursor: default;
+  transition: opacity var(--dur-instant) var(--ease-out), background-color var(--dur-instant) var(--ease-out);
+}
+.iv-nav:hover:not(:disabled) { opacity: 1; background: rgba(50, 50, 56, .9); }
+.iv-nav:disabled { opacity: 0; pointer-events: none; }
+.iv-prev { left: 16px; }
+.iv-next { right: 16px; }
+
+.iv-msg {
+  position: absolute; inset: 0; display: flex; flex-direction: column;
+  align-items: center; justify-content: center; gap: 10px; text-align: center; padding: 24px;
+}
+.iv-msg-title { font-size: var(--text-lg); font-weight: 600; color: #fff; }
+.iv-msg-body { font-size: var(--text-sm); color: rgba(255, 255, 255, .62); }
+.iv-spinner {
+  width: 22px; height: 22px; border-radius: 50%;
+  border: 2px solid rgba(255, 255, 255, .18); border-top-color: rgba(255, 255, 255, .8);
+  animation: spin 800ms linear infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .iv-spinner { animation: none; }
+}

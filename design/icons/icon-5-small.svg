@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024" role="img" aria-labelledby="title desc">
+  <title id="title">Penguin — First-class slide — optical size</title>
+  <desc id="desc">A round baby penguin balances on a gently tilted letter, one flipper lifted in a wave.</desc>
+  <path d="M316 100H708C852 100 924 172 924 316V708C924 852 852 924 708 924H316C172 924 100 852 100 708V316C100 172 172 100 316 100Z" fill="#dae6ef"/>
+  <g>
+    <g transform="rotate(10 524 464)">
+      <path d="M364 419C312 390 296 335 271 348C237 367 272 461 349 486Z M680 455C747 472 779 526 756 543C736 557 696 519 660 519Z" fill="#192939"/>
+      <path d="M522 257C408 257 330 337 330 457C330 577 400 638 522 638S714 577 714 457C714 337 636 257 522 257Z" fill="#142231"/>
+      <path d="M522 379C475 312 372 332 372 423C372 534 410 597 522 597S672 534 672 423C672 332 569 312 522 379Z" fill="#fff"/>
+      <circle cx="447" cy="425" r="36" fill="#152231"/><circle cx="597" cy="425" r="36" fill="#152231"/>
+      <path d="M472 477Q522 463 572 477L531 535Q522 547 513 535Z" fill="#f5ad4f"/>
+    </g>
+    <g transform="rotate(-10 512 667)">
+      <rect x="242" y="574" width="540" height="200" rx="38" fill="#ffffff"/>
+      <path d="M259 590L493 705Q512 715 531 705L765 590" fill="none" stroke="#648296" stroke-width="32" stroke-linecap="round" stroke-linejoin="round"/>
+    </g>
+  </g>
+</svg>

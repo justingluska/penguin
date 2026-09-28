@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Penguin — Welcome</title>
+<script>(function(){var t=new URLSearchParams(location.search).get('theme');document.documentElement.dataset.theme=t==='light'?'light':'dark';})();</script>
+<link rel="stylesheet" href="penguin.css">
+<link rel="stylesheet" href="penguin-screens-2.css">
+</head>
+<body class="screens-2">
+<div class="s2-shell">
+<header class="s2-top"><a class="s2-brand" href="index.html" data-theme-link><svg class="logo" viewBox="0 0 26 26" aria-label="Penguin"><rect x=".5" y=".5" width="25" height="25" rx="8" fill="var(--logo-tile)" stroke="var(--logo-ring)"/><path d="M13 8.6c-1.1-1.9-5.3-1.9-5.6 1.7-.2 2.4.5 4.6 1.2 6.4.8 2.2 2.3 3.9 4.4 3.9s3.6-1.7 4.4-3.9c.7-1.8 1.4-4 1.2-6.4-.3-3.6-4.5-3.6-5.6-1.7Z" fill="#f5f5f4"/><circle cx="10.9" cy="11.6" r="1.05" fill="#0b0c0e"/><circle cx="15.1" cy="11.6" r="1.05" fill="#0b0c0e"/><path d="M11.8 13.5h2.4L13 15.4Z" fill="#ff9d4d"/></svg><span>Penguin</span></a><span class="grow"></span><nav class="s2-route" aria-label="Setup progress"><span class="current">1 · Connect client</span><svg class="i i-xs" aria-hidden="true"><use href="#i-right"/></svg><span>2 · Add accounts</span></nav></header>
+<main class="s2-content">
+  <div class="welcome">
+    <div class="welcome-intro"><svg class="logo" viewBox="0 0 26 26" aria-label="Penguin"><rect x=".5" y=".5" width="25" height="25" rx="8" fill="var(--logo-tile)" stroke="var(--logo-ring)"/><path d="M13 8.6c-1.1-1.9-5.3-1.9-5.6 1.7-.2 2.4.5 4.6 1.2 6.4.8 2.2 2.3 3.9 4.4 3.9s3.6-1.7 4.4-3.9c.7-1.8 1.4-4 1.2-6.4-.3-3.6-4.5-3.6-5.6-1.7Z" fill="#f5f5f4"/><circle cx="10.9" cy="11.6" r="1.05" fill="#0b0c0e"/><circle cx="15.1" cy="11.6" r="1.05" fill="#0b0c0e"/><path d="M11.8 13.5h2.4L13 15.4Z" fill="#ff9d4d"/></svg><h1>Every email, instantly.</h1><p class="s2-subtitle">All your accounts. One quiet place. Right on your Mac.</p></div>
+    <section class="card welcome-step" aria-labelledby="client-title">
+      <div class="step-heading"><span class="step-number">1</span><h2 id="client-title">Connect Google OAuth client</h2><span class="grow"></span><span class="badge t-gray">One-time setup</span></div>
+      <p class="step-copy">Use your own Google client to connect directly to Gmail.<br>The client JSON stays on this Mac.</p>
+      <div class="oauth-drop" role="group" aria-label="Import OAuth client JSON">
+        <svg class="i i-sm" aria-hidden="true"><use href="#i-file"/></svg>
+        <span class="s2-text">Drop your <span class="mono">client_secret.json</span> here</span>
+        <div class="s2-action-row"><button class="btn btn-secondary">Choose JSON file</button><span class="s2-muted">or</span><button class="btn btn-ghost">Paste JSON <span class="kbd">⌘V</span></button></div>
+      </div>
+      <div class="step-bottom"><span class="s2-muted"><svg class="i i-xs" aria-hidden="true"><use href="#i-lock"/></svg>Saved only on this Mac</span><a class="s2-link" href="../docs/google-setup.md">Google client setup guide <svg class="i i-xs" aria-hidden="true"><use href="#i-external"/></svg></a></div>
+    </section>
+    <section class="card welcome-step welcome-step-next" aria-labelledby="accounts-title">
+      <div class="step-heading"><span class="step-number">2</span><h2 id="accounts-title">Add accounts</h2></div>
+      <p class="step-copy">Bring your Google Workspace and Gmail accounts together.<br>You can add as many as you need.</p>
+      <div class="s2-action-row welcome-signin"><button class="btn btn-secondary" disabled><svg class="s2-google" viewBox="0 0 24 24" aria-hidden="true"><path d="M21.6 12.23c0-.71-.06-1.39-.18-2.05H12v3.88h5.38a4.61 4.61 0 0 1-2 3.03v2.52h3.24c1.9-1.75 2.98-4.33 2.98-7.38ZM12 22c2.7 0 4.96-.9 6.62-2.39l-3.24-2.52c-.9.6-2.05.96-3.38.96-2.6 0-4.81-1.75-5.6-4.1H3.05v2.6A10 10 0 0 0 12 22ZM6.4 13.95a6 6 0 0 1 0-3.9V7.46H3.05a10 10 0 0 0 0 9.08l3.35-2.59ZM12 5.95c1.47 0 2.78.51 3.82 1.51l2.87-2.87A9.62 9.62 0 0 0 12 2a10 10 0 0 0-8.95 5.46l3.35 2.59c.79-2.35 3-4.1 5.6-4.1Z"/></svg>Sign in with Google</button><span class="s2-muted">Connect your client first</span></div>
+    </section>
+    <p class="privacy-line"><svg class="i i-xs" aria-hidden="true"><use href="#i-shield"/></svg>No Penguin servers. Tokens stay in your Mac's Keychain.</p>
+  </div>
+</main>
+<footer class="statusbar s2-foot"><span class="hint"><span class="kbd">Tab</span>Next control</span><span class="hint"><span class="kbd">↵</span>Select</span><span class="right"><span class="kbd">T</span>Switch theme</span></footer>
+</div>
+<script src="penguin.js"></script>
+<script src="penguin-screens-2.js"></script>
+</body>
+</html>

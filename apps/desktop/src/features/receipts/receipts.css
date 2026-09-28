@@ -1,0 +1,7 @@
+/* "Read by …" on a sent message (ReadReceipts.tsx). */
+.rr-line {
+  display: flex; align-items: center; gap: 6px; margin: 0 0 8px;
+  font-size: var(--text-xs); line-height: 18px; color: var(--green-a11);
+}
+.rr-line .i { flex: none; }
+.rr-time { color: var(--text-faint); }

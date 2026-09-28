@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024" role="img" aria-labelledby="title desc">
+  <title id="title">Penguin — Special delivery</title>
+  <desc id="desc">A small penguin peeks out of an open white envelope and rests its flippers on the rim.</desc>
+  <defs>
+    <linearGradient id="ice" x1="270" y1="100" x2="740" y2="924" gradientUnits="userSpaceOnUse"><stop stop-color="#edf5fa"/><stop offset="1" stop-color="#b9d1e4"/></linearGradient>
+    <linearGradient id="ink" x1="400" y1="242" x2="630" y2="590" gradientUnits="userSpaceOnUse"><stop stop-color="#293847"/><stop offset="1" stop-color="#101923"/></linearGradient>
+    <linearGradient id="paper" x1="512" y1="487" x2="512" y2="770" gradientUnits="userSpaceOnUse"><stop stop-color="#e4edf5"/><stop offset="1" stop-color="#ffffff"/></linearGradient>
+    <filter id="tile-shadow" x="0" y="0" width="1024" height="1024" filterUnits="userSpaceOnUse"><feDropShadow dx="0" dy="16" stdDeviation="15" flood-color="#030912" flood-opacity=".19"/></filter>
+    <filter id="lift" x="180" y="170" width="664" height="690" filterUnits="userSpaceOnUse"><feDropShadow dx="0" dy="11" stdDeviation="11" flood-color="#23364b" flood-opacity=".18"/></filter>
+  </defs>
+  <path d="M316 100H708C852 100 924 172 924 316V708C924 852 852 924 708 924H316C172 924 100 852 100 708V316C100 172 172 100 316 100Z" fill="url(#ice)" filter="url(#tile-shadow)"/>
+  <path d="M316 102H708C850 102 922 174 922 316V708C922 850 850 922 708 922H316C174 922 102 850 102 708V316C102 174 174 102 316 102Z" fill="none" stroke="#fff" stroke-opacity=".65" stroke-width="2"/>
+  <g filter="url(#lift)">
+    <path d="M246 488L483 298Q512 275 541 298L778 488V708Q778 764 722 764H302Q246 764 246 708Z" fill="#a2b9cc"/>
+    <path d="M246 488L512 689L778 488L541 298Q512 275 483 298Z" fill="#dae6ee"/>
+    <path d="M340 680V377C340 282 409 225 512 225S684 282 684 377V680Z" fill="url(#ink)"/>
+    <path d="M512 358C470 302 385 308 381 385V589C381 640 430 678 512 678S643 640 643 589V385C639 308 554 302 512 358Z" fill="#fff"/>
+    <circle cx="442" cy="399" r="21" fill="#13202d"/><circle cx="582" cy="399" r="21" fill="#13202d"/>
+    <path d="M481 441Q512 431 543 441L518 474Q512 482 506 474Z" fill="#f5ad4f"/>
+    <path d="M246 488L489 644Q512 659 535 644L778 488V713Q778 765 726 765H298Q246 765 246 713Z" fill="url(#paper)"/>
+    <path d="M265 738L431 603M759 738L593 603" fill="none" stroke="#bdccd8" stroke-width="12" stroke-linecap="round"/>
+    <path d="M252 492L489 644Q512 659 535 644L772 492" fill="none" stroke="#a6bece" stroke-width="10" stroke-linejoin="round"/>
+    <path d="M334 476C314 478 305 492 308 516L316 550C323 577 356 572 359 548L361 509C363 487 351 475 334 476Z M690 476C710 478 719 492 716 516L708 550C701 577 668 572 665 548L663 509C661 487 673 475 690 476Z" fill="#152230"/>
+  </g>
+</svg>

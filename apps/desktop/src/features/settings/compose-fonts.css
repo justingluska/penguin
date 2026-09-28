@@ -1,0 +1,21 @@
+/* Settings → Compose font picker (Compose.tsx). OWNER: floe. */
+.cf-row > div { flex: 1; min-width: 0; }
+.cf-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(128px, 1fr)); gap: 8px; margin: 12px 0 8px; }
+.cf-font {
+  position: relative; display: flex; flex-direction: column; align-items: flex-start; gap: 4px;
+  padding: 10px 12px 9px; border-radius: var(--radius-xl); border: 1px solid var(--border-subtle); text-align: left;
+}
+.cf-font:hover { background: var(--bg-row-hover); }
+.cf-font.selected { border-color: var(--accent); background: var(--bg-row-selected); box-shadow: 0 0 0 1px var(--accent); }
+.cf-aa { font-size: 26px; line-height: 32px; color: var(--text-emphasis); }
+.cf-name { font-size: var(--text-xs); color: var(--text-default); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
+.cf-font.selected .cf-name { color: var(--text-emphasis); font-weight: 500; }
+.cf-default { position: absolute; top: 8px; right: 8px; font-size: 10px; color: var(--text-faint); }
+.cf-size { display: inline-flex; align-items: center; gap: 10px; }
+.cf-size input { width: 160px; accent-color: var(--accent); }
+.cf-size-val { min-width: 34px; text-align: right; color: var(--text-default); font-size: var(--text-xs); }
+.cf-preview-wrap { padding: 4px 0 6px; }
+.cf-preview {
+  margin: 8px 0 8px; padding: 12px 14px; border-radius: var(--radius-xl); border: 1px solid var(--border-subtle);
+  background: var(--bg-subtle); color: var(--text-emphasis); line-height: 1.5;
+}

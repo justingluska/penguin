@@ -1,0 +1,29 @@
+[workspace]
+resolver = "2"
+members = ["apps/desktop/src-tauri", "crates/*"]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+license = "LicenseRef-PolyForm-Shield-1.0.0"
+license-file = "LICENSE"
+
+[workspace.dependencies]
+penguin-core = { path = "crates/penguin-core" }
+penguin-gmail = { path = "crates/penguin-gmail" }
+penguin-graph = { path = "crates/penguin-graph" }
+penguin-imap = { path = "crates/penguin-imap" }
+penguin-provider = { path = "crates/penguin-provider" }
+penguin-render = { path = "crates/penguin-render" }
+penguin-semantic = { path = "crates/penguin-semantic" }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+thiserror = "2"
+tokio = { version = "1", features = ["full"] }
+tracing = "0.1"
+
+[profile.release]
+codegen-units = 1
+lto = true
+opt-level = 3
+strip = true

@@ -1,0 +1,7 @@
+/* "Also search Gmail" (ServerResults.tsx). OWNER: sync-window agent. */
+.sx-note { padding: 6px 14px; font-size: 12px; }
+.s-foot .spinner { width: 10px; height: 10px; }
+.group-head .spinner { display: inline-block; vertical-align: -1px; margin-right: 4px; }
+/* The scope + coverage note yields space to the button, never the reverse. */
+.s-foot > .faint { min-width: 0; flex-shrink: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.s-foot > .btn { flex-shrink: 0; }

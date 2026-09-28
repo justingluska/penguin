@@ -1,0 +1,12 @@
+{
+  "name": "penguin-bench-ui",
+  "private": true,
+  "type": "module",
+  "description": "UI benchmarks for Penguin's mock build in headless Chromium (see docs/PERFORMANCE.md).",
+  "scripts": {
+    "bench": "node bench.mjs"
+  },
+  "devDependencies": {
+    "playwright-core": "1.63.0"
+  }
+}

@@ -1,0 +1,209 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Envelope",
+  "description": "Every payload: `{\"schemaVersion\": 1, \"kind\": \"...\", \"data\": {...}}`.",
+  "type": "object",
+  "properties": {
+    "data": {
+      "$ref": "#/$defs/ThreadOut"
+    },
+    "kind": {
+      "description": "\"search\" | \"thread\" | \"threads\" | \"labels\" | \"people\" | \"accounts\" | \"attachmentText\" | \"ask\" | \"ruleMatch\" | \"error\"",
+      "type": "string"
+    },
+    "schemaVersion": {
+      "type": "integer",
+      "format": "uint32",
+      "minimum": 0
+    }
+  },
+  "required": [
+    "schemaVersion",
+    "kind",
+    "data"
+  ],
+  "$defs": {
+    "AddressOut": {
+      "type": "object",
+      "properties": {
+        "email": {
+          "type": "string"
+        },
+        "name": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "email"
+      ]
+    },
+    "AttachmentOut": {
+      "type": "object",
+      "properties": {
+        "filename": {
+          "type": "string"
+        },
+        "id": {
+          "type": "string"
+        },
+        "mimeType": {
+          "type": "string"
+        },
+        "size": {
+          "type": "integer",
+          "format": "uint64",
+          "minimum": 0
+        }
+      },
+      "required": [
+        "id",
+        "filename",
+        "mimeType",
+        "size"
+      ]
+    },
+    "MessageOut": {
+      "type": "object",
+      "properties": {
+        "attachments": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/AttachmentOut"
+          }
+        },
+        "bcc": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/AddressOut"
+          }
+        },
+        "bodyPending": {
+          "description": "Only headers are stored locally (outside the sync window); the body\nhasn't been downloaded, so `text` is empty. Opening it in Penguin\nfetches it.",
+          "type": "boolean"
+        },
+        "cc": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/AddressOut"
+          }
+        },
+        "date": {
+          "type": "integer",
+          "format": "int64"
+        },
+        "dateIso": {
+          "type": "string"
+        },
+        "from": {
+          "$ref": "#/$defs/AddressOut"
+        },
+        "fullText": {
+          "description": "The full plain-text body including quotes; only when requested.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "id": {
+          "type": "string"
+        },
+        "labelIds": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "quotedChars": {
+          "description": "Characters of quoted history removed from `text`.",
+          "type": "integer",
+          "format": "uint",
+          "minimum": 0
+        },
+        "starred": {
+          "type": "boolean"
+        },
+        "subject": {
+          "type": "string"
+        },
+        "text": {
+          "description": "Plain text the sender wrote, with quoted reply history removed.",
+          "type": "string"
+        },
+        "to": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/AddressOut"
+          }
+        },
+        "truncated": {
+          "description": "`text` (and `fullText`) were cut to the requested maximum.",
+          "type": "boolean"
+        },
+        "unread": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "id",
+        "date",
+        "dateIso",
+        "from",
+        "to",
+        "cc",
+        "bcc",
+        "subject",
+        "labelIds",
+        "unread",
+        "starred",
+        "attachments",
+        "text",
+        "quotedChars",
+        "truncated",
+        "bodyPending"
+      ]
+    },
+    "ThreadOut": {
+      "type": "object",
+      "properties": {
+        "accountId": {
+          "type": "string"
+        },
+        "labelIds": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "messageCount": {
+          "type": "integer",
+          "format": "uint",
+          "minimum": 0
+        },
+        "messages": {
+          "description": "Oldest first.",
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/MessageOut"
+          }
+        },
+        "subject": {
+          "type": "string"
+        },
+        "threadId": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "accountId",
+        "threadId",
+        "subject",
+        "labelIds",
+        "messageCount",
+        "messages"
+      ]
+    }
+  }
+}

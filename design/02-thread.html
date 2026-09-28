@@ -1,0 +1,197 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Penguin — Thread</title>
+<script>(function(){var t=new URLSearchParams(location.search).get('theme');document.documentElement.dataset.theme=t==='light'?'light':'dark';})();</script>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="penguin.css">
+</head>
+<body>
+<div class="app">
+  <aside class="sidebar">
+    <button class="switcher"><svg class="logo" viewBox="0 0 26 26" aria-label="Penguin"><rect x=".5" y=".5" width="25" height="25" rx="8" fill="var(--logo-tile)" stroke="var(--logo-ring)"/><path d="M13 8.6c-1.1-1.9-5.3-1.9-5.6 1.7-.2 2.4.5 4.6 1.2 6.4.8 2.2 2.3 3.9 4.4 3.9s3.6-1.7 4.4-3.9c.7-1.8 1.4-4 1.2-6.4-.3-3.6-4.5-3.6-5.6-1.7Z" fill="#f5f5f4"/><circle cx="10.9" cy="11.6" r="1.05" fill="#0b0c0e"/><circle cx="15.1" cy="11.6" r="1.05" fill="#0b0c0e"/><path d="M11.8 13.5h2.4L13 15.4Z" fill="#ff9d4d"/></svg><span>All accounts</span>
+      <span class="acct-stack"><i class="dot acc-work"></i><i class="dot acc-harbor"></i><i class="dot acc-personal"></i></span>
+      <svg class="i i-sm chev"><use href="#i-updown"/></svg></button>
+    <div class="sb-actions">
+      <button class="btn btn-primary"><svg class="i i-sm"><use href="#i-compose"/></svg>New message<span class="kbd">C</span></button>
+      <button class="btn btn-secondary"><svg class="i i-sm"><use href="#i-search"/></svg>Search<span class="kbd">/</span></button>
+    </div>
+    <nav class="nav"><a class="nav-item active" href="#"><svg class="i "><use href="#i-inbox"/></svg>Inbox<span class="count">12</span></a><a class="nav-item" href="#"><svg class="i "><use href="#i-screener"/></svg>Screener<span class="count">4</span></a><a class="nav-item" href="#"><svg class="i "><use href="#i-star"/></svg>Starred</a><a class="nav-item" href="#"><svg class="i "><use href="#i-snooze"/></svg>Snoozed<span class="count">3</span></a><a class="nav-item" href="#"><svg class="i "><use href="#i-send"/></svg>Sent</a><a class="nav-item" href="#"><svg class="i "><use href="#i-draft"/></svg>Drafts<span class="count">2</span></a><a class="nav-item" href="#"><svg class="i "><use href="#i-done"/></svg>Done</a></nav>
+    <div class="nav-section">Labels</div>
+    <nav class="nav"><a class="nav-item" href="#"><span class="label-sq t-blue"></span>Clients<span class="count">18</span></a><a class="nav-item" href="#"><span class="label-sq t-amber"></span>Finance</a><a class="nav-item" href="#"><span class="label-sq t-cyan"></span>Travel<span class="count">2</span></a><a class="nav-item" href="#"><span class="label-sq t-gray"></span>Receipts</a><a class="nav-item" href="#"><span class="label-sq t-red"></span>Home</a></nav>
+    <div class="nav-section">Accounts<button class="btn btn-ghost btn-sm btn-icon"><svg class="i i-xs"><use href="#i-plus"/></svg></button></div>
+    <nav class="nav"><a class="nav-item" href="#"><i class="dot acc-work"></i>Northwind<span class="count">8</span></a><a class="nav-item" href="#"><i class="dot acc-harbor"></i>Harbor Labs<span class="count">3</span></a><a class="nav-item" href="#"><i class="dot acc-personal"></i>Personal<span class="count">1</span></a></nav>
+    <div class="sb-bottom">
+      <span class="avatar avatar-sm t-gray">SO</span><span class="who grow truncate">Sam Okafor</span>
+      <button class="btn btn-ghost btn-sm btn-icon"><svg class="i i-sm"><use href="#i-settings"/></svg></button>
+    </div>
+  </aside>
+
+  <main class="main">
+    <div class="main-body">
+
+      <!-- ============ Thread ============ -->
+      <section class="thread">
+        <header class="pane-head thread-head">
+          <button class="btn btn-ghost btn-sm"><svg class="i i-xs"><use href="#i-left"/></svg>Inbox<span class="kbd">Esc</span></button>
+          <span class="head-sep"></span>
+          <button class="btn btn-ghost btn-sm"><svg class="i i-xs"><use href="#i-done"/></svg>Done<span class="kbd">E</span></button>
+          <button class="btn btn-ghost btn-sm"><svg class="i i-xs"><use href="#i-snooze"/></svg>Snooze<span class="kbd">H</span></button>
+          <button class="btn btn-ghost btn-sm"><svg class="i i-xs"><use href="#i-tag"/></svg>Label<span class="kbd">L</span></button>
+          <button class="btn btn-ghost btn-sm"><svg class="i i-xs"><use href="#i-belloff"/></svg>Mute<span class="kbd">M</span></button>
+          <button class="btn btn-ghost btn-sm btn-icon"><svg class="i i-xs"><use href="#i-more"/></svg></button>
+          <span class="grow"></span>
+          <span class="faint tnum" style="font-size:12px;margin-right:4px">1 of 12</span>
+          <button class="btn btn-ghost btn-sm"><svg class="i i-xs"><use href="#i-up"/></svg><span class="kbd">K</span></button>
+          <button class="btn btn-ghost btn-sm"><svg class="i i-xs"><use href="#i-down"/></svg><span class="kbd">J</span></button>
+        </header>
+
+        <div class="thread-scroll">
+          <div class="thread-col">
+            <div class="row-flex" style="gap:6px;margin-bottom:10px">
+              <span class="badge acc-work acc-badge"><i class="dot dot-sm"></i>Northwind</span>
+              <span class="badge lbl t-blue">Clients</span>
+              <span class="faint" style="font-size:12px;margin-left:4px">4 messages · 3 people</span>
+            </div>
+            <h1 class="thread-title">Q4 brand refresh — final review deck</h1>
+
+            <div class="stack">
+              <div class="collapsed">
+                <span class="avatar avatar-sm t-gray">SO</span>
+                <span class="c-name">You</span>
+                <span class="c-snip truncate">Kicking off the Q4 refresh review. Brief and timeline are in the shared folder — first look Sep 17</span>
+                <span class="c-date tnum">Sep 15</span>
+              </div>
+              <div class="collapsed-more"><span class="line-l"></span><span>1 more message</span><span class="line-l"></span></div>
+              <div class="collapsed">
+                <span class="avatar avatar-sm t-cyan">MB</span>
+                <span class="c-name">Marco Bellini</span>
+                <span class="c-snip truncate">Direction B for me. The wordmark spacing still feels a touch loose at small sizes, otherwise</span>
+                <span class="c-date tnum">Sep 21</span>
+              </div>
+
+              <article class="message">
+                <header class="m-head">
+                  <span class="avatar t-violet">PN</span>
+                  <div class="grow">
+                    <div class="row-flex" style="gap:8px"><span class="m-name">Priya Natarajan</span><span class="faint" style="font-size:12px">priya@linden.example</span></div>
+                    <div class="faint" style="font-size:12px;line-height:16px">to you, Marco Bellini</div>
+                  </div>
+                  <span class="faint tnum" style="font-size:12px">Today, 9:41 AM</span>
+                  <button class="btn btn-ghost btn-sm btn-icon"><svg class="i i-xs"><use href="#i-reply"/></svg></button>
+                  <button class="btn btn-ghost btn-sm btn-icon"><svg class="i i-xs"><use href="#i-more"/></svg></button>
+                </header>
+                <div class="prose m-body">
+                  <p>Hi Sam,</p>
+                  <p>Attached is v7 of the review deck with Tuesday's lockups. Everything from the last round is in, including Marco's wordmark spacing note.</p>
+                  <p>Two open questions before we lock it:</p>
+                  <ol>
+                    <li>Keep the warm gray in the secondary palette, or drop it for the cooler neutral on slide 14?</li>
+                    <li>Can we move the stakeholder review to Monday the 28th? Thursday is tight on our side.</li>
+                  </ol>
+                  <p class="sig">Happy to walk through it live — I'm free after 2 PM your time.<br>Priya</p>
+                </div>
+                <div class="attachments">
+                  <div class="att-head"><span class="section-title">3 attachments · 16.9 MB</span><button class="btn btn-ghost btn-sm"><svg class="i i-xs"><use href="#i-download"/></svg>Save all</button></div>
+                  <div class="att-grid">
+                    <div class="file t-red"><span class="file-ico">PDF</span><div class="grow"><div class="fname truncate">Northwind_Brand_Review_v7.pdf</div><div class="fmeta">12.4 MB · 38 pages</div></div></div>
+                    <div class="file t-violet"><span class="file-ico">PNG</span><div class="grow"><div class="fname truncate">Logo_Lockups_v3.png</div><div class="fmeta">2.1 MB · 3200 × 1800</div></div></div>
+                    <div class="file t-blue"><span class="file-ico">KEY</span><div class="grow"><div class="fname truncate">Palette_Options.key</div><div class="fmeta">2.4 MB · 6 slides</div></div></div>
+                  </div>
+                </div>
+              </article>
+
+            </div>
+          </div>
+        </div>
+        <div class="reply-dock">
+      <div class="reply">
+        <div class="reply-to">
+          <svg class="i i-xs"><use href="#i-replyall"/></svg><span>Reply all to <span class="emph">Priya Natarajan</span>, <span class="emph">Marco Bellini</span></span>
+          <span class="grow"></span>
+          <span class="badge acc-work acc-badge"><i class="dot dot-sm"></i>sam@northwind.example</span>
+        </div>
+        <div class="reply-body">Thanks Priya — v7 looks great. Let's drop the warm gray and go with the cooler neutral. Monday works<span class="caret"></span></div>
+        <div class="reply-tools">
+          <button class="btn btn-primary btn-sm">Send<span class="kbd">⌘↵</span></button>
+          <button class="btn btn-ghost btn-sm"><svg class="i i-xs"><use href="#i-clock"/></svg>Send later<span class="kbd">⌘⇧↵</span></button>
+          <button class="btn btn-ghost btn-sm"><svg class="i i-xs"><use href="#i-zap"/></svg>Snippets<span class="kbd">;</span></button>
+          <span class="grow"></span>
+          <button class="btn btn-ghost btn-sm btn-icon"><svg class="i i-xs"><use href="#i-clip"/></svg></button>
+          <button class="btn btn-ghost btn-sm faint"><svg class="i i-xs"><use href="#i-sparkles"/></svg>Draft with AI<span class="kbd">⌘J</span></button>
+        </div>
+      </div>
+        </div>
+      </section>
+
+      <!-- ============ Context panel ============ -->
+      <aside class="context">
+        <div class="ctx-person">
+          <span class="avatar avatar-lg t-violet">PN</span>
+          <div class="grow" style="min-width:0">
+            <div class="ctx-name">Priya Natarajan</div>
+            <div class="faint truncate" style="font-size:12px">Design Director · Linden &amp; Co</div>
+          </div>
+        </div>
+        <div class="ctx-facts">
+          <div class="fact"><svg class="i i-xs"><use href="#i-mail"/></svg><span class="truncate">priya@linden.example</span></div>
+          <div class="fact"><svg class="i i-xs"><use href="#i-clock"/></svg><span>2:41 PM in London</span><span class="faint">· 5h ahead</span></div>
+          <div class="fact"><svg class="i i-xs"><use href="#i-history"/></svg><span>First emailed Mar 2025</span><span class="faint">· 64 threads</span></div>
+        </div>
+        <div class="row-flex" style="gap:6px;padding:0 16px 16px">
+          <button class="btn btn-secondary btn-sm grow"><svg class="i i-xs"><use href="#i-search"/></svg>All mail with Priya</button>
+          <button class="btn btn-secondary btn-sm btn-icon"><svg class="i i-xs"><use href="#i-compose"/></svg></button>
+        </div>
+
+        <div class="ctx-section">
+          <div class="ctx-title"><span>Recent threads</span><span class="faint tnum">64</span></div>
+          <a class="ctx-row"><span class="truncate grow">Brand refresh — direction round 2</span><span class="faint tnum">Sep 17</span></a>
+          <a class="ctx-row"><span class="truncate grow">Invoice LC-2291 — September</span><span class="faint tnum">Sep 2</span></a>
+          <a class="ctx-row"><span class="truncate grow">Kickoff notes + moodboard</span><span class="faint tnum">Aug 26</span></a>
+          <a class="ctx-row"><span class="truncate grow">SOW — Q4 brand refresh (signed)</span><span class="faint tnum">Aug 14</span></a>
+        </div>
+
+        <div class="ctx-section">
+          <div class="ctx-title"><span>Shared files</span><span class="faint tnum">23</span></div>
+          <a class="ctx-file t-red"><span class="mini-ico">PDF</span><span class="truncate grow">Northwind_Brand_Review_v7.pdf</span><span class="faint">Today</span></a>
+          <a class="ctx-file t-violet"><span class="mini-ico">PNG</span><span class="truncate grow">Logo_Lockups_v3.png</span><span class="faint">Today</span></a>
+          <a class="ctx-file t-red"><span class="mini-ico">PDF</span><span class="truncate grow">Direction_Round_2.pdf</span><span class="faint">Sep 17</span></a>
+          <a class="ctx-file t-green"><span class="mini-ico">XLS</span><span class="truncate grow">Q4_Timeline.xlsx</span><span class="faint">Aug 26</span></a>
+        </div>
+
+        <div class="ctx-section">
+          <div class="ctx-title"><span>In this thread</span></div>
+          <div class="ctx-people">
+            <span class="avatar avatar-sm t-violet">PN</span><span class="avatar avatar-sm t-cyan">MB</span><span class="avatar avatar-sm t-gray">SO</span>
+            <span class="faint" style="font-size:12px;margin-left:6px">Priya, Marco, you</span>
+          </div>
+        </div>
+
+        <div class="ctx-section">
+          <div class="ctx-title"><span>Upcoming with Priya</span></div>
+          <div class="ctx-event">
+            <span class="ev-date"><span>SEP</span>28</span>
+            <div class="grow" style="min-width:0"><div class="truncate emph" style="font-size:13px">Stakeholder review — Q4 brand</div><div class="faint" style="font-size:11px">Mon · 2:00 – 3:00 PM · proposed</div></div>
+          </div>
+        </div>
+      </aside>
+    </div>
+
+    <footer class="statusbar">
+      <span class="hint"><span class="kbd-group"><span class="kbd">N</span><span class="kbd">P</span></span>Next / prev message</span>
+      <span class="hint"><span class="kbd">R</span>Reply</span>
+      <span class="hint"><span class="kbd">A</span>Reply all</span>
+      <span class="hint"><span class="kbd">F</span>Forward</span>
+      <span class="hint"><span class="kbd">E</span>Done</span>
+      <span class="hint"><span class="kbd">O</span>Expand all</span>
+      <span class="hint"><span class="kbd">I</span>Toggle panel</span>
+      <span class="right"><span class="sync-dot"></span>Synced just now · 3 accounts</span>
+    </footer>
+  </main>
+</div>
+<script src="penguin.js"></script>
+</body>
+</html>
+

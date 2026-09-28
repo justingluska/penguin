@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024" role="img" aria-labelledby="title desc">
+  <title id="title">Penguin — Special delivery — optical size</title>
+  <desc id="desc">A small penguin peeks out of an open white envelope and rests its flippers on the rim.</desc>
+  <path d="M316 100H708C852 100 924 172 924 316V708C924 852 852 924 708 924H316C172 924 100 852 100 708V316C100 172 172 100 316 100Z" fill="#dae6ef"/>
+  <g>
+    <path d="M246 488L483 298Q512 275 541 298L778 488V708Q778 764 722 764H302Q246 764 246 708Z" fill="#a2b9cc"/>
+    <path d="M246 488L512 689L778 488L541 298Q512 275 483 298Z" fill="#dae6ee"/>
+    <path d="M340 680V377C340 282 409 225 512 225S684 282 684 377V680Z" fill="#142231"/>
+    <path d="M512 358C470 302 385 308 381 385V589C381 640 430 678 512 678S643 640 643 589V385C639 308 554 302 512 358Z" fill="#fff"/>
+    <circle cx="442" cy="399" r="36" fill="#13202d"/><circle cx="582" cy="399" r="36" fill="#13202d"/>
+    <path d="M466 456Q512 442 558 456L520 510Q512 522 504 510Z" fill="#f5ad4f"/>
+    <path d="M246 488L489 644Q512 659 535 644L778 488V713Q778 765 726 765H298Q246 765 246 713Z" fill="#ffffff"/>
+    <path d="M252 492L489 644Q512 659 535 644L772 492" fill="none" stroke="#6d8a9f" stroke-width="36" stroke-linejoin="round"/>
+    <path d="M334 476C314 478 305 492 308 516L316 550C323 577 356 572 359 548L361 509C363 487 351 475 334 476Z M690 476C710 478 719 492 716 516L708 550C701 577 668 572 665 548L663 509C661 487 673 475 690 476Z" fill="#152230"/>
+  </g>
+</svg>

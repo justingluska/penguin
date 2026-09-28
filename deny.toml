@@ -1,0 +1,55 @@
+# cargo-deny: run `cargo deny check` (advisories, licenses, bans, sources).
+# See docs/SECURITY.md → Supply chain.
+
+[graph]
+all-features = false
+
+[advisories]
+version = 2
+# Vulnerabilities, unsound crates and yanked versions anywhere in the tree
+# fail the check. "Unmaintained" fails only for our direct dependencies:
+# the transitive ones today (gtk-rs 0.18, unic-*, proc-macro-error) come in
+# through Tauri, and the fix is a Tauri upgrade, not an ignore list here.
+yanked = "deny"
+unmaintained = "workspace"
+ignore = []
+
+[licenses]
+version = 2
+# Permissive licenses, plus MPL-2.0 (file-level copyleft; fine for
+# unmodified dependencies). Anything else needs a deliberate exception.
+allow = [
+    "MIT",
+    "MIT-0",
+    "Apache-2.0",
+    "Apache-2.0 WITH LLVM-exception",
+    "BSD-2-Clause",
+    "BSD-3-Clause",
+    "ISC",
+    "Zlib",
+    "0BSD",
+    "CC0-1.0",
+    "BSL-1.0",
+    "Unlicense",
+    "Unicode-3.0",
+    "CDLA-Permissive-2.0",
+    "MPL-2.0",
+]
+confidence-threshold = 0.9
+
+[licenses.private]
+# Penguin's own crates carry no open-source license yet ("UNLICENSED"), so
+# each must set `publish = false` to be skipped here (and to keep path
+# dependencies from counting as wildcards under [bans]).
+ignore = true
+
+[bans]
+multiple-versions = "warn"
+wildcards = "deny"
+# Workspace path dependencies are not wildcards in practice.
+allow-wildcard-paths = true
+
+[sources]
+unknown-registry = "deny"
+unknown-git = "deny"
+allow-registry = ["https://github.com/rust-lang/crates.io-index"]

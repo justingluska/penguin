@@ -1,0 +1,122 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Penguin — Command palette</title>
+<script>(function(){var t=new URLSearchParams(location.search).get('theme');document.documentElement.dataset.theme=t==='light'?'light':'dark';})();</script>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="penguin.css">
+</head>
+<body>
+<div class="app">
+  <aside class="sidebar">
+    <button class="switcher"><svg class="logo" viewBox="0 0 26 26" aria-label="Penguin"><rect x=".5" y=".5" width="25" height="25" rx="8" fill="var(--logo-tile)" stroke="var(--logo-ring)"/><path d="M13 8.6c-1.1-1.9-5.3-1.9-5.6 1.7-.2 2.4.5 4.6 1.2 6.4.8 2.2 2.3 3.9 4.4 3.9s3.6-1.7 4.4-3.9c.7-1.8 1.4-4 1.2-6.4-.3-3.6-4.5-3.6-5.6-1.7Z" fill="#f5f5f4"/><circle cx="10.9" cy="11.6" r="1.05" fill="#0b0c0e"/><circle cx="15.1" cy="11.6" r="1.05" fill="#0b0c0e"/><path d="M11.8 13.5h2.4L13 15.4Z" fill="#ff9d4d"/></svg><span>All accounts</span>
+      <span class="acct-stack"><i class="dot acc-work"></i><i class="dot acc-harbor"></i><i class="dot acc-personal"></i></span>
+      <svg class="i i-sm chev"><use href="#i-updown"/></svg></button>
+    <div class="sb-actions">
+      <button class="btn btn-primary"><svg class="i i-sm"><use href="#i-compose"/></svg>New message<span class="kbd">C</span></button>
+      <button class="btn btn-secondary"><svg class="i i-sm"><use href="#i-search"/></svg>Search<span class="kbd">/</span></button>
+    </div>
+    <nav class="nav"><a class="nav-item active" href="#"><svg class="i "><use href="#i-inbox"/></svg>Inbox</a><a class="nav-item" href="#"><svg class="i "><use href="#i-screener"/></svg>Screener<span class="count">4</span></a><a class="nav-item" href="#"><svg class="i "><use href="#i-star"/></svg>Starred</a><a class="nav-item" href="#"><svg class="i "><use href="#i-snooze"/></svg>Snoozed<span class="count">3</span></a><a class="nav-item" href="#"><svg class="i "><use href="#i-send"/></svg>Sent</a><a class="nav-item" href="#"><svg class="i "><use href="#i-draft"/></svg>Drafts<span class="count">2</span></a><a class="nav-item" href="#"><svg class="i "><use href="#i-done"/></svg>Done</a></nav>
+    <div class="nav-section">Labels</div>
+    <nav class="nav"><a class="nav-item" href="#"><span class="label-sq t-blue"></span>Clients<span class="count">18</span></a><a class="nav-item" href="#"><span class="label-sq t-amber"></span>Finance</a><a class="nav-item" href="#"><span class="label-sq t-cyan"></span>Travel<span class="count">2</span></a><a class="nav-item" href="#"><span class="label-sq t-gray"></span>Receipts</a><a class="nav-item" href="#"><span class="label-sq t-red"></span>Home</a></nav>
+    <div class="nav-section">Accounts<button class="btn btn-ghost btn-sm btn-icon"><svg class="i i-xs"><use href="#i-plus"/></svg></button></div>
+    <nav class="nav"><a class="nav-item" href="#"><i class="dot acc-work"></i>Northwind<span class="count">8</span></a><a class="nav-item" href="#"><i class="dot acc-harbor"></i>Harbor Labs<span class="count">3</span></a><a class="nav-item" href="#"><i class="dot acc-personal"></i>Personal<span class="count">1</span></a></nav>
+    <div class="sb-bottom">
+      <span class="avatar avatar-sm t-gray">SO</span><span class="who grow truncate">Sam Okafor</span>
+      <button class="btn btn-ghost btn-sm btn-icon"><svg class="i i-sm"><use href="#i-settings"/></svg></button>
+    </div>
+  </aside>
+
+  <main class="main">
+    <header class="pane-head">
+      <h1 class="page-title">Inbox</h1>
+      <div class="tabs">
+        <a class="tab active" href="#">Important <span class="count">0</span></a>
+        <a class="tab" href="#">Other <span class="count">48</span></a>
+        <a class="tab" href="#">Newsletters <span class="count">9</span></a>
+        <a class="tab" href="#">Calendar <span class="count">3</span></a>
+      </div>
+    </header>
+
+    <div class="zero">
+      <div class="zero-band dotgrid"></div>
+      <div class="zero-inner">
+        <div class="zero-art">
+          <div class="zero-bloom"></div>
+          <svg viewBox="14 24 92 92" width="120" height="120" aria-hidden="true">
+            <path d="M14 94c10-4 28-6 46-6s36 2 46 6l-8 9c-12 3-26 4-38 4s-26-1-38-4Z" fill="var(--floe)" stroke="var(--border-default)"/>
+            <path d="M26 112h18M56 114h26M90 111h10" stroke="var(--border-default)" stroke-width="2" stroke-linecap="round"/>
+            <ellipse cx="47" cy="70" rx="5" ry="13" transform="rotate(18 47 70)" fill="var(--peng)"/>
+            <ellipse cx="73" cy="70" rx="5" ry="13" transform="rotate(-18 73 70)" fill="var(--peng)"/>
+            <path d="M60 32c-12 0-19 10-19 26 0 18 7 32 19 32s19-14 19-32c0-16-7-26-19-26Z" fill="var(--peng)" stroke="var(--peng-edge)"/>
+            <path d="M60 46c-4-4-12-3-12 5 0 5 1 10 2 15 2 10 5 19 10 19s8-9 10-19c1-5 2-10 2-15 0-8-8-9-12-5Z" fill="#f5f5f4"/>
+            <circle cx="55" cy="51" r="1.8" fill="#0b0c0e"/><circle cx="65" cy="51" r="1.8" fill="#0b0c0e"/>
+            <path d="M57 55h6l-3 4Z" fill="#ff9d4d"/>
+            <ellipse cx="54" cy="90" rx="5" ry="2.2" fill="#ff9d4d"/><ellipse cx="66" cy="90" rx="5" ry="2.2" fill="#ff9d4d"/>
+          </svg>
+        </div>
+        <h2 class="zero-title">Inbox zero. Nicely done.</h2>
+        <p class="zero-copy">Everything important is handled across all three accounts. 3 snoozed messages come back at 4:00 PM.</p>
+        <div class="zero-cta">
+          <button class="btn btn-secondary">Review Other<span class="kbd">L</span></button>
+          <button class="btn btn-ghost"><svg class="i i-sm"><use href="#i-undo"/></svg>Undo last done<span class="kbd">⌘Z</span></button>
+        </div>
+      </div>
+    </div>
+
+    <footer class="statusbar">
+      <span class="hint"><span class="kbd">C</span>Compose</span>
+      <span class="hint"><span class="kbd">/</span>Search</span>
+      <span class="hint"><span class="kbd">⌘K</span>Commands</span>
+      <span class="hint"><span class="kbd">?</span>All shortcuts</span>
+      <span class="right"><span class="sync-dot"></span>Synced just now · 3 accounts</span>
+    </footer>
+  </main>
+</div>
+
+<div class="scrim soft"></div>
+<div class="overlay-host">
+  <section class="palette panel" role="dialog" aria-label="Command palette">
+    <div class="pal-input">
+      <svg class="i i-sm faint"><use href="#i-command"/></svg>
+      <span class="pal-query"><span class="caret"></span><span class="pal-ph">Type a command, a person, or search mail…</span></span>
+      <span class="grow"></span>
+      <span class="chip pal-scope"><i class="dot dot-sm acc-work"></i><i class="dot dot-sm acc-harbor" style="margin-left:-2px"></i><i class="dot dot-sm acc-personal" style="margin-left:-2px"></i>All accounts</span>
+    </div>
+
+    <div class="pal-list">
+      <div class="pal-group">Suggested</div>
+      <a class="menu-item active"><svg class="i i-sm"><use href="#i-snooze"/></svg><span>Snooze Other until tomorrow</span><span class="pal-meta">48 conversations</span><span class="kbd-group"><span class="kbd">⇧</span><span class="kbd">H</span></span></a>
+      <a class="menu-item"><svg class="i i-sm"><use href="#i-screener"/></svg><span>Review 4 new senders</span><span class="pal-meta">Screener</span><span class="kbd-group"><span class="kbd">G</span><span class="kbd">N</span></span></a>
+      <a class="menu-item"><svg class="i i-sm"><use href="#i-done"/></svg><span>Mark all as done</span><span class="kbd-group"><span class="kbd">⇧</span><span class="kbd">E</span></span></a>
+
+      <div class="pal-group">Go to</div>
+      <a class="menu-item"><svg class="i i-sm"><use href="#i-snooze"/></svg><span>Snoozed</span><span class="pal-meta">3 returning at 4:00 PM</span><span class="kbd-group"><span class="kbd">G</span><span class="kbd">H</span></span></a>
+      <a class="menu-item"><svg class="i i-sm"><use href="#i-send"/></svg><span>Sent</span><span class="kbd-group"><span class="kbd">G</span><span class="kbd">T</span></span></a>
+
+      <div class="pal-group">Settings</div>
+      <a class="menu-item"><svg class="i i-sm"><use href="#i-keyboard"/></svg><span>Keyboard shortcuts</span><span class="kbd">?</span></a>
+      <a class="menu-item"><svg class="i i-sm"><use href="#i-moon"/></svg><span>Switch theme</span><span class="pal-meta">Light · Dark · System</span><span class="kbd">T</span></a>
+
+      <div class="pal-group">Accounts</div>
+      <a class="menu-item"><i class="dot acc-work pal-dot"></i><span>Switch to Northwind</span><span class="pal-meta">sam@northwind.example</span><span class="kbd">⌥1</span></a>
+      <a class="menu-item"><i class="dot acc-harbor pal-dot"></i><span>Switch to Harbor Labs</span><span class="pal-meta">sam@harborlabs.example</span><span class="kbd">⌥2</span></a>
+      <a class="menu-item"><i class="dot acc-personal pal-dot"></i><span>Switch to Personal</span><span class="pal-meta">sam@okafor.example</span><span class="kbd">⌥3</span></a>
+    </div>
+
+    <footer class="pal-foot">
+      <span class="hint"><span class="kbd-group"><span class="kbd">↑</span><span class="kbd">↓</span></span>Select</span>
+      <span class="hint"><span class="kbd">↵</span>Run</span>
+      <span class="hint"><span class="kbd">⇥</span>Options</span>
+      <span class="grow"></span>
+      <span class="hint faint">Every action, with its shortcut</span>
+      <span class="hint"><span class="kbd">Esc</span>Close</span>
+    </footer>
+  </section>
+</div>
+<script src="penguin.js"></script>
+</body>
+</html>
+

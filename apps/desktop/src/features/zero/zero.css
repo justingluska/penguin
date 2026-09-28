@@ -1,0 +1,53 @@
+/* ==========================================================================
+   Get to zero (features/zero): the dialog, and the celebration on the empty
+   inbox. Tokens only.
+   ========================================================================== */
+.gz.st-confirm { width: 460px; }
+.gz-body .st-confirm-title { font-size: var(--text-lg); font-weight: 600; color: var(--text-emphasis); margin-bottom: 6px; }
+.gz-body .st-confirm-body { color: var(--text-muted); }
+.gz-scope { display: flex; align-items: center; gap: 4px; margin-top: 14px; }
+.gz-scope .kbd { margin-left: 6px; }
+.gz-opt, .gz-age {
+  display: flex; align-items: center; gap: 8px; border: 0; cursor: default;
+  border-radius: var(--radius-lg); color: var(--text-default); font-size: var(--text-sm);
+  background: transparent; box-shadow: inset 0 0 0 1px var(--border-interactive);
+}
+.gz-opt { height: 28px; padding: 0 10px; font-weight: 500; }
+.gz-opt:hover, .gz-age:hover { background: var(--bg-interactive-hover); }
+.gz-opt.is-on, .gz-age.is-on {
+  background: color-mix(in srgb, var(--accent) 12%, transparent); color: var(--text-emphasis);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 55%, transparent);
+}
+.gz-ages { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-top: 12px; }
+.gz-age { height: 34px; padding: 0 8px 0 12px; justify-content: space-between; text-align: left; }
+.gz-keep { display: flex; gap: 18px; margin-top: 14px; }
+.gz-check { display: inline-flex; align-items: center; gap: 7px; font-size: var(--text-sm); color: var(--text-default); }
+.gz-check input { accent-color: var(--accent); }
+.gz-count { margin-top: 14px; min-height: 20px; font-weight: 500; color: var(--text-emphasis) !important; font-variant-numeric: tabular-nums; }
+
+/* --------------------------------------------------------------------------
+   The empty inbox: the penguin lands on its floe once, the ice bobs, and a
+   few flakes drift down. Calm, short, and nothing moves with reduced motion.
+   -------------------------------------------------------------------------- */
+.zero.is-celebrating .zero-art svg { animation: zero-land 700ms var(--ease-spring, cubic-bezier(.3,1.4,.5,1)) both; }
+.zero.is-celebrating .zero-bloom { animation: zero-bloom 1.4s var(--ease-out) both; }
+.zero-flakes { position: absolute; inset: 0; pointer-events: none; overflow: hidden; }
+.zero-flake {
+  position: absolute; top: -12px; width: 6px; height: 6px; border-radius: 50%;
+  background: color-mix(in srgb, var(--accent) 35%, var(--bg-panel)); opacity: 0;
+  animation: zero-flake 3.6s linear both;
+}
+.zero-stat { margin-top: 2px; font-size: var(--text-sm); color: var(--text-muted); font-variant-numeric: tabular-nums; }
+.zero-stat strong { color: var(--text-emphasis); font-weight: 600; }
+.zero-next { gap: 8px; }
+@keyframes zero-land { from { transform: translateY(-26px) scale(.92); opacity: 0; } 60% { opacity: 1; } }
+@keyframes zero-bloom { from { opacity: 0; transform: translate(-50%, -50%) scale(.7); } }
+@keyframes zero-flake {
+  0% { opacity: 0; transform: translate(0, 0); }
+  10% { opacity: .9; }
+  100% { opacity: 0; transform: translate(var(--dx, 12px), 320px); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .zero.is-celebrating .zero-art svg, .zero.is-celebrating .zero-bloom { animation: none; }
+  .zero-flakes { display: none; }
+}

@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024" role="img" aria-labelledby="title desc">
+  <title id="title">Penguin — Happy mail</title>
+  <desc id="desc">The triangular flap of a white envelope is a penguin face, framed by a deep ink app tile.</desc>
+  <defs>
+    <linearGradient id="tile" x1="235" y1="100" x2="770" y2="924" gradientUnits="userSpaceOnUse"><stop stop-color="#253242"/><stop offset=".52" stop-color="#1b2634"/><stop offset="1" stop-color="#121c28"/></linearGradient>
+    <linearGradient id="paper" x1="512" y1="333" x2="512" y2="731" gradientUnits="userSpaceOnUse"><stop stop-color="#ffffff"/><stop offset="1" stop-color="#dae5ee"/></linearGradient>
+    <linearGradient id="ink" x1="512" y1="340" x2="512" y2="602" gradientUnits="userSpaceOnUse"><stop stop-color="#293b4c"/><stop offset="1" stop-color="#111e2b"/></linearGradient>
+    <filter id="tile-shadow" x="0" y="0" width="1024" height="1024" filterUnits="userSpaceOnUse"><feDropShadow dx="0" dy="16" stdDeviation="15" flood-color="#030912" flood-opacity=".25"/></filter>
+    <filter id="lift" x="160" y="260" width="704" height="570" filterUnits="userSpaceOnUse"><feDropShadow dx="0" dy="13" stdDeviation="13" flood-color="#000" flood-opacity=".24"/></filter>
+  </defs>
+  <path d="M316 100H708C852 100 924 172 924 316V708C924 852 852 924 708 924H316C172 924 100 852 100 708V316C100 172 172 100 316 100Z" fill="url(#tile)" filter="url(#tile-shadow)"/>
+  <path d="M316 102H708C850 102 922 174 922 316V708C922 850 850 922 708 922H316C174 922 102 850 102 708V316C102 174 174 102 316 102Z" fill="none" stroke="#fff" stroke-opacity=".15" stroke-width="2"/>
+  <g filter="url(#lift)">
+    <rect x="228" y="324" width="568" height="412" rx="58" fill="url(#paper)"/>
+    <path d="M253 708L442 551M771 708L582 551" fill="none" stroke="#aabcca" stroke-width="14" stroke-linecap="round"/>
+    <path d="M250 367Q243 345 272 345H752Q781 345 774 367L548 593Q512 627 476 593Z" fill="#a4b6c5" fill-opacity=".5"/>
+    <path d="M250 355Q247 337 276 337H748Q777 337 774 355L548 581Q512 615 476 581Z" fill="url(#ink)"/>
+    <path d="M512 396C465 335 355 335 356 396C357 444 418 506 512 569C606 506 667 444 668 396C669 335 559 335 512 396Z" fill="#fff"/>
+    <circle cx="430" cy="420" r="22" fill="#13202d"/><circle cx="594" cy="420" r="22" fill="#13202d"/>
+    <path d="M479 466Q512 455 545 466L518 501Q512 509 506 501Z" fill="#f5ad4f"/>
+  </g>
+</svg>

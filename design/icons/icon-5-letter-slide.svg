@@ -1,0 +1,28 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024" role="img" aria-labelledby="title desc">
+  <title id="title">Penguin — First-class slide</title>
+  <desc id="desc">A round baby penguin balances on a gently tilted letter, one flipper lifted in a wave.</desc>
+  <defs>
+    <linearGradient id="ice" x1="256" y1="100" x2="768" y2="924" gradientUnits="userSpaceOnUse"><stop stop-color="#f1f7fa"/><stop offset="1" stop-color="#c7dce9"/></linearGradient>
+    <linearGradient id="ink" x1="395" y1="261" x2="650" y2="634" gradientUnits="userSpaceOnUse"><stop stop-color="#2a3a4b"/><stop offset="1" stop-color="#111d2b"/></linearGradient>
+    <linearGradient id="paper" x1="512" y1="582" x2="512" y2="768" gradientUnits="userSpaceOnUse"><stop stop-color="#fff"/><stop offset="1" stop-color="#e2edf4"/></linearGradient>
+    <filter id="tile-shadow" x="0" y="0" width="1024" height="1024" filterUnits="userSpaceOnUse"><feDropShadow dx="0" dy="16" stdDeviation="15" flood-color="#030912" flood-opacity=".19"/></filter>
+    <filter id="lift" x="160" y="170" width="720" height="710" filterUnits="userSpaceOnUse"><feDropShadow dx="0" dy="11" stdDeviation="10" flood-color="#23364b" flood-opacity=".16"/></filter>
+  </defs>
+  <path d="M316 100H708C852 100 924 172 924 316V708C924 852 852 924 708 924H316C172 924 100 852 100 708V316C100 172 172 100 316 100Z" fill="url(#ice)" filter="url(#tile-shadow)"/>
+  <path d="M316 102H708C850 102 922 174 922 316V708C922 850 850 922 708 922H316C174 922 102 850 102 708V316C102 174 174 102 316 102Z" fill="none" stroke="#fff" stroke-opacity=".65" stroke-width="2"/>
+  <g filter="url(#lift)">
+    <g transform="rotate(10 524 464)">
+      <path d="M364 419C312 390 296 335 271 348C237 367 272 461 349 486Z M680 455C747 472 779 526 756 543C736 557 696 519 660 519Z" fill="#192939"/>
+      <path d="M522 257C408 257 330 337 330 457C330 577 400 638 522 638S714 577 714 457C714 337 636 257 522 257Z" fill="url(#ink)"/>
+      <path d="M522 379C475 312 372 332 372 423C372 534 410 597 522 597S672 534 672 423C672 332 569 312 522 379Z" fill="#fff"/>
+      <circle cx="447" cy="425" r="23" fill="#152231"/><circle cx="597" cy="425" r="23" fill="#152231"/>
+      <path d="M490 469Q522 458 554 469L528 503Q522 510 516 503Z" fill="#f5ad4f"/>
+    </g>
+    <g transform="rotate(-10 512 667)">
+      <rect x="242" y="574" width="540" height="200" rx="38" fill="url(#paper)"/>
+      <path d="M269 751L447 635M755 751L577 635" fill="none" stroke="#b5c8d6" stroke-width="11" stroke-linecap="round"/>
+      <path d="M259 590L493 705Q512 715 531 705L765 590" fill="none" stroke="#8ca5b9" stroke-width="15" stroke-linecap="round" stroke-linejoin="round"/>
+      <path d="M401 558C374 556 354 572 364 589C374 605 413 609 443 594L448 572Z M621 558C648 556 668 572 658 589C648 605 609 609 579 594L574 572Z" fill="#f5ad4f"/>
+    </g>
+  </g>
+</svg>

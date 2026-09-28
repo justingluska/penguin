@@ -1,0 +1,26 @@
+/* components/Modal.tsx: the confirm dialog (.st-scrim/.st-confirm in
+   settings.css) plus what longer dialogs need. */
+
+.app-modal { z-index: 960; padding: 16px; }
+.st-confirm.modal { outline: none; max-height: calc(100vh - 32px); display: flex; flex-direction: column; }
+.modal-scroll { overflow-y: auto; min-height: 0; margin: 0 -20px; padding: 0 20px; }
+.modal .st-confirm-actions { flex: none; align-items: center; }
+.modal-actions-spacer { margin-right: auto; }
+.modal p { font-size: var(--text-sm); line-height: 20px; }
+.modal p + p { margin-top: 8px; }
+
+/* A URL or path: monospace, selectable, cut in the middle when long
+   (the start and the end are what tell you where it goes). */
+.modal-url {
+  display: flex; align-items: center; gap: 6px; min-width: 0;
+  margin-top: 10px; padding: 4px 4px 4px 10px;
+  border: 1px solid var(--border-default); border-radius: var(--radius-lg);
+  background: var(--bg-subtle);
+}
+.modal-url-text {
+  flex: 1; min-width: 0; display: flex;
+  font: 12px/20px var(--font-mono); color: var(--text-default);
+  user-select: text; -webkit-user-select: text; cursor: text; white-space: nowrap;
+}
+.modal-url-head { overflow: hidden; text-overflow: ellipsis; min-width: 0; flex: 0 1 auto; }
+.modal-url-tail { flex: none; white-space: pre; }

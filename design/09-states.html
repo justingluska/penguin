@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Penguin — States</title>
+<script>(function(){var t=new URLSearchParams(location.search).get('theme');document.documentElement.dataset.theme=t==='light'?'light':'dark';})();</script>
+<link rel="stylesheet" href="penguin.css">
+<link rel="stylesheet" href="penguin-screens-2.css">
+</head>
+<body class="screens-2"><div class="s2-shell">
+<header class="s2-top"><a class="s2-brand" href="index.html" data-theme-link><svg class="logo" viewBox="0 0 26 26" aria-label="Penguin"><rect x=".5" y=".5" width="25" height="25" rx="8" fill="var(--logo-tile)" stroke="var(--logo-ring)"/><path d="M13 8.6c-1.1-1.9-5.3-1.9-5.6 1.7-.2 2.4.5 4.6 1.2 6.4.8 2.2 2.3 3.9 4.4 3.9s3.6-1.7 4.4-3.9c.7-1.8 1.4-4 1.2-6.4-.3-3.6-4.5-3.6-5.6-1.7Z" fill="#f5f5f4"/><circle cx="10.9" cy="11.6" r="1.05" fill="#0b0c0e"/><circle cx="15.1" cy="11.6" r="1.05" fill="#0b0c0e"/><path d="M11.8 13.5h2.4L13 15.4Z" fill="#ff9d4d"/></svg><span>Penguin</span></a><span class="grow"></span><a class="btn btn-ghost" href="01-inbox.html" data-theme-link><svg class="i i-sm" aria-hidden="true"><use href="#i-left"/></svg>Back to inbox</a></header>
+<main class="s2-content"><div class="states-page">
+  <div class="states-intro"><div><h1 class="s2-title">The moments in between</h1><p class="s2-subtitle">Clear feedback. A useful next step. Then back to your mail.</p></div><span class="badge t-gray">Empty states · banners · toasts</span></div>
+  <div class="states-grid">
+    <section class="card state-card" aria-label="Empty inbox">
+      <header class="state-label"><span>Inbox cleared</span><span class="mono">01 / EMPTY STATE</span></header>
+      <div class="state-empty"><div class="zero-band dotgrid"></div><div class="zero-inner">
+        <div class="zero-art"><div class="zero-bloom"></div><svg viewBox="14 24 92 92" width="120" height="120" aria-hidden="true">
+            <path d="M14 94c10-4 28-6 46-6s36 2 46 6l-8 9c-12 3-26 4-38 4s-26-1-38-4Z" fill="var(--floe)" stroke="var(--border-default)"/>
+            <path d="M26 112h18M56 114h26M90 111h10" stroke="var(--border-default)" stroke-width="2" stroke-linecap="round"/>
+            <ellipse cx="47" cy="70" rx="5" ry="13" transform="rotate(18 47 70)" fill="var(--peng)"/>
+            <ellipse cx="73" cy="70" rx="5" ry="13" transform="rotate(-18 73 70)" fill="var(--peng)"/>
+            <path d="M60 32c-12 0-19 10-19 26 0 18 7 32 19 32s19-14 19-32c0-16-7-26-19-26Z" fill="var(--peng)" stroke="var(--peng-edge)"/>
+            <path d="M60 46c-4-4-12-3-12 5 0 5 1 10 2 15 2 10 5 19 10 19s8-9 10-19c1-5 2-10 2-15 0-8-8-9-12-5Z" fill="#f5f5f4"/>
+            <circle cx="55" cy="51" r="1.8" fill="#0b0c0e"/><circle cx="65" cy="51" r="1.8" fill="#0b0c0e"/>
+            <path d="M57 55h6l-3 4Z" fill="#ff9d4d"/>
+            <ellipse cx="54" cy="90" rx="5" ry="2.2" fill="#ff9d4d"/><ellipse cx="66" cy="90" rx="5" ry="2.2" fill="#ff9d4d"/>
+          </svg></div>
+        <h2 class="zero-title">Inbox zero. Nicely done.</h2><p class="zero-copy">Everything important is handled<br>across all three accounts.</p>
+        <div class="zero-cta"><a class="btn btn-secondary" href="01-inbox.html" data-theme-link>Review Other</a><button class="btn btn-ghost"><svg class="i i-xs" aria-hidden="true"><use href="#i-undo"/></svg>Undo last archive <span class="kbd">Z</span></button></div>
+      </div></div>
+    </section>
+    <section class="card state-card" aria-label="Search has no results">
+      <header class="state-label"><span>No local matches</span><span class="mono">02 / EMPTY STATE</span></header>
+      <div class="state-search">
+        <div class="state-query"><svg class="i i-sm" aria-hidden="true"><use href="#i-search"/></svg><span class="mono"><span class="query-op">from:</span>mike <span class="query-op">has:</span>pdf lease</span><span class="grow"></span><span class="badge t-gray">0 results</span></div>
+        <h2 class="no-results">No matches in this scope.</h2><p>Searching Northwind · last 30 days.<br>Try more accounts or a wider date range.</p>
+        <div class="broaden"><button class="chip">All 3 accounts <svg class="i i-xs" aria-hidden="true"><use href="#i-right"/></svg></button><button class="chip">Any time <svg class="i i-xs" aria-hidden="true"><use href="#i-right"/></svg></button></div>
+        <div class="gmail-search"><button class="btn btn-secondary"><svg class="i i-xs" aria-hidden="true"><use href="#i-cloud"/></svg>Search Gmail too</button><span>Searches Google directly · requires internet</span></div>
+      </div>
+    </section>
+    <section class="card state-card" aria-label="Offline banner">
+      <header class="state-label"><span>Offline</span><span class="mono">03 / BANNER</span></header>
+      <div class="state-banner" role="status"><svg class="i i-sm" aria-hidden="true"><use href="#i-cloud"/></svg><div class="grow"><span>You’re offline. Your saved mail is here.</span><p>Read and search locally. New mail will sync when you’re back.</p></div><span class="badge t-gray">Offline</span></div>
+    </section>
+    <section class="card state-card" aria-label="Account needs sign-in banner">
+      <header class="state-label"><span>Sign-in required</span><span class="mono">04 / BANNER</span></header>
+      <div class="state-banner reauth" role="status"><svg class="i i-sm" aria-hidden="true"><use href="#i-lock"/></svg><div class="grow"><span>Personal needs you to sign in again.</span><p>sam@okafor.example · saved mail is still available</p></div><button class="btn btn-secondary">Reconnect</button></div>
+    </section>
+    <section class="card state-card" aria-label="Sending and action toasts">
+      <header class="state-label"><span>Sending &amp; actions</span><span class="mono">05–07 / TOASTS</span></header>
+      <div class="state-toasts">
+        <div class="s2-toast" role="status"><svg class="send-countdown" viewBox="0 0 20 20" aria-hidden="true"><circle cx="10" cy="10" r="8"/><circle class="remaining" cx="10" cy="10" r="8"/></svg><span>Sending in <span class="tnum">9s</span></span><span class="muted">·</span><button class="btn btn-ghost btn-sm">Undo <span class="kbd">Z</span></button><span class="grow"></span><span class="s2-muted">To Priya Natarajan</span></div>
+        <div class="s2-toast" role="status"><svg class="i i-sm" aria-hidden="true"><use href="#i-archive"/></svg><span>Archived</span><span class="muted">·</span><button class="btn btn-ghost btn-sm">Undo <span class="kbd">Z</span></button><span class="grow"></span><span class="badge acc-work acc-badge">Northwind</span></div>
+        <div class="s2-toast toast-error" role="alert"><svg class="i i-sm" aria-hidden="true"><use href="#i-info"/></svg><div class="grow"><span>Couldn’t send to Priya.</span><p class="s2-muted">Connection interrupted. Your draft is saved.</p></div><button class="btn btn-secondary btn-sm"><svg class="i i-xs" aria-hidden="true"><use href="#i-refresh"/></svg>Retry</button><a class="btn btn-ghost btn-sm" href="04-compose.html" data-theme-link>Open draft</a></div>
+      </div>
+    </section>
+    <section class="card state-card" aria-label="Remote images blocked in a message">
+      <header class="state-label"><span>Remote images blocked</span><span class="mono">08 / MESSAGE</span></header>
+      <div class="state-message">
+        <div class="sender-row"><span class="avatar t-violet">PN</span><div class="grow"><span class="emph">Priya Natarajan</span><p class="s2-muted">priya@linden.example · to you</p></div><span class="s2-muted tnum">9:41 AM</span></div>
+        <div class="remote-bar"><svg class="i i-xs" aria-hidden="true"><use href="#i-image"/></svg><span>Remote images blocked</span><span class="grow"></span><span class="s2-muted">2 trackers blocked</span><button class="btn btn-secondary btn-sm">Load images</button></div>
+        <div class="prose">Hi Sam — here’s the updated brand direction.<br>The review deck has the full set of lockups.</div>
+        <div class="blocked-image"><svg class="i i-xs" aria-hidden="true"><use href="#i-image"/></svg>Brand preview · image hidden</div>
+      </div>
+    </section>
+  </div>
+</div></main>
+<footer class="statusbar s2-foot"><span class="hint"><span class="kbd">Z</span>Undo last action</span><span class="hint"><span class="kbd">?</span>Shortcuts</span><span class="right">Your mail stays available on this Mac</span></footer>
+</div><script src="penguin.js"></script><script src="penguin-screens-2.js"></script></body></html>

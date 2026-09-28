@@ -1,0 +1,188 @@
+/* Composer additions on top of penguin.css section 12 (.composer, .field…). */
+.cmp-host { padding: 24px; }
+.composer.cmp { max-height: 100%; }
+@media (max-width: 1100px) { .composer.cmp { margin-left: 0; } }
+
+.cmp-loading { padding: 40px 18px; color: var(--text-faint); font-size: var(--text-sm); }
+.cmp-input { flex: 1; min-width: 60px; height: 28px; padding: 0; border: 0; outline: none; background: transparent;
+  font: inherit; color: var(--text-emphasis); caret-color: var(--accent); }
+.cmp-input::placeholder { color: var(--text-placeholder); font-weight: 400; }
+.field .subject-input.cmp-input { font-size: var(--text-base); font-weight: 500; }
+
+.cmp-from { position: relative; }
+.from-select .dot { background: var(--tm, var(--t11)); }
+.cmp-from-menu { position: absolute; top: 32px; left: -8px; z-index: 10; min-width: 340px; }
+.cmp-from-menu .menu-item { font-size: var(--text-sm); cursor: default; }
+.cmp-from-menu .menu-item .kbd { margin-left: auto; }
+
+.field.cmp-rcpts { padding-top: 8px; padding-bottom: 8px; align-items: flex-start; }
+.cmp-rcpts .f-label { line-height: 28px; }
+.cmp-rcpts .f-links { line-height: 28px; }
+.cmp-rcpt-wrap { flex: 1; min-width: 0; display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.rcpt { position: relative; }
+.rcpt-x { display: none; align-items: center; margin: 0 -4px 0 -2px; color: var(--text-faint); border-radius: 4px; }
+.rcpt:hover .rcpt-x { display: inline-flex; }
+.rcpt-x:hover { color: var(--text-emphasis); }
+.cmp-rcpt-input { position: relative; flex: 1; min-width: 120px; display: flex; }
+.cmp-ac { position: absolute; top: 32px; left: -8px; z-index: 10; min-width: 340px; padding: 4px 0; }
+.cmp-ac .menu-item { font-size: var(--text-sm); cursor: default; }
+.f-links a { cursor: pointer; }
+.f-links a:hover { color: var(--text-emphasis); }
+
+.cmp-body.cmp-body-live { height: auto; min-height: 330px; padding: 0; display: flex; flex-direction: column; }
+.cmp-text { flex: 1; min-height: 300px; max-height: 46vh; resize: none; border: 0; outline: none; background: transparent;
+  padding: 18px 18px 8px 82px; font-weight: 400; line-height: 1.5;
+  /* Writing font + size from Settings → Compose (lib/composeFonts.ts). */
+  font-family: var(--compose-font, var(--font-sans)); font-size: var(--compose-font-size, var(--text-base));
+  font-feature-settings: var(--compose-font-features, "cv11", "ss01");
+  color: var(--text-emphasis); caret-color: var(--accent); }
+.cmp-text::placeholder { color: var(--text-placeholder); }
+.cmp-quote { padding: 0 18px 12px 82px; }
+.cmp-quote-toggle { display: inline-flex; align-items: center; height: 16px; padding: 0 6px; border-radius: 6px;
+  background: var(--bg-interactive); border: 1px solid var(--border-interactive); color: var(--text-muted); }
+.cmp-quote-toggle:hover { background: var(--bg-interactive-hover); color: var(--text-emphasis); }
+.cmp-quote-text { margin: 10px 0 0; padding-left: 12px; border-left: 2px solid var(--border-default); max-height: 180px; overflow: auto;
+  font: 400 var(--text-sm)/20px var(--font-sans); color: var(--text-muted); white-space: pre-wrap; }
+.snippets.cmp-snippets { position: absolute; }
+.cmp-snippets .menu-item { cursor: default; }
+
+.cmp-error { display: flex; align-items: center; gap: 8px; margin: 0 14px 10px 18px; padding: 6px 6px 6px 10px; border-radius: var(--radius-lg);
+  background: var(--red-a3); color: var(--red-a11); font-size: var(--text-xs); }
+.cmp-error .btn { margin-left: auto; color: inherit; }
+.cmp-tools .btn-primary:disabled { opacity: .5; cursor: default; }
+.cmp-foot .dot { background: var(--tm, var(--t11)); }
+
+/* Draft autosave + discard confirm */
+.cmp-save { display: inline-flex; align-items: center; gap: 4px; color: var(--text-faint); }
+.cmp-save .i { color: var(--green-a11); }
+.cmp-save-err { color: var(--amber-a11); }
+.cmp-discard { display: inline-flex; align-items: center; gap: 6px; font-size: var(--text-xs); color: var(--text-default); }
+.cmp-discard-yes { background: var(--red-a3); color: var(--red-a11); border-color: var(--red-a5); }
+.cmp-discard-yes:hover { background: var(--red-a4); }
+.cmp-discard-yes .kbd { color: inherit; border-color: currentColor; opacity: .6; background: transparent; }
+
+/* Emoji shortcode picker */
+.cmp-emoji { position: absolute; z-index: 5; width: 260px; padding: 4px 0; }
+.cmp-emoji .menu-item { font-size: var(--text-sm); gap: 10px; min-height: 30px; cursor: default; }
+.cmp-emoji .kbd { margin-left: auto; }
+.cmp-emoji-glyph { font-size: 17px; width: 22px; text-align: center; }
+.cmp-emoji-name { font-size: 11.5px; color: var(--text-muted); }
+.menu-item.active .cmp-emoji-name { color: var(--accent-text); }
+.sn-body { white-space: pre-wrap; }
+
+/* Attachments */
+.cmp { position: relative; }
+.cmp-atts { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; padding: 0 18px 12px 82px; }
+.cmp-att { display: inline-flex; align-items: center; gap: 8px; height: 28px; max-width: 280px; padding: 0 4px 0 5px;
+  border-radius: var(--radius-lg); border: 1px solid var(--border-default); font-size: var(--text-xs); color: var(--text-emphasis); }
+.cmp-att-name { font-weight: 500; min-width: 0; }
+.cmp-att-size { color: var(--text-faint); flex: none; }
+.cmp-att-x { display: inline-flex; padding: 3px; border-radius: 5px; color: var(--text-faint); }
+.cmp-att-x:hover { color: var(--text-emphasis); background: var(--bg-interactive-hover); }
+.cmp-atts-total { font-size: 11px; color: var(--text-faint); margin-left: 4px; }
+/* The original of a reply/forward: downloading, failed, earlier files */
+.cmp-orig { display: flex; align-items: center; gap: 8px; min-height: 28px; margin: -4px 18px 10px 82px; font-size: var(--text-xs); color: var(--text-muted); }
+.cmp-orig-error { margin-left: 18px; padding: 4px 4px 4px 10px; border-radius: var(--radius-lg); background: var(--red-a3); color: var(--red-a11); }
+.cmp-orig-error .btn { color: inherit; flex: none; }
+.cmp-orig-switch { display: inline-flex; align-items: center; gap: 8px; padding: 3px 6px 3px 3px; margin-left: -3px; border-radius: var(--radius-md); color: var(--text-muted); }
+.cmp-orig-switch:hover { background: var(--bg-interactive-hover); color: var(--text-emphasis); }
+.cmp-orig-switch:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.cmp-drop { position: absolute; inset: 6px; z-index: 20; display: flex; align-items: center; justify-content: center; gap: 8px;
+  border: 2px dashed var(--accent); border-radius: var(--radius-2xl); background: color-mix(in srgb, var(--bg-panel) 85%, transparent);
+  font-size: var(--text-sm); font-weight: 500; color: var(--accent-text); pointer-events: none; }
+
+/* Send later + remind */
+.cmp-menu-anchor { position: relative; display: inline-flex; }
+.cmp-later, .cmp-remind-menu { position: absolute; bottom: calc(100% + 8px); left: 0; z-index: 12; width: 320px; padding: 4px 0 6px; outline: none; }
+.cmp-remind-menu { width: 260px; }
+.cmp-later .menu-item, .cmp-remind-menu .menu-item { font-size: var(--text-sm); cursor: default; }
+.cmp-later-head { display: flex; justify-content: space-between; align-items: center; gap: 8px; height: 30px; padding: 0 12px; font-size: 11px; font-weight: 500; color: var(--text-muted); }
+.cmp-later-when { margin-left: auto; font-size: var(--text-xs); }
+.cmp-later-custom { display: flex; gap: 6px; padding: 6px 10px 2px; border-top: 1px solid var(--border-subtle); margin-top: 4px; }
+.cmp-later-custom .input { height: 28px; flex: 1; padding: 0 8px; font-size: var(--text-xs); color: var(--text-emphasis); }
+.cmp-later-custom .input:focus { outline: none; border-color: var(--accent); }
+.cmp-later-error { padding: 4px 12px 0; font-size: var(--text-xs); color: var(--red-a11); }
+.cmp-later-foot { padding: 6px 12px 0; font-size: 11px; line-height: 16px; }
+.cmp-remind-on { color: var(--accent-text); }
+.cmp-remind-on .i { color: var(--accent-text); }
+.cmp-scheduled { display: flex; align-items: center; gap: 8px; margin: 12px 18px 0 82px; padding: 4px 4px 4px 10px; border-radius: var(--radius-lg);
+  background: var(--accent-soft); color: var(--text-default); font-size: var(--text-xs); }
+.cmp-scheduled > .i { color: var(--accent-text); }
+.cmp-scheduled-text { min-width: 0; }
+.cmp-scheduled .btn { flex: none; }
+
+/* Recipient chips: address on name clashes, keyboard focus, inline edit */
+.rcpt { cursor: default; outline: none; }
+.rcpt:focus { box-shadow: 0 0 0 2px var(--accent); border-color: transparent; }
+.rcpt:focus .rcpt-x { display: inline-flex; }
+.rcpt-email { color: var(--text-muted); font-size: var(--text-xs); }
+.rcpt.rcpt-editing { padding: 0 4px; }
+.rcpt-edit { height: 22px; min-width: 120px; border: 0; outline: none; background: transparent; font: inherit; color: var(--text-emphasis); caret-color: var(--accent); }
+.rcpt.rcpt-invalid { border-color: var(--red-a11); box-shadow: 0 0 0 2px var(--red-a3); }
+.rcpt { cursor: pointer; }
+.rcpt-hover { position: fixed; z-index: 70; width: 320px; padding: 12px 14px 10px; }
+.rcpt-hover-usual { display: flex; align-items: center; gap: 6px; margin-top: 8px; font-size: var(--text-xs); color: var(--text-muted); }
+.rcpt-hover-foot { margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--border-subtle); font-size: 11px; }
+
+/* Reply lock (Settings → Compose): From stays on the account the mail came to. */
+.cmp-from-menu .menu-item[aria-disabled="true"] { opacity: 0.5; }
+.cmp-from-lock { display: inline-flex; align-items: center; gap: 5px; }
+
+/* ⌘; snippet picker: over the top of the text, like the ";" completion. */
+.cmp-picker-anchor { position: relative; height: 0; z-index: 16; }
+.cmp-snippet-picker { position: absolute; top: 6px; left: 70px; width: min(560px, calc(100% - 88px)); overflow: hidden; display: flex; flex-direction: column; }
+.cmp-sp-search { display: flex; align-items: center; gap: 8px; height: 38px; padding: 0 12px; border-bottom: 1px solid var(--border-subtle); }
+.cmp-sp-search .cmp-input { font-size: var(--text-sm); }
+.cmp-sp-grid { display: grid; grid-template-columns: 220px 1fr; min-height: 180px; max-height: 300px; }
+.cmp-sp-list { padding: 4px 0 6px; border-right: 1px solid var(--border-subtle); overflow-y: auto; }
+.cmp-sp-list .menu-item { font-size: var(--text-sm); gap: 8px; min-height: 30px; cursor: default; }
+.cmp-sp-extra { margin-left: auto; flex: none; }
+.cmp-sp-none { padding: 8px 12px; font-size: var(--text-xs); }
+.cmp-sp-preview { overflow-y: auto; }
+.cmp-sp-meta { font-size: var(--text-xs); color: var(--text-default); margin-bottom: 4px; overflow-wrap: anywhere; }
+.cmp-sp-meta .faint { display: inline-block; min-width: 48px; }
+.cmp-sp-preview .sn-body { margin-top: 6px; }
+.cmp-sp-files { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+.cmp-sp-empty { display: flex; flex-direction: column; align-items: flex-start; gap: 8px; padding: 14px 16px; font-size: var(--text-sm); color: var(--text-muted); }
+.cmp-sp-empty p { margin: 0; }
+
+/* Instant replies: one row above the text while nothing is written. */
+.cmp-instant, .reply-instant { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.cmp-instant { padding: 12px 18px 0 82px; }
+.cmp-instant-label { font-size: 11px; font-weight: 500; margin-right: 2px; }
+.cmp-instant-chip { display: inline-flex; align-items: center; gap: 6px; max-width: 280px; height: 26px; padding: 0 5px 0 10px;
+  border-radius: 13px; border: 1px solid var(--border-interactive); background: var(--bg-interactive);
+  font: inherit; font-size: var(--text-xs); color: var(--text-emphasis); cursor: default; }
+.cmp-instant-chip:hover { background: var(--bg-interactive-hover); }
+.cmp-instant-chip:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.cmp-instant-chip .kbd { flex: none; }
+.cmp-instant-chip.is-ai { border-color: var(--accent-soft); }
+.cmp-instant-ai { color: var(--accent-text); flex: none; }
+.cmp-instant-chip.is-loading { padding-right: 10px; color: var(--text-muted); animation: cmp-pulse 1.4s ease-in-out infinite; }
+@keyframes cmp-pulse { 50% { opacity: .55; } }
+/* In the thread's reply box: under "Write a reply…", lined up with it. */
+.reply-instant { margin-top: -4px; padding: 0 14px 10px; }
+.reply-instant .cmp-instant-chip { padding-right: 10px; }
+
+/* Write with AI (⌘⇧J): a bar under the text. */
+.cmp-write { margin: 0 14px 10px 70px; padding: 6px 6px 6px 10px; border-radius: var(--radius-lg); border: 1px solid var(--accent-soft);
+  background: color-mix(in srgb, var(--accent-soft) 35%, transparent); }
+.cmp-write-row { display: flex; align-items: center; gap: 6px; min-height: 30px; }
+.cmp-write-ico { color: var(--accent-text); flex: none; }
+.cmp-write-input { font-size: var(--text-sm); min-width: 0; }
+.cmp-write-status { display: inline-flex; align-items: center; gap: 8px; font-size: var(--text-sm); color: var(--text-default); }
+.cmp-write-presets { display: flex; flex-wrap: wrap; align-items: center; gap: 2px; padding: 4px 0 0 20px; }
+.cmp-write-scope { font-size: 11px; margin-right: 4px; }
+.cmp-write-preset { font-size: var(--text-xs); }
+.cmp-write-error { display: flex; align-items: center; gap: 6px; margin: 6px 0 0 20px; font-size: var(--text-xs); color: var(--red-a11); }
+.cmp-write-error .btn { color: inherit; }
+.cmp-write-foot { padding: 4px 0 0 20px; font-size: 11px; }
+
+/* Send later: a time typed in words, read back as it goes. */
+.cmp-later-words { border-top: 1px solid var(--border-subtle); }
+.cmp-later-words + .cmp-later-custom { border-top: 0; margin-top: 0; }
+.cmp-later-parsed { align-self: center; flex: none; max-width: 150px; font-size: var(--text-xs); color: var(--accent-text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cmp-later-parsed.faint { color: var(--text-faint); }
+.cmp-later { width: 370px; }
+.cmp-later .menu-item > span:not(.kbd) { white-space: nowrap; }
+.cmp-later .menu-item .kbd { margin-left: 8px; }

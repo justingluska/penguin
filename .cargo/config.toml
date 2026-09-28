@@ -1,0 +1,9 @@
+# macOS dev runs go through a runner that signs the app binaries with a stable
+# Apple Development identity, so Keychain "Always Allow" survives rebuilds.
+# Applies to `cargo run` (and therefore `npm run tauri dev`). Test binaries
+# pass straight through. See scripts/dev-codesign-run.sh.
+[target.aarch64-apple-darwin]
+runner = "scripts/dev-codesign-run.sh"
+
+[target.x86_64-apple-darwin]
+runner = "scripts/dev-codesign-run.sh"

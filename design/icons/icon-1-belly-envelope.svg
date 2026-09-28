@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024" role="img" aria-labelledby="title desc">
+  <title id="title">Penguin — Tuxedo post</title>
+  <desc id="desc">A friendly ink penguin whose white belly folds into an envelope, on a pale ice app tile.</desc>
+  <defs>
+    <linearGradient id="ice" x1="256" y1="100" x2="768" y2="924" gradientUnits="userSpaceOnUse"><stop stop-color="#f3f8fb"/><stop offset="1" stop-color="#c8dae8"/></linearGradient>
+    <linearGradient id="ink" x1="360" y1="248" x2="690" y2="770" gradientUnits="userSpaceOnUse"><stop stop-color="#283646"/><stop offset="1" stop-color="#101923"/></linearGradient>
+    <linearGradient id="paper" x1="512" y1="350" x2="512" y2="732" gradientUnits="userSpaceOnUse"><stop stop-color="#ffffff"/><stop offset="1" stop-color="#edf3f7"/></linearGradient>
+    <filter id="tile-shadow" x="0" y="0" width="1024" height="1024" filterUnits="userSpaceOnUse"><feDropShadow dx="0" dy="16" stdDeviation="15" flood-color="#030912" flood-opacity=".19"/></filter>
+    <filter id="lift" x="190" y="200" width="644" height="650" filterUnits="userSpaceOnUse"><feDropShadow dx="0" dy="10" stdDeviation="9" flood-color="#23364b" flood-opacity=".16"/></filter>
+  </defs>
+  <!-- 824px continuous-corner tile, 100px clear canvas margin. -->
+  <path d="M316 100H708C852 100 924 172 924 316V708C924 852 852 924 708 924H316C172 924 100 852 100 708V316C100 172 172 100 316 100Z" fill="url(#ice)" filter="url(#tile-shadow)"/>
+  <path d="M316 102H708C850 102 922 174 922 316V708C922 850 850 922 708 922H316C174 922 102 850 102 708V316C102 174 174 102 316 102Z" fill="none" stroke="#fff" stroke-opacity=".65" stroke-width="2"/>
+  <g filter="url(#lift)">
+    <path d="M406 747C374 747 351 766 360 785C369 800 424 801 455 784L470 754Z M618 747C650 747 673 766 664 785C655 800 600 801 569 784L554 754Z" fill="#f5ad4f"/>
+    <path d="M328 469C283 498 256 554 251 612C248 641 270 650 291 624L347 557Z M696 469C741 498 768 554 773 612C776 641 754 650 733 624L677 557Z" fill="#14212e"/>
+    <path d="M512 237C383 237 308 335 308 492V575C308 710 379 778 512 778S716 710 716 575V492C716 335 641 237 512 237Z" fill="url(#ink)"/>
+    <!-- One continuous white bib: face above, envelope belly below. -->
+    <path d="M512 374C466 308 353 314 350 414L351 644C351 704 394 735 512 735S673 704 673 644L674 414C671 314 558 308 512 374Z" fill="url(#paper)"/>
+    <path d="M354 518L495 612Q512 624 529 612L670 518" fill="none" stroke="#8196a7" stroke-width="17" stroke-linecap="round" stroke-linejoin="round"/>
+    <path d="M371 697L462 621M653 697L562 621" fill="none" stroke="#bacbd8" stroke-width="10" stroke-linecap="round"/>
+    <circle cx="430" cy="423" r="22" fill="#111c28"/><circle cx="594" cy="423" r="22" fill="#111c28"/>
+    <path d="M480 469Q512 458 544 469L518 503Q512 510 506 503Z" fill="#f5ad4f"/>
+  </g>
+</svg>

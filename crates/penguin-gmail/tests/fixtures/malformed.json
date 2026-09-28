@@ -1,0 +1,49 @@
+{
+ "id": "m5",
+ "threadId": "t5",
+ "snippet": "",
+ "payload": {
+  "partId": "",
+  "filename": "",
+  "headers": [
+   {
+    "name": "Subject",
+    "value": "Broken"
+   }
+  ],
+  "parts": [
+   {
+    "partId": "0",
+    "mimeType": "text/plain",
+    "headers": [],
+    "body": {
+     "size": 10,
+     "data": "!!!not base64!!!"
+    }
+   },
+   {
+    "partId": "1",
+    "mimeType": "text/html",
+    "headers": []
+   },
+   {
+    "partId": "2",
+    "mimeType": "application/octet-stream",
+    "filename": "empty.bin",
+    "headers": [],
+    "body": {
+     "size": 0
+    }
+   },
+   {
+    "partId": "3",
+    "mimeType": "text/plain",
+    "headers": [],
+    "body": {
+     "size": 5,
+     "data": "ZmluZQo"
+    }
+   }
+  ]
+ }
+}

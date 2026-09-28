@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024" role="img" aria-labelledby="title desc">
+  <title id="title">Penguin — Quiet post glyph</title>
+  <desc id="desc">A single-color penguin with an envelope belly. Transparent cutouts inherit the surface; all ink uses currentColor.</desc>
+  <!-- No tile, gradients, masks or baked-in white: suitable for a template image. -->
+  <path fill="currentColor" fill-rule="evenodd" d="M512 128C344 128 256 253 256 416V464C219 499 197 553 191 603C188 626 205 636 223 617L256 582V726C256 826 348 868 512 868S768 826 768 726V582L801 617C819 636 836 626 833 603C827 553 805 499 768 464V416C768 253 680 128 512 128ZM512 324C460 247 327 270 327 389V480L496 593Q512 604 528 593L697 480V389C697 270 564 247 512 324ZM327 555V711C327 769 389 796 512 796S697 769 697 711V555L553 651Q512 678 471 651Z"/>
+  <circle cx="419" cy="398" r="29" fill="currentColor"/><circle cx="605" cy="398" r="29" fill="currentColor"/>
+  <path d="M477 466H547L512 513Z" fill="currentColor"/>
+</svg>

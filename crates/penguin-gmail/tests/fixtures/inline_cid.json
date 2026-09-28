@@ -1,0 +1,71 @@
+{
+ "id": "m3",
+ "threadId": "t3",
+ "labelIds": [
+  "CATEGORY_PROMOTIONS"
+ ],
+ "snippet": "Welcome to Acme!",
+ "internalDate": "1758400000000",
+ "payload": {
+  "partId": "",
+  "mimeType": "multipart/related",
+  "filename": "",
+  "headers": [
+   {
+    "name": "From",
+    "value": "Acme <hello@acme.example>"
+   },
+   {
+    "name": "To",
+    "value": "me@penguin.example"
+   },
+   {
+    "name": "Subject",
+    "value": "Welcome"
+   }
+  ],
+  "body": {
+   "size": 0
+  },
+  "parts": [
+   {
+    "partId": "0",
+    "mimeType": "text/html",
+    "filename": "",
+    "headers": [
+     {
+      "name": "Content-Type",
+      "value": "text/html; charset=utf-8"
+     }
+    ],
+    "body": {
+     "size": 88,
+     "data": "PGRpdj48aW1nIHNyYz0iY2lkOmxvZ28xMjNAYWNtZS5leGFtcGxlIiBhbHQ9IkFjbWUiPjxwPldlbGNvbWUgdG8gPGI-QWNtZTwvYj4hPC9wPjwvZGl2Pg"
+    }
+   },
+   {
+    "partId": "1",
+    "mimeType": "image/png",
+    "filename": "logo.png",
+    "headers": [
+     {
+      "name": "Content-Type",
+      "value": "image/png; name=logo.png"
+     },
+     {
+      "name": "Content-Disposition",
+      "value": "inline; filename=logo.png"
+     },
+     {
+      "name": "Content-ID",
+      "value": "<logo123@acme.example>"
+     }
+    ],
+    "body": {
+     "attachmentId": "ANGjdJ_png",
+     "size": 2048
+    }
+   }
+  ]
+ }
+}

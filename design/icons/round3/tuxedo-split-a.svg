@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024" role="img" aria-labelledby="title desc">
+  <title id="title">Penguin — Tuxedo split A — Forward fold</title>
+  <desc id="desc">The split tilts fifteen degrees counterclockwise: a white envelope belly and an ink back ending in a forward point.</desc>
+  <!-- Two painted paths, two colors. Original round-2 tile and 100px margins. -->
+  <defs><clipPath id="tile-clip"><use href="#tile"/></clipPath></defs>
+  <path id="tile" fill="#182B3A" d="M324 100H700C852 100 924 172 924 324V700C924 852 852 924 700 924H324C172 924 100 852 100 700V324C100 172 172 100 324 100Z"/>
+  <g clip-path="url(#tile-clip)">
+    <path fill="#FFFFFF" d="M340.499 381.957L587.721 485.499L1583.221 -466.597L1900 1900H1500L694 970C414.189 811.521 296.049 594.711 340.499 381.957Z"/>
+  </g>
+</svg>

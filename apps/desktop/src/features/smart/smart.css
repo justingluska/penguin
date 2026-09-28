@@ -1,0 +1,82 @@
+/* Smart views (features/smart): the sidebar group, a row's fact line, the
+   slim header over the list, and Settings → Views. Tokens from
+   styles/penguin.css only. */
+
+/* Sidebar: its own group under a hairline, like Calendar. */
+.nav-smart { position: relative; margin-top: 7px; padding-top: 8px; }
+.nav-smart::before {
+  content: ""; position: absolute; top: 0; left: 10px; right: 10px;
+  border-top: 1px solid var(--border-subtle);
+}
+.nav-smart .smart-item > .truncate { min-width: 0; }
+
+/* A row's fact, in place of the snippet. */
+.msg .smart-slot { display: inline-flex; align-items: center; gap: 6px; min-width: 0; max-width: 100%; vertical-align: middle; }
+.msg .line .smart-slot { display: inline; }
+.msg .smart-sep { color: var(--text-faint); }
+.msg .smart-title { color: var(--text-muted); font-weight: 500; }
+.msg.unread .smart-title { color: var(--text-default); }
+.msg .smart-fact { color: var(--text-faint); font-size: var(--text-sm); }
+.msg .smart-fact::before { content: "\00b7"; margin: 0 6px 0 2px; color: var(--text-faint); }
+.msg .line .smart-fact { margin-left: 2px; }
+.msg .smart-chip {
+  display: inline-flex; align-items: center; height: 18px; padding: 0 6px; margin-left: 8px;
+  border-radius: var(--radius-md); font-size: 11px; font-weight: 500; white-space: nowrap;
+  background: var(--t3); color: var(--t11); vertical-align: 1px;
+}
+.msg .smart-amt { margin-left: 8px; color: var(--text-default); font-weight: 600; font-size: var(--text-sm); white-space: nowrap; }
+.msg .smart-amt.is-credit { color: var(--green-a11); }
+.msg.stacked .smart-slot { grid-area: 3 / 1 / 4 / 3; display: flex; overflow: hidden; white-space: nowrap; }
+.msg.stacked.has-avatar .smart-slot { grid-area: 3 / 2 / 4 / 4; }
+.msg.stacked .smart-slot > * { flex: none; }
+.msg.stacked .smart-slot .smart-title { flex: 0 1 auto; min-width: 40px; overflow: hidden; text-overflow: ellipsis; }
+/* Facts give way first, then the title; the chip and the amount never do. */
+.msg.stacked .smart-slot .smart-fact { flex: 0 100 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.msg.stacked .smart-slot .smart-fact::before { margin: 0 5px 0 0; }
+.msg.stacked .smart-slot .smart-chip { margin-left: 2px; }
+.msg.stacked .smart-slot .smart-amt { margin-left: auto; padding-left: 8px; }
+
+/* The slim header over the list. */
+.smart-head {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 6px 22px;
+  flex: none; padding: 2px 20px 10px; border-bottom: 1px solid var(--border-subtle);
+}
+.smart-stat { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
+.smart-stat-label { font-size: 11px; color: var(--text-faint); text-transform: uppercase; letter-spacing: .04em; }
+.smart-stat-value { font-size: var(--text-base); font-weight: 600; color: var(--text-emphasis); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 320px; }
+.smart-stat.is-warn .smart-stat-value { color: var(--red-a11); }
+.smart-stat.is-good .smart-stat-value { color: var(--green-a11); }
+.smart-note { display: flex; align-items: center; gap: 6px; flex-basis: 100%; font-size: var(--text-xs); color: var(--text-muted); }
+.smart-chips { gap: 6px; padding-top: 0; }
+.smart-filter { cursor: pointer; padding: 0 10px; }
+.smart-filter:hover { background: var(--bg-interactive-hover); }
+.smart-filter.is-on { background: var(--bg-accent); color: var(--accent-text); border-color: transparent; }
+.smart-query {
+  display: inline-flex; align-items: center; gap: 6px; max-width: 100%; min-width: 0;
+  height: 26px; padding: 0 10px; border-radius: var(--radius-lg);
+  background: var(--bg-interactive); border: 1px solid var(--border-interactive);
+  font: inherit; font-size: var(--text-xs); color: var(--text-muted); cursor: pointer;
+  font-family: var(--font-mono);
+}
+.smart-query:hover { color: var(--text-emphasis); background: var(--bg-interactive-hover); }
+
+/* Settings → Views. */
+.sv-list { display: flex; flex-direction: column; }
+.setting-row.sv-row { display: grid; grid-template-columns: 28px minmax(0, 1fr) auto auto; align-items: center; gap: 12px; padding: 10px 0; border-top: 1px solid var(--border-subtle); }
+.setting-row.sv-row:first-child { border-top: 0; }
+.sv-row > .i { color: var(--text-muted); justify-self: center; }
+.sv-row .sv-text { min-width: 0; }
+.sv-row .sv-blurb { margin: 2px 0 0; font-size: var(--text-xs); color: var(--text-faint); }
+.sv-count { display: inline-flex; align-items: center; gap: 6px; font-size: var(--text-xs); color: var(--text-muted); white-space: nowrap; cursor: pointer; }
+.sv-count input { margin: 0; accent-color: var(--accent); }
+.sv-count.is-off { visibility: hidden; }
+.sv-order { display: flex; flex-direction: column; }
+.sv-order-row { display: grid; grid-template-columns: 18px 20px minmax(0, 1fr) auto; align-items: center; gap: 10px; padding: 7px 8px; border-radius: var(--radius-md); background: var(--bg-panel); }
+.sv-order-row + .sv-order-row { margin-top: 2px; }
+.sv-order-row .grip { color: var(--text-faint); cursor: grab; }
+.sv-order-row.is-lifted { box-shadow: var(--shadow-panel); }
+.sv-order-row .sv-q { font-family: var(--font-mono); font-size: var(--text-xs); color: var(--text-faint); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sv-order-row .sv-name { min-width: 0; display: flex; flex-direction: column; }
+.sv-order-row .sv-acts { display: flex; gap: 2px; }
+.sv-empty { font-size: var(--text-sm); color: var(--text-faint); padding: 8px 0; }
+.sv-rename { font: inherit; font-size: var(--text-sm); height: 26px; padding: 0 8px; border-radius: var(--radius-md); border: 1px solid var(--border-interactive); background: var(--bg-interactive); color: var(--text-emphasis); min-width: 0; }

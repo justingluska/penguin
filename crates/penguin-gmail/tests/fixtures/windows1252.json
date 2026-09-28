@@ -1,0 +1,40 @@
+{
+ "id": "m4",
+ "threadId": "t4",
+ "labelIds": [
+  "INBOX"
+ ],
+ "snippet": "Grüße aus Köln",
+ "internalDate": "1758300000000",
+ "payload": {
+  "partId": "",
+  "mimeType": "text/plain",
+  "filename": "",
+  "headers": [
+   {
+    "name": "From",
+    "value": "=?ISO-8859-1?Q?J=FCrgen_M=FCller?= <juergen@beispiel.example>"
+   },
+   {
+    "name": "To",
+    "value": "me@penguin.example"
+   },
+   {
+    "name": "Subject",
+    "value": "=?ISO-8859-1?Q?Gr=FC=DFe?="
+   },
+   {
+    "name": "Content-Type",
+    "value": "text/plain; charset=windows-1252"
+   },
+   {
+    "name": "Content-Transfer-Encoding",
+    "value": "quoted-printable"
+   }
+  ],
+  "body": {
+   "size": 27,
+   "data": "R3L832UgYXVzIEv2bG4glyBuYe92ZSBjYWbp"
+  }
+ }
+}

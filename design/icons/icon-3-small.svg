@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024" role="img" aria-labelledby="title desc">
+  <title id="title">Penguin — Happy mail — optical size</title>
+  <desc id="desc">The triangular flap of a white envelope is a penguin face, framed by a deep ink app tile.</desc>
+  <path d="M316 100H708C852 100 924 172 924 316V708C924 852 852 924 708 924H316C172 924 100 852 100 708V316C100 172 172 100 316 100Z" fill="#182332"/>
+  <g>
+    <rect x="228" y="324" width="568" height="412" rx="58" fill="#ffffff"/>
+    <path d="M253 708L442 551M771 708L582 551" fill="none" stroke="#96aebf" stroke-width="28" stroke-linecap="round"/>
+    <path d="M250 355Q247 337 276 337H748Q777 337 774 355L548 581Q512 615 476 581Z" fill="#142231"/>
+    <path d="M512 396C465 335 355 335 356 396C357 444 418 506 512 569C606 506 667 444 668 396C669 335 559 335 512 396Z" fill="#fff"/>
+    <circle cx="430" cy="420" r="36" fill="#13202d"/><circle cx="594" cy="420" r="36" fill="#13202d"/>
+    <path d="M462 474Q512 460 562 474L521 532Q512 544 503 532Z" fill="#f5ad4f"/>
+  </g>
+</svg>

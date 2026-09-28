@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024" role="img" aria-labelledby="title desc">
+  <title id="title">Penguin — Stacked letters</title>
+  <desc id="desc">Two stacked letter cards form a folded white collar and an icy envelope belly.</desc>
+  <path fill="#182B3A" d="M324 100H700C852 100 924 172 924 324V700C924 852 852 924 700 924H324C172 924 100 852 100 700V324C100 172 172 100 324 100Z"/>
+  <path fill="#FFFFFF" d="M336 272H688V336L512 476L336 336Z"/>
+  <path fill="#C4DAE8" d="M288 416L512 600L736 416V696Q736 752 680 752H344Q288 752 288 696Z"/>
+</svg>

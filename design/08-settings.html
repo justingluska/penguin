@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Penguin — Settings</title>
+<script>(function(){var t=new URLSearchParams(location.search).get('theme');document.documentElement.dataset.theme=t==='light'?'light':'dark';})();</script>
+<link rel="stylesheet" href="penguin.css">
+<link rel="stylesheet" href="penguin-screens-2.css">
+</head>
+<body class="screens-2">
+<div class="s2-shell">
+<header class="s2-top"><a class="s2-brand" href="index.html" data-theme-link><svg class="logo" viewBox="0 0 26 26" aria-label="Penguin"><rect x=".5" y=".5" width="25" height="25" rx="8" fill="var(--logo-tile)" stroke="var(--logo-ring)"/><path d="M13 8.6c-1.1-1.9-5.3-1.9-5.6 1.7-.2 2.4.5 4.6 1.2 6.4.8 2.2 2.3 3.9 4.4 3.9s3.6-1.7 4.4-3.9c.7-1.8 1.4-4 1.2-6.4-.3-3.6-4.5-3.6-5.6-1.7Z" fill="#f5f5f4"/><circle cx="10.9" cy="11.6" r="1.05" fill="#0b0c0e"/><circle cx="15.1" cy="11.6" r="1.05" fill="#0b0c0e"/><path d="M11.8 13.5h2.4L13 15.4Z" fill="#ff9d4d"/></svg><span>Penguin</span></a><span class="grow"></span><a class="btn btn-ghost" href="01-inbox.html" data-theme-link><svg class="i i-sm" aria-hidden="true"><use href="#i-left"/></svg>Back to inbox <span class="kbd">Esc</span></a></header>
+<main class="s2-content"><div class="settings-page">
+<div class="settings-intro"><div><h1 class="s2-title">Settings</h1><p class="s2-subtitle">Your accounts, your habits, your Mac.</p></div><span class="grow"></span><span class="s2-muted row-flex"><svg class="i i-xs" aria-hidden="true"><use href="#i-lock"/></svg>Preferences stay on this device</span></div>
+<div class="settings-grid">
+  <div class="settings-column">
+    <section class="settings-section" aria-label="Accounts">
+      <div class="s2-heading"><svg class="i i-sm" aria-hidden="true"><use href="#i-users"/></svg><h2>Accounts</h2><span class="badge t-gray">3 accounts</span></div>
+      <div class="setting-account acc-work">
+<button class="account-color" aria-label="Change Northwind account color"><i class="dot"></i></button><div class="grow"><div class="account-title">Northwind</div><div class="account-mail">sam@northwind.example</div></div>
+<div class="account-order"><button class="btn btn-ghost btn-sm btn-icon" aria-label="Move Northwind up" disabled><svg class="i i-xs" aria-hidden="true"><use href="#i-arrowup"/></svg></button><button class="btn btn-ghost btn-sm btn-icon" aria-label="Move Northwind down" ><svg class="i i-xs" aria-hidden="true"><use href="#i-arrowdown"/></svg></button></div><button class="btn btn-ghost btn-sm account-remove" aria-label="Remove Northwind">Remove</button></div><div class="setting-account acc-harbor">
+<button class="account-color" aria-label="Change Harbor Labs account color"><i class="dot"></i></button><div class="grow"><div class="account-title">Harbor Labs</div><div class="account-mail">sam@harborlabs.example</div></div>
+<div class="account-order"><button class="btn btn-ghost btn-sm btn-icon" aria-label="Move Harbor Labs up" ><svg class="i i-xs" aria-hidden="true"><use href="#i-arrowup"/></svg></button><button class="btn btn-ghost btn-sm btn-icon" aria-label="Move Harbor Labs down" ><svg class="i i-xs" aria-hidden="true"><use href="#i-arrowdown"/></svg></button></div><button class="btn btn-ghost btn-sm account-remove" aria-label="Remove Harbor Labs">Remove</button></div><div class="setting-account acc-personal">
+<button class="account-color" aria-label="Change Personal account color"><i class="dot"></i></button><div class="grow"><div class="account-title">Personal</div><div class="account-mail">sam@okafor.example</div></div>
+<div class="account-order"><button class="btn btn-ghost btn-sm btn-icon" aria-label="Move Personal up" ><svg class="i i-xs" aria-hidden="true"><use href="#i-arrowup"/></svg></button><button class="btn btn-ghost btn-sm btn-icon" aria-label="Move Personal down" disabled><svg class="i i-xs" aria-hidden="true"><use href="#i-arrowdown"/></svg></button></div><button class="btn btn-ghost btn-sm account-remove" aria-label="Remove Personal">Remove</button></div>
+      <div class="settings-note row-flex"><a class="s2-link" href="07-accounts-sync.html" data-theme-link>View sync status <svg class="i i-xs" aria-hidden="true"><use href="#i-right"/></svg></a><span class="grow"></span><a class="btn btn-ghost btn-sm" href="06-welcome.html" data-theme-link><svg class="i i-xs" aria-hidden="true"><use href="#i-plus"/></svg>Add account</a></div>
+    </section>
+    <section class="settings-section" aria-label="General">
+      <div class="s2-heading"><svg class="i i-sm" aria-hidden="true"><use href="#i-sliders"/></svg><h2>General</h2></div>
+      <div class="setting-row"><span class="setting-label">Theme</span><div class="setting-choice"><button data-theme-choice="dark"><svg class="i i-xs" aria-hidden="true"><use href="#i-moon"/></svg>Dark</button><button data-theme-choice="light"><svg class="i i-xs" aria-hidden="true"><use href="#i-sun"/></svg>Light</button><button>System</button></div></div>
+      <div class="setting-row"><span class="setting-label">Density</span><div class="setting-choice"><button class="selected" aria-pressed="true">Compact</button><button class="" aria-pressed="false">Comfortable</button></div></div>
+      <div class="setting-row"><span class="setting-label">Default tab</span><button class="btn btn-secondary">Important <svg class="i i-xs" aria-hidden="true"><use href="#i-down"/></svg></button></div>
+    </section>
+    <section class="settings-section" aria-label="Privacy">
+      <div class="s2-heading"><svg class="i i-sm" aria-hidden="true"><use href="#i-shield"/></svg><h2>Privacy</h2></div>
+      <div class="setting-row"><span class="setting-label">Remote images</span><div class="setting-choice"><button class="selected" aria-pressed="true">Ask</button><button class="" aria-pressed="false">Always</button><button class="" aria-pressed="false">Never</button></div></div>
+      <div class="setting-row setting-tall"><div><span class="setting-label">Tracker blocking</span><p class="s2-muted">Tracking pixels are always blocked.</p></div><span class="badge t-green"><svg class="i i-xs" aria-hidden="true"><use href="#i-shield"/></svg>1,482 blocked</span></div>
+    </section>
+  </div>
+  <div class="settings-column">
+    <section class="settings-section" aria-label="Search">
+      <div class="s2-heading"><svg class="i i-sm" aria-hidden="true"><use href="#i-search"/></svg><h2>Search</h2><span class="badge t-gray">On this Mac</span></div>
+      <p class="index-size tnum">2.1 GB for 318,204 messages</p>
+      <p class="index-path mono">~/Library/Application Support/Penguin/mail.db</p>
+      <div class="index-actions"><a class="s2-link" href="07-accounts-sync.html" data-theme-link>Index &amp; sync status <svg class="i i-xs" aria-hidden="true"><use href="#i-right"/></svg></a><button class="btn btn-secondary"><svg class="i i-xs" aria-hidden="true"><use href="#i-refresh"/></svg>Rebuild index</button></div>
+      <p class="s2-muted settings-note">Search stays local. Rebuilding may temporarily limit results.</p>
+    </section>
+    <section class="settings-section ai-settings" aria-label="AI">
+      <div class="s2-heading"><svg class="i i-sm" aria-hidden="true"><use href="#i-sparkles"/></svg><h2>AI</h2><span class="badge t-violet">All features off</span></div>
+      <p class="s2-muted ai-intro">Optional, feature by feature. Nothing runs until you turn it on.</p>
+      <div class="setting-row ai-provider"><span class="setting-label">Provider</span><div class="setting-choice"><button class="selected" aria-pressed="true">Local</button><button class="" aria-pressed="false">Bring your own key</button></div></div>
+      <div class="setting-row"><span class="setting-label">Answers in search</span><button class="s2-switch" role="switch" aria-checked="false" aria-label="AI answers in search">Off<span class="toggle"><span></span></span></button></div>
+      <div class="setting-row"><span class="setting-label">Draft with AI</span><button class="s2-switch" role="switch" aria-checked="false" aria-label="Draft with AI">Off<span class="toggle"><span></span></span></button></div>
+      <div class="setting-row"><span class="setting-label">Thread summaries</span><button class="s2-switch" role="switch" aria-checked="false" aria-label="AI thread summaries">Off<span class="toggle"><span></span></span></button></div>
+      <div class="setting-row setting-tall"><div><span class="setting-label row-flex">Jev triage <span class="badge t-violet">Experimental</span></span><p class="s2-muted">Suggest priorities for you to review.</p></div><button class="s2-switch" role="switch" aria-checked="false" aria-label="Jev triage experimental">Off<span class="toggle"><span></span></span></button></div>
+      <p class="s2-muted settings-note">Local runs on your Mac. With your own key, enabled features send relevant mail directly to your chosen provider.</p>
+    </section>
+    <section class="settings-section" aria-label="Shortcuts">
+      <a class="shortcuts-link" href="10-shortcuts.html" data-theme-link><svg class="i i-sm" aria-hidden="true"><use href="#i-keyboard"/></svg><div class="grow"><strong>Shortcuts</strong><p class="s2-muted">Open the keyboard cheat sheet</p></div><span class="kbd">?</span><svg class="i i-xs" aria-hidden="true"><use href="#i-right"/></svg></a>
+    </section>
+  </div>
+</div>
+</div></main>
+<footer class="statusbar s2-foot"><span class="hint"><span class="kbd">Tab</span>Next setting</span><span class="hint"><span class="kbd">Space</span>Toggle</span><span class="hint"><span class="kbd">?</span>Shortcuts</span><span class="right"><svg class="i i-xs" aria-hidden="true"><use href="#i-shield"/></svg>No Penguin servers</span></footer>
+</div>
+<script src="penguin.js"></script><script src="penguin-screens-2.js"></script>
+</body></html>

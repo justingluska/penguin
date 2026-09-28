@@ -1,0 +1,79 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Envelope",
+  "description": "Every payload: `{\"schemaVersion\": 1, \"kind\": \"...\", \"data\": {...}}`.",
+  "type": "object",
+  "properties": {
+    "data": {
+      "$ref": "#/$defs/AttachmentTextOut"
+    },
+    "kind": {
+      "description": "\"search\" | \"thread\" | \"threads\" | \"labels\" | \"people\" | \"accounts\" | \"attachmentText\" | \"ask\" | \"ruleMatch\" | \"error\"",
+      "type": "string"
+    },
+    "schemaVersion": {
+      "type": "integer",
+      "format": "uint32",
+      "minimum": 0
+    }
+  },
+  "required": [
+    "schemaVersion",
+    "kind",
+    "data"
+  ],
+  "$defs": {
+    "AttachmentOut": {
+      "type": "object",
+      "properties": {
+        "filename": {
+          "type": "string"
+        },
+        "id": {
+          "type": "string"
+        },
+        "mimeType": {
+          "type": "string"
+        },
+        "size": {
+          "type": "integer",
+          "format": "uint64",
+          "minimum": 0
+        }
+      },
+      "required": [
+        "id",
+        "filename",
+        "mimeType",
+        "size"
+      ]
+    },
+    "AttachmentTextOut": {
+      "type": "object",
+      "properties": {
+        "accountId": {
+          "type": "string"
+        },
+        "attachment": {
+          "$ref": "#/$defs/AttachmentOut"
+        },
+        "messageId": {
+          "type": "string"
+        },
+        "text": {
+          "type": "string"
+        },
+        "truncated": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "accountId",
+        "messageId",
+        "attachment",
+        "text",
+        "truncated"
+      ]
+    }
+  }
+}

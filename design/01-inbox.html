@@ -1,0 +1,268 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Penguin — Inbox</title>
+<script>(function(){var t=new URLSearchParams(location.search).get('theme');document.documentElement.dataset.theme=t==='light'?'light':'dark';})();</script>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="penguin.css">
+</head>
+<body>
+<div class="app">
+  <aside class="sidebar">
+    <button class="switcher"><svg class="logo" viewBox="0 0 26 26" aria-label="Penguin"><rect x=".5" y=".5" width="25" height="25" rx="8" fill="var(--logo-tile)" stroke="var(--logo-ring)"/><path d="M13 8.6c-1.1-1.9-5.3-1.9-5.6 1.7-.2 2.4.5 4.6 1.2 6.4.8 2.2 2.3 3.9 4.4 3.9s3.6-1.7 4.4-3.9c.7-1.8 1.4-4 1.2-6.4-.3-3.6-4.5-3.6-5.6-1.7Z" fill="#f5f5f4"/><circle cx="10.9" cy="11.6" r="1.05" fill="#0b0c0e"/><circle cx="15.1" cy="11.6" r="1.05" fill="#0b0c0e"/><path d="M11.8 13.5h2.4L13 15.4Z" fill="#ff9d4d"/></svg><span>All accounts</span>
+      <span class="acct-stack"><i class="dot acc-work"></i><i class="dot acc-harbor"></i><i class="dot acc-personal"></i></span>
+      <svg class="i i-sm chev"><use href="#i-updown"/></svg></button>
+    <div class="sb-actions">
+      <button class="btn btn-primary"><svg class="i i-sm"><use href="#i-compose"/></svg>New message<span class="kbd">C</span></button>
+      <button class="btn btn-secondary"><svg class="i i-sm"><use href="#i-search"/></svg>Search<span class="kbd">/</span></button>
+    </div>
+    <nav class="nav"><a class="nav-item active" href="#"><svg class="i "><use href="#i-inbox"/></svg>Inbox<span class="count">12</span></a><a class="nav-item" href="#"><svg class="i "><use href="#i-screener"/></svg>Screener<span class="count">4</span></a><a class="nav-item" href="#"><svg class="i "><use href="#i-star"/></svg>Starred</a><a class="nav-item" href="#"><svg class="i "><use href="#i-snooze"/></svg>Snoozed<span class="count">3</span></a><a class="nav-item" href="#"><svg class="i "><use href="#i-send"/></svg>Sent</a><a class="nav-item" href="#"><svg class="i "><use href="#i-draft"/></svg>Drafts<span class="count">2</span></a><a class="nav-item" href="#"><svg class="i "><use href="#i-done"/></svg>Done</a></nav>
+    <div class="nav-section">Labels</div>
+    <nav class="nav"><a class="nav-item" href="#"><span class="label-sq t-blue"></span>Clients<span class="count">18</span></a><a class="nav-item" href="#"><span class="label-sq t-amber"></span>Finance</a><a class="nav-item" href="#"><span class="label-sq t-cyan"></span>Travel<span class="count">2</span></a><a class="nav-item" href="#"><span class="label-sq t-gray"></span>Receipts</a><a class="nav-item" href="#"><span class="label-sq t-red"></span>Home</a></nav>
+    <div class="nav-section">Accounts<button class="btn btn-ghost btn-sm btn-icon"><svg class="i i-xs"><use href="#i-plus"/></svg></button></div>
+    <nav class="nav"><a class="nav-item" href="#"><i class="dot acc-work"></i>Northwind<span class="count">8</span></a><a class="nav-item" href="#"><i class="dot acc-harbor"></i>Harbor Labs<span class="count">3</span></a><a class="nav-item" href="#"><i class="dot acc-personal"></i>Personal<span class="count">1</span></a></nav>
+    <div class="sb-bottom">
+      <span class="avatar avatar-sm t-gray">SO</span><span class="who grow truncate">Sam Okafor</span>
+      <button class="btn btn-ghost btn-sm btn-icon"><svg class="i i-sm"><use href="#i-settings"/></svg></button>
+    </div>
+  </aside>
+
+  <main class="main">
+    <div class="main-body">
+
+      <!-- ============ Message list ============ -->
+      <section class="list">
+        <header class="pane-head">
+          <h1 class="page-title">Inbox</h1>
+          <div class="tabs">
+            <a class="tab active" href="#">Important <span class="count">12</span></a>
+            <a class="tab" href="#">Other <span class="count">48</span></a>
+            <a class="tab" href="#">Newsletters <span class="count">9</span></a>
+            <a class="tab" href="#">Calendar <span class="count">3</span></a>
+          </div>
+          <div class="row-flex" style="margin-left:auto">
+            <button class="btn btn-ghost btn-icon" title="Density"><svg class="i i-sm"><use href="#i-sliders"/></svg></button>
+          </div>
+        </header>
+
+        <div class="list-scroll">
+          <a class="screener-strip" href="#">
+            <span class="screener-ico"><svg class="i i-sm"><use href="#i-screener"/></svg></span>
+            <span><span class="emph">4 new senders</span> are waiting in the Screener</span>
+            <span class="faint truncate">Rhea Holt, Omar Farouk, Mira Bauer +1</span>
+            <span class="kbd-group" style="margin-left:auto"><span class="kbd">G</span><span class="kbd-then">then</span><span class="kbd">N</span></span>
+          </a>
+
+          <div class="group-label">Today</div>
+
+          <div class="msg unread is-selected">
+            <span></span>
+            <span class="from acc-work"><i class="dot dot-sm"></i><span class="name">Priya Natarajan</span><span class="n">3</span></span>
+            <span class="line"><span class="subj">Q4 brand refresh — final review deck</span><span class="snip"> — Attached v7 with the updated lockups. Two open questions on the secondary palette before we lock it</span></span>
+            <span class="meta"><svg class="i i-xs"><use href="#i-clip"/></svg><span class="badge lbl t-blue">Clients</span></span>
+            <span class="time">9:41 AM</span>
+          </div>
+
+          <div class="msg unread">
+            <span></span>
+            <span class="from acc-personal"><i class="dot dot-sm"></i><span class="name">Mike Delgado</span></span>
+            <span class="line"><span class="subj">Re: Water heater service window</span><span class="snip"> — Plumber confirmed Thursday between 10 and 12. I'll leave the side gate unlocked</span></span>
+            <span class="meta"><span class="badge lbl t-red">Home</span></span>
+            <span class="time">9:12 AM</span>
+          </div>
+
+          <div class="msg unread is-hover">
+            <span></span>
+            <span class="from acc-work"><i class="dot dot-sm"></i><span class="name">Dana Whitfield</span><span class="n">2</span></span>
+            <span class="line"><span class="subj">Offsite agenda: Oct 14–15</span><span class="snip"> — Draft agenda is in the doc. Can you own the Friday retro block? Need an answer by</span></span>
+            <span class="msg-actions">
+              <span class="act is-hover"><svg class="i i-xs"><use href="#i-done"/></svg><span class="kbd">E</span></span>
+              <span class="act"><svg class="i i-xs"><use href="#i-snooze"/></svg><span class="kbd">H</span></span>
+              <span class="act"><svg class="i i-xs"><use href="#i-reply"/></svg><span class="kbd">R</span></span>
+              <span class="act"><svg class="i i-xs"><use href="#i-tag"/></svg><span class="kbd">L</span></span>
+              <span class="act"><svg class="i i-xs"><use href="#i-trash"/></svg><span class="kbd">#</span></span>
+            </span>
+          </div>
+
+          <div class="msg">
+            <span></span>
+            <span class="from acc-harbor"><i class="dot dot-sm"></i><span class="name">Ledgerly Billing</span></span>
+            <span class="line"><span class="subj">Invoice HL-4821 paid — $1,240.00</span><span class="snip"> — Thanks! Your payment to Harbor Labs was received. Receipt attached for your records</span></span>
+            <span class="meta"><svg class="i i-xs"><use href="#i-clip"/></svg><span class="badge lbl t-gray">Receipts</span></span>
+            <span class="time">8:57 AM</span>
+          </div>
+
+          <div class="msg unread">
+            <span></span>
+            <span class="from acc-harbor"><i class="dot dot-sm"></i><span class="name">Theo Laurent</span></span>
+            <span class="line"><span class="subj">Beta: 40 new signups overnight</span><span class="snip"> — Mostly from the changelog post. Week-one retention cohort is holding at 62%, which is</span></span>
+            <span class="meta"></span>
+            <span class="time">7:58 AM</span>
+          </div>
+
+          <div class="group-label">Yesterday</div>
+
+          <div class="msg">
+            <span></span>
+            <span class="from acc-work"><i class="dot dot-sm"></i><span class="name">Grace Kim</span></span>
+            <span class="line"><span class="subj">Contract countersigned</span><span class="snip"> — All set on our side. Scanned copy attached; originals go out by courier Friday</span></span>
+            <span class="meta"><svg class="i i-xs"><use href="#i-clip"/></svg><span class="badge lbl t-blue">Clients</span></span>
+            <span class="time">6:12 PM</span>
+          </div>
+
+          <div class="msg">
+            <span></span>
+            <span class="from acc-work"><i class="dot dot-sm"></i><span class="name">Ravi Menon</span><span class="n">4</span></span>
+            <span class="line"><span class="subj">Design crit notes — onboarding flow</span><span class="snip"> — Cleaned up my notes from today. Biggest theme: step three asks for too much</span></span>
+            <span class="meta"></span>
+            <span class="time">4:40 PM</span>
+          </div>
+
+          <div class="msg">
+            <span></span>
+            <span class="from acc-harbor"><i class="dot dot-sm"></i><span class="name">Jonas Weber</span></span>
+            <span class="line"><span class="subj">Intro: Jonas ↔ Sam (seed round)</span><span class="snip"> — Moving Ines to bcc. Sam, happy to share our data room whenever you're ready</span></span>
+            <span class="meta"><svg class="i i-xs i-fill star"><use href="#i-star"/></svg></span>
+            <span class="time">2:05 PM</span>
+          </div>
+
+          <div class="msg">
+            <span></span>
+            <span class="from acc-personal"><i class="dot dot-sm"></i><span class="name">Lena Park</span></span>
+            <span class="line"><span class="subj">Photos from the lake weekend</span><span class="snip"> — Finally uploaded everything. The sunrise ones from Sunday came out unreal</span></span>
+            <span class="meta"><svg class="i i-xs"><use href="#i-image"/></svg></span>
+            <span class="time">11:18 AM</span>
+          </div>
+
+          <div class="group-label">Earlier</div>
+
+          <div class="msg">
+            <span></span>
+            <span class="from acc-harbor"><i class="dot dot-sm"></i><span class="name">Harbor Labs Calendar</span></span>
+            <span class="line"><span class="subj">Invitation: Weekly sync</span><span class="snip"> — Thu Sep 24, 10:00 – 10:30 AM · Theo Laurent, Ana Sousa, you</span></span>
+            <span class="meta"><span class="badge t-gray"><svg class="i "><use href="#i-calendar"/></svg>Thu 10:00</span></span>
+            <span class="time">Mon</span>
+          </div>
+
+          <div class="msg">
+            <span></span>
+            <span class="from acc-work"><i class="dot dot-sm"></i><span class="name">Kofi Mensah</span><span class="n">6</span></span>
+            <span class="line"><span class="subj">Re: Pricing page copy</span><span class="snip"> — Version B reads cleaner. I'd cut the second FAQ entirely and move the</span></span>
+            <span class="meta"></span>
+            <span class="time">Mon</span>
+          </div>
+
+          <div class="msg">
+            <span></span>
+            <span class="from acc-personal"><i class="dot dot-sm"></i><span class="name">Northline Air</span></span>
+            <span class="line"><span class="subj">Your trip to Lisbon — boarding passes</span><span class="snip"> — Flight NL 214 departs Oct 9 at 7:25 PM. Seats 14A, 14B confirmed</span></span>
+            <span class="meta"><svg class="i i-xs"><use href="#i-clip"/></svg><span class="badge lbl t-cyan">Travel</span></span>
+            <span class="time">Sun</span>
+          </div>
+          <div class="msg">
+            <span></span>
+            <span class="from acc-work"><i class="dot dot-sm"></i><span class="name">Ana Sousa</span><span class="n">2</span></span>
+            <span class="line"><span class="subj">Podcast booking — Oct 2 recording</span><span class="snip"> — Locked in 2 PM. I'll send the outline and the mic kit by Friday</span></span>
+            <span class="meta"></span>
+            <span class="time">Sun</span>
+          </div>
+
+          <div class="msg">
+            <span></span>
+            <span class="from acc-harbor"><i class="dot dot-sm"></i><span class="name">Ines Carvalho</span></span>
+            <span class="line"><span class="subj">Data room access</span><span class="snip"> — You should have view access now. Model is in the Finance folder, v3</span></span>
+            <span class="meta"><svg class="i i-xs"><use href="#i-link"/></svg><span class="badge lbl t-amber">Finance</span></span>
+            <span class="time">Sat</span>
+          </div>
+
+          <div class="msg">
+            <span></span>
+            <span class="from acc-personal"><i class="dot dot-sm"></i><span class="name">Cedar &amp; Pine Property</span></span>
+            <span class="line"><span class="subj">October rent receipt</span><span class="snip"> — Payment of $2,450.00 for 418 Alder St, Unit 3B was received on</span></span>
+            <span class="meta"><svg class="i i-xs"><use href="#i-clip"/></svg><span class="badge lbl t-red">Home</span></span>
+            <span class="time">Sat</span>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============ Reading preview ============ -->
+      <aside class="preview">
+        <header class="pane-head preview-head">
+          <button class="btn btn-ghost btn-sm"><svg class="i i-xs"><use href="#i-done"/></svg>Done<span class="kbd">E</span></button>
+          <button class="btn btn-ghost btn-sm"><svg class="i i-xs"><use href="#i-snooze"/></svg>Snooze<span class="kbd">H</span></button>
+          <button class="btn btn-ghost btn-sm"><svg class="i i-xs"><use href="#i-tag"/></svg>Label<span class="kbd">L</span></button>
+          <span class="grow"></span>
+          <span class="faint tnum" style="font-size:12px">1 of 12</span>
+          <button class="btn btn-ghost btn-sm btn-icon"><svg class="i i-xs"><use href="#i-up"/></svg></button>
+          <button class="btn btn-ghost btn-sm btn-icon"><svg class="i i-xs"><use href="#i-down"/></svg></button>
+        </header>
+
+        <div class="preview-body">
+          <div class="row-flex" style="gap:6px;margin-bottom:10px">
+            <span class="badge acc-work acc-badge"><i class="dot dot-sm"></i>Northwind</span>
+            <span class="badge lbl t-blue">Clients</span>
+          </div>
+          <h2 class="subject">Q4 brand refresh — final review deck</h2>
+
+          <button class="earlier"><svg class="i i-xs"><use href="#i-mail"/></svg>2 earlier messages · Marco, you</button>
+
+          <div class="sender-row">
+            <span class="avatar t-violet">PN</span>
+            <div class="grow">
+              <div class="row-flex" style="gap:6px"><span class="emph" style="font-weight:500">Priya Natarajan</span><span class="faint" style="font-size:12px">Linden &amp; Co</span></div>
+              <div class="faint" style="font-size:12px">to you, Marco Bellini</div>
+            </div>
+            <span class="faint tnum" style="font-size:12px">9:41 AM</span>
+          </div>
+
+          <div class="prose">
+            <p>Hi Sam,</p>
+            <p>Attached is v7 of the review deck with the updated lockups from Tuesday. Everything from the last round is in, including the tightened wordmark spacing.</p>
+            <p>Two open questions before we lock it:</p>
+            <ol>
+              <li>Keep the warm gray in the secondary palette, or drop it?</li>
+              <li>Can we move the stakeholder review to Monday?</li>
+            </ol>
+            <p>Happy to walk through it live if that's faster.</p>
+            <p class="sig">Priya<br><span>Design Director · Linden &amp; Co</span></p>
+          </div>
+
+          <div class="file t-red" style="margin-top:14px">
+            <span class="file-ico">PDF</span>
+            <div class="grow"><div class="fname truncate">Northwind_Brand_Review_v7.pdf</div><div class="fmeta">12.4 MB · 38 pages</div></div>
+            <button class="btn btn-ghost btn-sm btn-icon"><svg class="i i-xs"><use href="#i-download"/></svg></button>
+          </div>
+          <div class="file t-violet" style="margin-top:8px">
+            <span class="file-ico">PNG</span>
+            <div class="grow"><div class="fname truncate">Logo_Lockups_v3.png</div><div class="fmeta">2.1 MB · 3200 × 1800</div></div>
+            <button class="btn btn-ghost btn-sm btn-icon"><svg class="i i-xs"><use href="#i-download"/></svg></button>
+          </div>
+        </div>
+
+        <div class="quick-reply">
+          <div class="qr-box">
+            <span class="placeholder">Reply to Priya…</span>
+            <span class="kbd-group"><span class="kbd">R</span></span>
+          </div>
+        </div>
+      </aside>
+    </div>
+
+    <footer class="statusbar">
+      <span class="hint"><span class="kbd-group"><span class="kbd">J</span><span class="kbd">K</span></span>Move</span>
+      <span class="hint"><span class="kbd">E</span>Done</span>
+      <span class="hint"><span class="kbd">H</span>Snooze</span>
+      <span class="hint"><span class="kbd">R</span>Reply</span>
+      <span class="hint"><span class="kbd">/</span>Search</span>
+      <span class="hint"><span class="kbd">⌘K</span>Commands</span>
+      <span class="hint"><span class="kbd">?</span>All shortcuts</span>
+      <span class="right"><span class="sync-dot"></span>Synced just now · 3 accounts</span>
+    </footer>
+  </main>
+</div>
+<script src="penguin.js"></script>
+</body>
+</html>
+

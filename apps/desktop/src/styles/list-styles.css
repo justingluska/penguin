@@ -1,0 +1,350 @@
+/* ==========================================================================
+   List styles (Settings → General → List style; lib/listStyle.ts).
+   <html data-list-style> picks one. Classic is the base styling in
+   penguin.css, app.css, themes.css and avatar.css, and nothing here touches
+   it. Row heights are not CSS: the virtualizer sizes each row
+   (STACKED_ROW_H in lib/listStyle.ts), and .msg.stacked fills it.
+
+   Every style keeps the same signals readable: unread (weight plus the accent
+   dot), selected, hovered, checked, the account (in All accounts), chips for
+   codes, invitations and labels, and the day headers. Colors are the design
+   tokens, so each works in light and dark. Row fills are opaque
+   (color-mix over --background), so the hover actions' fade (--row-bg,
+   styles/app.css) and the account dot's ring match the row exactly.
+   ========================================================================== */
+
+/* --------------------------------------------------------------------------
+   One-line rows (a wide list, 560px and up): every style but Classic uses the
+   dense single-line treatment. Full-bleed rows with a hairline between them,
+   the account as a thin edge, smaller inline chips. Each style's colors and
+   type below still apply, so a wide Quiet list is still Quiet.
+   -------------------------------------------------------------------------- */
+:root:not([data-list-style="classic"]) .list .msg:not(.stacked):not(.floe) {
+  margin: 0; border-radius: 0; padding: 0 16px 0 calc(16px + var(--sel-gutter, 0px));
+  grid-template-columns: 150px minmax(0, 1fr) auto 76px; column-gap: 14px;
+  background-image: linear-gradient(var(--border-subtle), var(--border-subtle));
+  background-size: 100% 1px; background-position: 0 100%;
+}
+:root:not([data-list-style="classic"]) .list .msg:not(.stacked):not(.floe).has-acct::after {
+  left: 0; top: 0; bottom: 0; width: 2px; border-radius: 0; opacity: .75;
+}
+:root:not([data-list-style="classic"]) .list .msg:not(.stacked):not(.floe) .time { font-size: 12px; }
+:root:not([data-list-style="classic"]) .list .msg:not(.stacked):not(.floe) .otp-chip { height: 22px; }
+:root:not([data-list-style="classic"]) .list .msg:not(.stacked):not(.floe) .otp-chip-code { font-size: 13px; }
+:root:not([data-list-style="classic"]) .list .msg:not(.stacked):not(.floe) .inv-chip { height: 22px; }
+:root:not([data-list-style="classic"]) .list .msg:not(.stacked):not(.floe) .badge { height: 18px; }
+:root:not([data-list-style="classic"]) .v-row .swipe-bg:has(+ .msg:not(.stacked):not(.floe)) { inset: 0; border-radius: 0; }
+
+/* ==========================================================================
+   Quiet (the default). One accent in the column, the unread dot; nothing
+   else competes. Monochrome monograms, the account as a small dot on the
+   avatar's corner instead of a colored bar, soft inset dividers, outlined
+   chips, and read rows that step back.
+   ========================================================================== */
+:root[data-list-style="quiet"] .list {
+  --q-hover: color-mix(in srgb, var(--text-emphasis) 4%, var(--background));
+  --q-sel: color-mix(in srgb, var(--text-emphasis) 8%, var(--background));
+}
+:root[data-list-style="quiet"] .list .group-label { font-size: 11px; font-weight: 600; letter-spacing: .01em; }
+
+:root[data-list-style="quiet"] .list .msg { border-radius: var(--radius-row); }
+/* Dividers start at the text column, not under the avatar. */
+:root[data-list-style="quiet"] .list .msg.stacked {
+  background-image: linear-gradient(color-mix(in srgb, var(--border-subtle) 70%, transparent), color-mix(in srgb, var(--border-subtle) 70%, transparent));
+  background-size: calc(100% - 24px) 1px; background-position: 12px 100%;
+}
+:root[data-list-style="quiet"] .list .msg.stacked.has-avatar { background-size: calc(100% - 70px) 1px; background-position: 58px 100%; }
+:root[data-list-style="quiet"] .list .msg:hover,
+:root[data-list-style="quiet"] .list .msg.is-hover {
+  --row-bg: var(--q-hover); --row-tint: transparent; background-color: var(--row-bg); background-image: none;
+}
+:root[data-list-style="quiet"] .list .msg.is-selected {
+  --row-bg: var(--q-sel); --row-tint: transparent; background-color: var(--row-bg); background-image: none; box-shadow: none;
+}
+
+/* Account: a dot on the avatar's corner, ringed in the row's own fill. */
+:root[data-list-style="quiet"] .list .msg.stacked.has-acct::after {
+  left: 39px; top: calc(50% + 8px); bottom: auto; width: 9px; height: 9px; border-radius: 50%;
+  opacity: 1; box-shadow: 0 0 0 2px var(--row-bg);
+}
+/* Without a face: the thin edge bar, as in one-line rows (no gutter to hold a dot). */
+:root[data-list-style="quiet"] .list .msg.stacked.has-acct:not(.has-avatar)::after { left: 0; top: 14px; bottom: 14px; width: 2px; height: auto; border-radius: 0 2px 2px 0; box-shadow: none; }
+
+/* Monochrome monograms; photos and brand logos keep their own color. */
+:root[data-list-style="quiet"] .list .msg .avatar:not(.has-img) { background: var(--gray-a2); color: var(--text-muted); }
+:root[data-list-style="quiet"] .list .msg.unread .avatar:not(.has-img) { color: var(--text-default); }
+
+/* Read: sender default, subject muted, snippet faint. Unread: sender and
+   subject emphasis, a weight step heavier. */
+:root[data-list-style="quiet"] .list .msg .from { font-weight: 500; color: var(--text-default); }
+:root[data-list-style="quiet"] .list .msg:not(.stacked) .from { font-weight: 400; }
+:root[data-list-style="quiet"] .list .msg .subj { color: var(--text-muted); }
+:root[data-list-style="quiet"] .list .msg .snip { color: var(--text-faint); }
+:root[data-list-style="quiet"] .list .msg.unread .from { font-weight: 600; color: var(--text-emphasis); }
+:root[data-list-style="quiet"] .list .msg.unread .subj { font-weight: 500; color: var(--text-emphasis); }
+:root[data-list-style="quiet"] .list .msg .time { color: var(--text-faint); }
+:root[data-list-style="quiet"] .list .msg.unread .time { color: var(--text-default); font-weight: 500; }
+:root[data-list-style="quiet"] .list .msg.is-selected :is(.from, .subj) { color: var(--text-emphasis); }
+
+/* Chips: outlined, not filled; the code keeps the accent as its text only. */
+:root[data-list-style="quiet"] .list .msg .otp-chip:not(.is-copied, .is-stale, .is-unverified) { --chip-bg: transparent; --chip-line: var(--border-default); }
+:root[data-list-style="quiet"] .list .msg .otp-chip-code { font-size: 13.5px; }
+:root[data-list-style="quiet"] .list .msg .inv-chip { background: transparent; }
+
+/* ==========================================================================
+   High contrast. New mail sits on a faint accent wash in bold; read mail
+   drops to regular weight, muted color and a dimmed face. The selected row
+   is the only one with a solid ring.
+   ========================================================================== */
+:root[data-list-style="contrast"] .list {
+  --c-unread: color-mix(in srgb, var(--accent) 6%, var(--background));
+  --c-unread-hover: color-mix(in srgb, var(--accent) 10%, var(--background));
+  --c-hover: color-mix(in srgb, var(--text-emphasis) 5%, var(--background));
+  --c-sel: color-mix(in srgb, var(--text-emphasis) 9%, var(--background));
+}
+:root[data-list-style="contrast"][data-theme="dark"] .list {
+  --c-unread: color-mix(in srgb, var(--accent) 9%, var(--background));
+  --c-unread-hover: color-mix(in srgb, var(--accent) 14%, var(--background));
+}
+
+/* The day header gets weight and a rule, like a section. */
+:root[data-list-style="contrast"] .list .group-label {
+  margin: 4px 16px 0; padding: 0 4px;
+  font-size: 12px; font-weight: 600; color: var(--text-default);
+  border-bottom: 1px solid var(--border-default);
+}
+
+/* Squarer rows with 2px between them (STACKED_ROW_H adds the 2px), no hairlines. */
+:root[data-list-style="contrast"] .list .msg { border-radius: var(--radius-lg); background-image: none; }
+:root[data-list-style="contrast"] .list .msg.stacked { height: calc(100% - 2px); margin-top: 1px; margin-bottom: 1px; }
+:root[data-list-style="contrast"] .list .msg:not(.stacked):not(.floe) {
+  background-image: linear-gradient(var(--border-subtle), var(--border-subtle));
+}
+:root[data-list-style="contrast"] .list .msg.unread { --row-bg: var(--c-unread); background-color: var(--row-bg); }
+:root[data-list-style="contrast"] .list .msg:hover,
+:root[data-list-style="contrast"] .list .msg.is-hover { --row-bg: var(--c-hover); --row-tint: transparent; background-color: var(--row-bg); }
+:root[data-list-style="contrast"] .list .msg.unread:hover { --row-bg: var(--c-unread-hover); background-color: var(--row-bg); }
+:root[data-list-style="contrast"] .list .msg.is-selected,
+:root[data-list-style="contrast"] .list .msg.is-selected:hover {
+  --row-bg: var(--c-sel); --row-tint: transparent; background-color: var(--row-bg);
+  box-shadow: inset 0 0 0 1.5px var(--text-emphasis);
+}
+
+/* The account bar stays (it's useful in All accounts), thinner and flush to the edge. */
+:root[data-list-style="contrast"] .list .msg.stacked.has-acct::after { left: 0; top: 10px; bottom: 10px; width: 2px; border-radius: 0 2px 2px 0; opacity: 1; }
+
+/* Read: everything steps back, faces too. */
+:root[data-list-style="contrast"] .list .msg:not(.unread) :is(.from, .subj) { font-weight: 400; color: var(--text-muted); }
+:root[data-list-style="contrast"] .list .msg:not(.unread) .snip { color: var(--text-faint); }
+:root[data-list-style="contrast"] .list .msg:not(.unread):not(.is-selected) .avatar { opacity: .6; filter: saturate(.4); }
+:root[data-list-style="contrast"] .list .msg.is-selected :is(.from, .subj) { color: var(--text-emphasis); }
+/* Unread: bold sender and subject, a snippet you can read, an accent time. */
+:root[data-list-style="contrast"] .list .msg.unread .from { font-weight: 700; color: var(--text-emphasis); }
+:root[data-list-style="contrast"] .list .msg.unread .subj { font-weight: 600; color: var(--text-emphasis); }
+:root[data-list-style="contrast"] .list .msg.unread .snip { color: var(--text-default); }
+:root[data-list-style="contrast"] .list .msg.unread .time { font-weight: 600; color: var(--accent-text); }
+
+/* ==========================================================================
+   Cards. Each conversation is a rounded card on a softly tinted column, with
+   air between cards instead of hairlines; the selected card lifts with an
+   accent ring. The account is a small dot by the time.
+   ========================================================================== */
+:root[data-list-style="cards"] .list {
+  --k-canvas: color-mix(in srgb, var(--text-emphasis) 3%, var(--background));
+  --k-card: var(--background);
+  --k-hover: color-mix(in srgb, var(--text-emphasis) 3%, var(--background));
+  --k-sel: color-mix(in srgb, var(--accent) 7%, var(--background));
+}
+/* Dark: the canvas is the page and the cards are lifted a step instead. */
+:root[data-list-style="cards"][data-theme="dark"] .list {
+  --k-canvas: var(--background);
+  --k-card: color-mix(in srgb, var(--text-emphasis) 5%, var(--background));
+  --k-hover: color-mix(in srgb, var(--text-emphasis) 8%, var(--background));
+  --k-sel: color-mix(in srgb, var(--accent) 16%, var(--background));
+}
+:root[data-list-style="cards"] .list .list-scroll { background: var(--k-canvas); }
+:root[data-list-style="cards"] .list .group-label { padding: 0 24px; font-size: 13px; font-weight: 600; color: var(--text-default); }
+
+/* A card sits 3px inside its row's slot top and bottom (STACKED_ROW_H counts it). */
+:root[data-list-style="cards"] .list .msg.stacked {
+  --row-bg: var(--k-card);
+  height: calc(100% - 6px); margin: 3px 10px; padding: 0 14px 0 calc(14px + var(--sel-gutter, 0px)); border-radius: var(--radius-card);
+  background-color: var(--row-bg); background-image: none;
+  box-shadow: 0 0 0 1px var(--border-subtle), 0 1px 2px rgb(0 0 0 / .04);
+}
+:root[data-list-style="cards"] .list .msg:not(.stacked):not(.floe) { --row-bg: var(--k-card); background-color: var(--row-bg); }
+:root[data-list-style="cards"] .list .msg:hover,
+:root[data-list-style="cards"] .list .msg.is-hover { --row-bg: var(--k-hover); --row-tint: transparent; background-color: var(--row-bg); }
+:root[data-list-style="cards"] .list .msg.is-selected,
+:root[data-list-style="cards"] .list .msg.is-selected:hover { --row-bg: var(--k-sel); --row-tint: transparent; background-color: var(--row-bg); background-image: none; }
+:root[data-list-style="cards"] .list .msg.stacked.is-selected {
+  box-shadow: 0 0 0 1.5px var(--accent), 0 6px 16px -6px color-mix(in srgb, var(--accent) 45%, transparent);
+}
+:root[data-list-style="cards"] .list .msg:not(.stacked):not(.floe).is-selected { box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 45%, transparent); }
+/* A swipe's panel is the card's shape. */
+:root[data-list-style="cards"] .v-row .swipe-bg:has(+ .msg.stacked) { inset: 3px 10px; border-radius: var(--radius-card); }
+
+/* Account: a small dot on the face's corner, ringed in the card's fill (the
+   unread dot is by the time, so the two never sit side by side). Without a
+   face, the thin edge bar. */
+:root[data-list-style="cards"] .list .msg.stacked.has-acct::after {
+  left: 41px; top: calc(50% + 8px); bottom: auto; width: 9px; height: 9px; border-radius: 50%; opacity: 1;
+  box-shadow: 0 0 0 2px var(--row-bg);
+}
+:root[data-list-style="cards"] .list .msg.stacked.has-acct:not(.has-avatar)::after { left: 0; top: 14px; bottom: 14px; width: 2px; height: auto; border-radius: 0 2px 2px 0; box-shadow: none; }
+
+:root[data-list-style="cards"] .list .msg .from { font-weight: 500; color: var(--text-default); }
+:root[data-list-style="cards"] .list .msg:not(.stacked) .from { font-weight: 400; }
+:root[data-list-style="cards"] .list .msg .subj { color: var(--text-default); }
+:root[data-list-style="cards"] .list .msg .snip { color: var(--text-faint); }
+:root[data-list-style="cards"] .list .msg.unread .from { font-weight: 650; color: var(--text-emphasis); }
+:root[data-list-style="cards"] .list .msg.unread .subj { font-weight: 550; color: var(--text-emphasis); }
+
+/* Rounded-square monograms, like app icons (people's photos stay round). */
+:root[data-list-style="cards"] .list .msg.stacked .avatar:not(.has-img) { border-radius: 12px; }
+:root[data-list-style="cards"] .list .msg .otp-chip:not(.is-copied, .is-stale, .is-unverified, .is-link) { --chip-bg: color-mix(in srgb, var(--accent) 8%, transparent); }
+:root[data-list-style="cards"] .list .msg.stacked :is(.otp-chip, .inv-chip) { border-radius: var(--radius-lg); }
+
+/* ==========================================================================
+   Mail. The macOS Mail shape: 40px faces, the sender as a headline, the
+   subject under it, then two lines of preview. Selection is a solid accent
+   fill with white text; unread is the blue dot by the time.
+   ========================================================================== */
+:root[data-list-style="mail"] .list {
+  --m-hover: color-mix(in srgb, var(--text-emphasis) 4%, var(--background));
+  /* Darkened so white text passes AA on every theme's accent (tests/listStyles.test.ts). */
+  --m-sel: color-mix(in srgb, var(--accent) 64%, #000);
+}
+:root[data-list-style="mail"] .list .group-label { padding: 0 20px; font-size: 12px; font-weight: 600; color: var(--text-muted); }
+
+/* Sender / subject / two-line preview beside a 40px face. */
+:root[data-list-style="mail"] .list .msg.stacked {
+  padding-left: calc(12px + var(--sel-gutter, 0px)); padding-right: 12px; border-radius: var(--radius-row);
+  grid-template-rows: 18px 17px 32px; row-gap: 1px;
+}
+:root[data-list-style="mail"] .list .msg.stacked.has-avatar { grid-template-columns: 40px minmax(0, 1fr) auto; column-gap: 11px; }
+:root[data-list-style="mail"] .list .msg.stacked .row-av { align-self: start; margin-top: 2px; }
+:root[data-list-style="mail"] .list .msg.stacked .row-av .avatar { width: 40px; height: 40px; font-size: 14px; }
+:root[data-list-style="mail"] .list .msg.stacked .snip {
+  display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2;
+  align-self: start; white-space: normal; font-size: 12.5px; line-height: 16px;
+}
+:root[data-list-style="mail"] .list .msg.stacked :is(.otp-slot, .inv-slot, .smart-slot, .fu-wait) { align-self: start; padding-top: 2px; }
+:root[data-list-style="mail"] .list .msg.stacked > .row-check { top: calc(50% - 32px); }
+
+/* Hairlines from the text column, like Mail's inset separators. */
+:root[data-list-style="mail"] .list .msg.stacked { background-size: calc(100% - 24px) 1px; background-position: 12px 100%; }
+:root[data-list-style="mail"] .list .msg.stacked.has-avatar { background-size: calc(100% - 75px) 1px; background-position: 63px 100%; }
+:root[data-list-style="mail"] .list .msg:hover,
+:root[data-list-style="mail"] .list .msg.is-hover { --row-bg: var(--m-hover); --row-tint: transparent; background-color: var(--row-bg); background-image: none; }
+
+/* The sender is always the headline; unread brightens the subject. */
+:root[data-list-style="mail"] .list .msg.stacked .from { font-size: 14px; font-weight: 650; color: var(--text-emphasis); }
+:root[data-list-style="mail"] .list .msg:not(.stacked) .from { font-weight: 600; color: var(--text-emphasis); }
+:root[data-list-style="mail"] .list .msg .subj { font-weight: 400; color: var(--text-default); }
+:root[data-list-style="mail"] .list .msg.stacked .subj { font-size: 13px; }
+:root[data-list-style="mail"] .list .msg.unread .subj { font-weight: 500; color: var(--text-emphasis); }
+:root[data-list-style="mail"] .list .msg .snip { color: var(--text-muted); }
+:root[data-list-style="mail"] .list .msg .time { font-size: 12px; color: var(--text-faint); }
+
+/* Account: a dot on the face's corner, ringed in the row's fill. */
+:root[data-list-style="mail"] .list .msg.stacked.has-acct::after {
+  left: 43px; top: calc(50% - 1px); bottom: auto; width: 10px; height: 10px; border-radius: 50%; opacity: 1;
+  box-shadow: 0 0 0 2px var(--row-bg);
+}
+:root[data-list-style="mail"] .list .msg.stacked.has-acct:not(.has-avatar)::after { left: 0; top: 14px; bottom: 14px; width: 2px; height: auto; border-radius: 0 2px 2px 0; box-shadow: none; }
+
+/* Selection: a solid accent fill with white text, like a Mac source list. */
+:root[data-list-style="mail"] .list .msg.is-selected,
+:root[data-list-style="mail"] .list .msg.is-selected:hover {
+  --row-bg: var(--m-sel); --row-tint: transparent; background-color: var(--row-bg); background-image: none; box-shadow: none;
+}
+:root[data-list-style="mail"] .list .msg.is-selected :is(.from, .subj, .time, .n, .meta .i, .star, .fu-wait, .smart-title, .smart-amt) { color: #fff; }
+:root[data-list-style="mail"] .list .msg.is-selected :is(.snip, .smart-fact, .smart-sep) { color: rgb(255 255 255 / .82); }
+:root[data-list-style="mail"] .list .msg.is-selected.unread .time::before { background: #fff; }
+:root[data-list-style="mail"] .list .msg.is-selected .msg-actions .act { color: #fff; }
+:root[data-list-style="mail"] .list .msg.is-selected .msg-actions .act:hover { background: rgb(255 255 255 / .18); }
+:root[data-list-style="mail"] .list .msg.is-selected .otp-chip { --chip-bg: rgb(255 255 255 / .16); --chip-fg: #fff; --chip-line: rgb(255 255 255 / .4); }
+:root[data-list-style="mail"] .list .msg.is-selected .otp-chip-hint { color: rgb(255 255 255 / .82); }
+:root[data-list-style="mail"] .list .msg.is-selected .inv-chip { background: rgb(255 255 255 / .14); border-color: rgb(255 255 255 / .35); color: #fff; }
+:root[data-list-style="mail"] .list .msg.is-selected .inv-chip-btn { color: #fff; }
+:root[data-list-style="mail"] .list .msg.is-selected .badge { background: rgb(255 255 255 / .18); border-color: transparent; color: #fff; }
+/* A box sitting on the row itself (no face, or in a small face's place) goes white-on-accent; a badge on a large face keeps its own fill. */
+:root[data-list-style="mail"] .list .msg.is-selected .from .row-check,
+:root[data-list-style="mail"] .list .msg.is-selected > .row-check { border-color: rgb(255 255 255 / .7); }
+:root[data-list-style="mail"] .list .msg.is-selected:not(.is-checked) .from .row-check,
+:root[data-list-style="mail"] .list .msg.is-selected:not(.is-checked) > .row-check { background: transparent; }
+
+/* ==========================================================================
+   Checked rows (multi-select), in every style: the accent tint wins over the
+   style's hover fill; the cursor's row keeps its selected fill plus a ring.
+   ========================================================================== */
+:root:not([data-list-style="classic"]) .list .msg.is-checked:not(.is-selected),
+:root:not([data-list-style="classic"]) .list .msg.is-checked:not(.is-selected):hover {
+  --row-bg: color-mix(in srgb, var(--accent) 12%, var(--background)); --row-tint: transparent;
+  background-color: var(--row-bg); background-image: none;
+}
+:root:not([data-list-style="classic"]) .list .msg.is-checked.is-selected { box-shadow: inset 0 0 0 1.5px var(--accent); }
+:root[data-list-style="mail"] .list .msg.is-checked.is-selected { box-shadow: inset 0 0 0 1.5px rgb(255 255 255 / .6); }
+
+/* ==========================================================================
+   Settings → General → List style: one small preview per style, drawn from
+   the same idea as the sidebar theme swatches (styles/themes.css .th-*).
+   ========================================================================== */
+.ls-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(112px, 1fr)); gap: 10px; margin-top: 12px; }
+.ls-swatch {
+  display: flex; flex-direction: column; gap: 6px; padding: 5px 5px 7px; border-radius: var(--radius-xl);
+  text-align: left; border: 1px solid transparent;
+}
+.ls-swatch:hover { background: var(--bg-row-hover); }
+.ls-swatch.selected { border-color: var(--border-interactive); background: var(--bg-row-selected); }
+.ls-name { padding: 0 2px; font-size: var(--text-xs); color: var(--text-default); }
+.ls-swatch.selected .ls-name { color: var(--text-emphasis); font-weight: 500; }
+
+.ls-preview {
+  --ls-row: var(--background);
+  display: flex; flex-direction: column; justify-content: center; gap: 3px; height: 64px; padding: 4px;
+  border-radius: 9px; overflow: hidden; background: var(--background); box-shadow: inset 0 0 0 1px var(--border-default);
+}
+.ls-swatch.selected .ls-preview { box-shadow: 0 0 0 2px var(--accent), inset 0 0 0 1px var(--border-default); }
+/* A row: [face] [two text bars] [unread dot, by where the time would be]. */
+.ls-row {
+  position: relative; flex: none; display: grid; grid-template-columns: 11px minmax(0, 1fr); column-gap: 5px; align-items: center;
+  height: 17px; padding: 0 9px 0 5px; border-radius: 4px; background: var(--ls-row);
+}
+.ls-row + .ls-row { box-shadow: 0 -1px 0 var(--border-subtle); }
+.ls-row > b { width: 11px; height: 11px; border-radius: 50%; background: var(--gray-a4); }
+.ls-row > span { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.ls-row > span > i { display: block; height: 3px; border-radius: 2px; background: var(--text-faint); opacity: .45; }
+.ls-row > span > i:first-child { width: 55%; }
+.ls-row > span > i:last-child { width: 85%; opacity: .3; }
+.ls-row.unread > span > i { background: var(--text-emphasis); opacity: .8; }
+.ls-row.unread > span > i:last-child { opacity: .45; }
+.ls-row.unread::before { content: ""; position: absolute; right: 3px; top: 4px; width: 3px; height: 3px; border-radius: 50%; background: var(--accent); }
+.ls-row.sel { --ls-row: color-mix(in srgb, var(--text-emphasis) 8%, var(--background)); }
+
+/* Classic: colored faces and an account bar on the edge. */
+.ls-preview[data-ls="classic"] .ls-row > b { background: var(--blue-a4); }
+.ls-preview[data-ls="classic"] .ls-row:nth-child(2) > b { background: var(--violet-a4); }
+.ls-preview[data-ls="classic"] .ls-row:nth-child(3) > b { background: var(--green-a4); }
+.ls-preview[data-ls="classic"] .ls-row::after { content: ""; position: absolute; left: 0; top: 3px; bottom: 3px; width: 2px; border-radius: 1px; background: var(--amber-a11); }
+.ls-preview[data-ls="classic"] .ls-row.sel { box-shadow: inset 0 0 0 1px var(--border-interactive); }
+/* High contrast: unread on a wash, read rows faded, a ring on the selection. */
+.ls-preview[data-ls="contrast"] .ls-row + .ls-row { box-shadow: none; }
+.ls-preview[data-ls="contrast"] .ls-row.unread { --ls-row: color-mix(in srgb, var(--accent) 10%, var(--background)); }
+.ls-preview[data-ls="contrast"] .ls-row.unread > span > i { opacity: 1; }
+.ls-preview[data-ls="contrast"] .ls-row:not(.unread) > span > i { opacity: .25; }
+.ls-preview[data-ls="contrast"] .ls-row.sel { box-shadow: inset 0 0 0 1px var(--text-emphasis); }
+/* Cards: rounded cards on a tinted column. */
+.ls-preview[data-ls="cards"] { background: color-mix(in srgb, var(--text-emphasis) 4%, var(--background)); gap: 4px; }
+.ls-preview[data-ls="cards"] .ls-row { border-radius: 5px; box-shadow: 0 0 0 1px var(--border-subtle); }
+.ls-preview[data-ls="cards"] .ls-row > b { border-radius: 3px; }
+.ls-preview[data-ls="cards"] .ls-row.sel { --ls-row: color-mix(in srgb, var(--accent) 8%, var(--background)); box-shadow: 0 0 0 1px var(--accent); }
+/* Mail: bigger faces, three lines, a solid accent selection. */
+.ls-preview[data-ls="mail"] { gap: 2px; padding: 3px 4px; }
+.ls-preview[data-ls="mail"] .ls-row { height: 18px; grid-template-columns: 13px minmax(0, 1fr); }
+.ls-preview[data-ls="mail"] .ls-row > b { width: 13px; height: 13px; }
+.ls-preview[data-ls="mail"] .ls-row > span > i:nth-child(2) { width: 70%; }
+.ls-preview[data-ls="mail"] .ls-row.sel { --ls-row: color-mix(in srgb, var(--accent) 64%, #000); }
+.ls-preview[data-ls="mail"] .ls-row.sel > span > i { background: #fff; opacity: .9; }
+.ls-preview[data-ls="mail"] .ls-row.sel > b { background: rgb(255 255 255 / .35); }

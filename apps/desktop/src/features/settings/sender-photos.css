@@ -1,0 +1,9 @@
+/* Privacy → Sender photos (SenderPhotos.tsx). */
+.sp-block { align-items: flex-start; }
+.sp-source { display: flex; align-items: center; justify-content: space-between; gap: 20px; padding: 16px 0 0; }
+.sp-source + .sp-source, .sp-accounts + .sp-source { border-top: 1px solid var(--border-subtle); margin-top: 12px; padding-top: 12px; }
+.sp-source .st-muted { max-width: 520px; }
+.sp-accounts { list-style: none; margin: 8px 0 0; padding: 0; }
+.sp-accounts li { display: flex; align-items: center; gap: 8px; height: 32px; font-size: var(--text-xs); color: var(--text-default); }
+.sp-acct { flex: none; max-width: 160px; }
+.sp-state { flex: 1; min-width: 0; margin: 0 !important; }

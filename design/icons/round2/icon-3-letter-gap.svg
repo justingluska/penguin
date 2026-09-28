@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024" role="img" aria-labelledby="title desc">
+  <title id="title">Penguin — Letter gap</title>
+  <desc id="desc">Two ink envelope folds leave a penguin-shaped gap in the icy blue between them.</desc>
+  <path fill="#C4DAE8" d="M324 100H700C852 100 924 172 924 324V700C924 852 852 924 700 924H324C172 924 100 852 100 700V324C100 172 172 100 324 100Z"/>
+  <path fill="#182B3A" d="M228 354L370 278L500 336C454 346 438 374 438 404C438 434 452 452 464 464C418 510 392 570 392 630C392 698 435 730 500 738V758H228Z"/>
+  <path fill="#182B3A" d="M796 354L654 278L524 336C570 346 586 374 586 396L622 410L580 428C574 445 566 456 560 464C606 510 632 570 632 630C632 698 589 730 524 738V758H796Z"/>
+</svg>

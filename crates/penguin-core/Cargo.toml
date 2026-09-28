@@ -1,0 +1,37 @@
+[package]
+name = "penguin-core"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish = false
+
+[dependencies]
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+tracing.workspace = true
+rusqlite = { version = "0.37", features = ["bundled"] }
+chrono = { version = "0.4", default-features = false, features = ["clock", "std"] }
+memchr = "2"
+zstd = { version = "0.13", default-features = false }
+# Search by meaning (hybrid.rs) and Ask: the Embedder / VectorIndex contract
+# only; the app passes the real model and index in.
+penguin-semantic.workspace = true
+
+[features]
+# Benchmarks only: record every statement's SQL, time and plan counters
+# (src/sqlprof.rs, examples/bench_sql.rs). Off in the app.
+sql-profile = ["rusqlite/trace"]
+
+[dev-dependencies]
+tracing-subscriber = { version = "0.3", default-features = false, features = ["fmt", "std"] }
+# Only for the html_to_text comparison in examples/bench_search.rs.
+html2text = "0.15"
+# examples/bench.rs times opening a thread the way the app does (store read +
+# sanitize/render).
+penguin-render.workspace = true
+
+# examples/bench.rs evicts the database from the OS page cache for cold-open
+# timings (posix_fadvise; Linux only).
+[target.'cfg(target_os = "linux")'.dev-dependencies]
+libc = "0.2"

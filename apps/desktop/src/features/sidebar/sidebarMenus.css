@@ -1,0 +1,19 @@
+/* Sidebar rows while renamed in place, and hidden labels (sidebarMenus.tsx). */
+.nav-item.is-renaming, .menu-item.is-renaming { background: var(--bg-interactive); }
+.sb-rename {
+  flex: 1; min-width: 0; height: 24px; margin-right: -4px; padding: 0 6px;
+  border-radius: var(--radius-md); border: 1px solid var(--accent);
+  background: var(--bg-panel); box-shadow: 0 0 0 3px var(--accent-soft);
+  font: inherit; font-size: var(--text-sm); color: var(--text-emphasis); outline: none;
+}
+.sb-rename::placeholder { color: var(--text-placeholder); }
+.nav-item.is-hidden-label { color: var(--text-faint); }
+.nav-item.is-hidden-label .label-sq { opacity: .55; }
+.nav-item.sb-hidden-toggle { height: 28px; font-size: var(--text-xs); color: var(--text-faint); }
+.nav-item.sb-hidden-toggle .i { color: var(--text-faint); }
+/* An account hidden from All Inboxes: a faint eye-off before its own unread count. */
+.nav-item .sb-hidden-all { margin-left: auto; display: inline-flex; flex: none; }
+.nav-item .sb-hidden-all .i { color: var(--text-faint); }
+.nav-item .sb-hidden-all + .count { margin-left: 6px; }
+.switcher-menu .sw-hidden-all { display: inline-flex; flex: none; }
+.switcher-menu .sw-hidden-all .i { color: var(--text-faint); }

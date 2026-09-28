@@ -1,0 +1,122 @@
+/* Invitations: the list-row event chip (InviteChip) and the thread card's
+   additions (InviteCard). OWNER: calendar agent. */
+
+/* ---- list-row chip ----
+   [ 📅 Tue Sep 29 · 10–11am | Updated | Yes Maybe No | conflicts with … ]
+   24px tall like the code chip; it replaces the snippet. */
+.inv-chip {
+  display: inline-flex; align-items: center; gap: 6px;
+  height: 24px; max-width: 100%; min-width: 0; padding: 0 3px 0 8px;
+  border: 1px solid var(--border-subtle); border-radius: 7px;
+  background: var(--gray-a2); color: var(--text-default);
+  font: 500 var(--text-xs)/1 var(--font-sans);
+  white-space: nowrap; overflow: hidden; vertical-align: middle; flex: 0 1 auto;
+  cursor: default;
+}
+/* When space runs out: the clash name goes first, then the date ellipsizes; the answer buttons never do. */
+.inv-chip-when { display: inline-flex; align-items: center; gap: 5px; flex: 0 1 auto; min-width: 0; }
+.inv-chip-when .i { flex: none; }
+.inv-chip-when .i { flex: none; color: var(--red-a11); }
+.inv-chip-text { font-variant-numeric: tabular-nums; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+.inv-chip-tag {
+  flex: none; padding: 2px 6px; border-radius: 5px;
+  background: var(--amber-a3); color: var(--amber-a11);
+  font-size: var(--text-2xs); font-weight: 600; letter-spacing: .02em;
+}
+.inv-chip-tag.is-cancel { background: var(--red-a3); color: var(--red-a11); }
+.inv-chip-tag { display: inline-flex; align-items: center; gap: 3px; }
+.inv-chip-tag .i { flex: none; }
+/* Narrow (stacked) rows keep the date and the buttons whole: the tag and
+   the clash shrink to their icons (the words stay in tooltips and labels). */
+.msg.stacked .inv-chip-tag-text, .msg.stacked .inv-chip-conflict-name { display: none; }
+.msg.stacked .inv-chip-tag { padding: 2px 4px; }
+/* …and a clash turns the date amber (its words are in the tooltip and the buttons' label). */
+.msg.stacked .inv-chip-conflict { display: none; }
+.msg.stacked .inv-chip.has-conflict .inv-chip-text { color: var(--amber-a11); }
+.msg.stacked .inv-chip-when .i { display: none; }
+.msg.stacked .inv-chip { gap: 4px; padding-left: 6px; padding-right: 2px; }
+.msg.stacked .inv-chip-btn { padding: 0 5px; }
+.inv-chip-reply { color: var(--text-muted); padding-right: 5px; }
+.inv-chip-rsvp {
+  display: inline-flex; align-items: stretch; height: 18px; flex: none;
+  border: 1px solid var(--border-subtle); border-radius: 5px; overflow: hidden;
+  background: var(--bg-surface, var(--bg-subtle));
+}
+.inv-chip-btn {
+  margin: 0; padding: 0 6px; border: 0; background: transparent; color: var(--text-default);
+  font: 500 var(--text-2xs)/1 var(--font-sans); cursor: pointer;
+  transition: background var(--dur-fast) var(--ease-out), color var(--dur-fast) var(--ease-out);
+}
+.inv-chip-btn + .inv-chip-btn { border-left: 1px solid var(--border-subtle); }
+.inv-chip-btn.is-accepted:hover { background: var(--green-a3); color: var(--green-a11); }
+.inv-chip-btn.is-tentative:hover { background: var(--amber-a3); color: var(--amber-a11); }
+.inv-chip-btn.is-declined:hover { background: var(--red-a3); color: var(--red-a11); }
+.inv-chip-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; border-radius: 4px; }
+.inv-chip-btn:disabled { cursor: progress; opacity: .6; }
+.inv-chip-state {
+  display: inline-flex; align-items: center; gap: 3px; flex: none;
+  padding: 2px 7px 2px 6px; border-radius: 5px;
+  font-size: var(--text-2xs); font-weight: 600;
+}
+.inv-chip-state.is-accepted { background: var(--green-a3); color: var(--green-a11); }
+.inv-chip-state.is-tentative { background: var(--amber-a3); color: var(--amber-a11); }
+.inv-chip-state.is-declined { background: var(--gray-a3); color: var(--text-muted); }
+.inv-chip-conflict { display: inline-flex; align-items: center; gap: 3px; color: var(--amber-a11); padding-right: 5px; min-width: 0; flex: 0 1000 auto; }
+.inv-chip-conflict .i { flex: none; }
+.inv-chip-conflict-name { overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+.inv-chip.is-pending .inv-chip-state { opacity: .7; }
+.inv-chip.is-muted { background: transparent; color: var(--text-muted); }
+.inv-chip.is-cancelled .inv-chip-text { text-decoration: line-through; }
+/* No buttons or state pill: keep the right padding even. */
+.inv-chip > :last-child:not(.inv-chip-rsvp):not(.inv-chip-state) { padding-right: 5px; }
+
+/* Where it sits: the snippet slot, as the code chip does. */
+/* One-line rows: the line becomes a flex row so the subject and the chip
+   share it (an inline chip that overflows would be swallowed whole by the
+   line's ellipsis). Both shrink; the chip's clash name goes first. */
+.msg.has-invite:not(.stacked) .line { display: flex; align-items: center; }
+.msg.has-invite:not(.stacked) .line .subj { flex: 0 1 auto; min-width: 7em; overflow: hidden; text-overflow: ellipsis; }
+.msg .line .inv-slot { display: flex; align-items: center; margin-left: 10px; flex: 0 1 auto; min-width: 0; }
+.msg .line .inv-chip-when { flex: none; }
+.msg .line .inv-chip { min-width: 0; }
+.msg.stacked.has-invite { grid-template-rows: 18px 18px 24px; row-gap: 3px; }
+.msg.stacked .inv-slot { grid-area: 3 / 1 / 4 / 3; display: flex; align-items: center; min-width: 0; }
+.msg.stacked.has-avatar .inv-slot { grid-area: 3 / 2 / 4 / 4; }
+[data-density="compact"] .msg.stacked.has-invite { grid-template-rows: 18px 18px 22px; }
+[data-density="compact"] .msg .inv-chip { height: 22px; }
+
+/* ---- thread card additions ---- */
+.inv-banner {
+  display: flex; align-items: center; gap: 8px; margin: 0 0 8px; padding: 7px 10px;
+  border-radius: var(--radius-lg); font-size: var(--text-sm); font-weight: 500;
+}
+.inv-banner.is-cancel { background: var(--red-a3); color: var(--red-a11); }
+.inv-banner.is-update { background: var(--amber-a3); color: var(--amber-a11); }
+.inv-changes { display: grid; grid-template-columns: auto 1fr; gap: 3px 10px; margin: 4px 0 6px; font-size: var(--text-sm); }
+.inv-changes dt { color: var(--text-muted); }
+.inv-changes dd { margin: 0; min-width: 0; }
+.inv-changes s { color: var(--text-faint); }
+.inv-guests { margin-top: 2px; }
+.inv-guests summary { cursor: pointer; list-style: none; display: flex; align-items: center; gap: 8px; min-height: 22px; font-size: var(--text-sm); }
+.inv-guests summary::-webkit-details-marker { display: none; }
+.inv-guests summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 4px; }
+.inv-guest-list { margin: 4px 0 4px 22px; padding: 0; list-style: none; display: grid; gap: 3px; font-size: var(--text-sm); }
+.inv-guest-list li { display: flex; gap: 8px; align-items: center; min-width: 0; }
+.inv-guest-dot { width: 7px; height: 7px; border-radius: 50%; flex: none; background: var(--gray-a5); }
+.inv-guest-dot.is-accepted { background: var(--green-a11); }
+.inv-guest-dot.is-tentative { background: var(--amber-a11); }
+.inv-guest-dot.is-declined { background: var(--red-a11); }
+.inv-more { display: flex; flex-wrap: wrap; gap: 4px 12px; margin-top: 8px; }
+.inv-compose { margin-top: 10px; display: grid; gap: 8px; padding: 10px; border: 1px solid var(--border-subtle); border-radius: var(--radius-lg); background: var(--bg-subtle); }
+.inv-compose textarea { width: 100%; min-height: 54px; resize: vertical; font: inherit; font-size: var(--text-sm); }
+.inv-compose-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; font-size: var(--text-sm); }
+.inv-compose-row input[type="date"], .inv-compose-row input[type="time"] { font: inherit; font-size: var(--text-sm); }
+.inv-compose-err { color: var(--red-a11); font-size: var(--text-xs); }
+.inv-hint { margin-top: 6px; font-size: var(--text-xs); color: var(--text-muted); }
+.inv-sent { font-size: var(--text-xs); color: var(--text-muted); }
+.inv-rsvp button.is-pending { opacity: .7; }
+
+/* The card in the reading pane beside the list (ThreadView "preview"): under
+   the subject, above the messages. Top/bottom only, so the pane's centering
+   (.preview-body > * margin auto) still applies. */
+.preview-body .invite { margin-top: 14px; margin-bottom: 16px; }

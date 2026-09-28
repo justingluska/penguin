@@ -1,0 +1,32 @@
+/* Unsubscribe button at the right end of a message's privacy row
+   (features/message-body .mb-bar), sized like .mb-load, and its confirm
+   dialog (UnsubscribeDialog, on components/Modal). */
+
+.unsub-btn {
+  display: inline-flex; align-items: center; gap: 5px;
+  height: var(--control-h-sm); padding: 0 8px; margin: -2px 0;
+  border: 0; border-radius: var(--radius-md); background: transparent;
+  font: inherit; font-weight: 500; color: var(--text-muted); cursor: pointer;
+  white-space: nowrap;
+  transition: background-color var(--dur-fast) var(--ease-in-out), color var(--dur-fast) var(--ease-in-out);
+}
+.unsub-btn .i { color: currentColor; }
+.unsub-btn:hover { background: var(--gray-a3); color: var(--text-default); }
+.unsub-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.unsub-btn:disabled { cursor: default; color: var(--text-faint); background: transparent; }
+.unsub-btn.is-primary { color: var(--accent-text); }
+.unsub-btn.is-primary:hover { background: var(--accent-soft); }
+/* Already unsubscribed: quiet and green, still clickable to do it again. */
+.unsub-btn.is-done { color: var(--green-a11); font-weight: 400; }
+.unsub-btn.is-done:hover { background: var(--green-a3); }
+
+.unsub-dialog { width: 460px; }
+.unsub-dialog .btn-primary .i { color: currentColor; }
+.unsub-mail {
+  display: grid; grid-template-columns: auto 1fr; gap: 4px 12px; margin: 10px 0 0;
+  padding: 8px 10px; border: 1px solid var(--border-default); border-radius: var(--radius-lg);
+  background: var(--bg-subtle); font-size: var(--text-sm); line-height: 20px;
+}
+.unsub-mail dt { color: var(--text-faint); }
+.unsub-mail dd { margin: 0; min-width: 0; color: var(--text-default); overflow-wrap: anywhere; user-select: text; -webkit-user-select: text; }
+.unsub-mail dd.mono { font-size: 12px; }

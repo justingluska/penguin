@@ -1,0 +1,47 @@
+{
+  "name": "penguin-desktop",
+  "private": true,
+  "license": "SEE LICENSE IN ../../LICENSE",
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "node scripts/changelog.mjs && tsc && vite build",
+    "preview": "vite preview",
+    "tauri": "tauri",
+    "dev:mock": "VITE_MOCK=1 vite",
+    "test": "node --test tests/*.test.ts"
+  },
+  "dependencies": {
+    "@fontsource/atkinson-hyperlegible": "^5.3.0",
+    "@fontsource/geist": "^5.3.0",
+    "@fontsource/geist-mono": "^5.3.0",
+    "@fontsource/ia-writer-quattro": "^5.3.0",
+    "@fontsource/ibm-plex-sans": "^5.3.0",
+    "@fontsource/inter": "^5.3.0",
+    "@fontsource/literata": "^5.3.0",
+    "@fontsource/source-serif-4": "^5.3.0",
+    "@tanstack/react-virtual": "^3.14.13",
+    "@tauri-apps/api": "^2",
+    "@tauri-apps/plugin-opener": "^2",
+    "@tiptap/core": "^3.31.3",
+    "@tiptap/extension-blockquote": "^3.31.3",
+    "@tiptap/extension-link": "^3.31.3",
+    "@tiptap/extension-strike": "^3.31.3",
+    "@tiptap/extensions": "^3.31.3",
+    "@tiptap/pm": "^3.31.3",
+    "@tiptap/react": "^3.31.3",
+    "@tiptap/starter-kit": "^3.31.3",
+    "react": "^19.1.0",
+    "react-dom": "^19.1.0"
+  },
+  "devDependencies": {
+    "@tauri-apps/cli": "^2",
+    "@types/react": "^19.1.8",
+    "@types/react-dom": "^19.1.6",
+    "@vitejs/plugin-react": "^6.0.2",
+    "happy-dom": "^20.14.5",
+    "typescript": "~6.0.3",
+    "vite": "^8.0.16"
+  }
+}

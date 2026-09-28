@@ -1,0 +1,1170 @@
+{
+  "asYouType": {
+    "pooledMs": {
+      "max": 340.637,
+      "mean": 20.941,
+      "n": 760,
+      "p50": 20.377,
+      "p95": 58.682,
+      "p99": 98.497
+    },
+    "strings": [
+      {
+        "keystrokes": 17,
+        "ms": {
+          "max": 340.637,
+          "mean": 40.252,
+          "n": 170,
+          "p50": 34.058,
+          "p95": 91.704,
+          "p99": 147.617
+        },
+        "typed": "invoice from:mike"
+      },
+      {
+        "keystrokes": 16,
+        "ms": {
+          "max": 98.497,
+          "mean": 23.589,
+          "n": 160,
+          "p50": 24.913,
+          "p95": 54.182,
+          "p99": 71.7
+        },
+        "typed": "quarterly report"
+      },
+      {
+        "keystrokes": 18,
+        "ms": {
+          "max": 56.27,
+          "mean": 3.394,
+          "n": 180,
+          "p50": 0.489,
+          "p95": 24.204,
+          "p99": 27.865
+        },
+        "typed": "\"early termination"
+      },
+      {
+        "keystrokes": 13,
+        "ms": {
+          "max": 111.842,
+          "mean": 23.528,
+          "n": 130,
+          "p50": 23.629,
+          "p95": 58.158,
+          "p99": 110.79
+        },
+        "typed": "lease has:pdf"
+      },
+      {
+        "keystrokes": 12,
+        "ms": {
+          "max": 65.949,
+          "mean": 13.569,
+          "n": 120,
+          "p50": 13.952,
+          "p95": 23.916,
+          "p99": 31.254
+        },
+        "typed": "priya budget"
+      }
+    ]
+  },
+  "ask": {
+    "pooledMs": {
+      "max": 320.683,
+      "mean": 33.8,
+      "n": 280,
+      "p50": 28.602,
+      "p95": 60.196,
+      "p99": 176.052
+    },
+    "questions": [
+      {
+        "answered": true,
+        "ms": {
+          "max": 26.486,
+          "mean": 21.979,
+          "n": 20,
+          "p50": 22.014,
+          "p95": 24.614,
+          "p99": 26.486
+        },
+        "question": "when did I last speak to Mike from Kettle on the Knoll / Fernwood?",
+        "template": "when did I last speak to Mike from Kettle on the Knoll / Fernwood?"
+      },
+      {
+        "answered": true,
+        "ms": {
+          "max": 162.567,
+          "mean": 34.953,
+          "n": 20,
+          "p50": 28.349,
+          "p95": 28.746,
+          "p99": 162.567
+        },
+        "question": "when did I last email Ari Zhang",
+        "template": "when did I last email <name>"
+      },
+      {
+        "answered": true,
+        "ms": {
+          "max": 76.041,
+          "mean": 15.337,
+          "n": 20,
+          "p50": 12.215,
+          "p95": 12.821,
+          "p99": 76.041
+        },
+        "question": "first email from henry11@dundermifflin.example",
+        "template": "first email from <address>"
+      },
+      {
+        "answered": true,
+        "ms": {
+          "max": 320.683,
+          "mean": 61.454,
+          "n": 20,
+          "p50": 46.252,
+          "p95": 61.924,
+          "p99": 320.683
+        },
+        "question": "how long have I known opatel@wonka.example",
+        "template": "how long have I known <address>"
+      },
+      {
+        "answered": true,
+        "ms": {
+          "max": 72.227,
+          "mean": 31.282,
+          "n": 20,
+          "p50": 25.591,
+          "p95": 39.306,
+          "p99": 72.227
+        },
+        "question": "who is Mei Wright",
+        "template": "who is <name>"
+      },
+      {
+        "answered": true,
+        "ms": {
+          "max": 25.9,
+          "mean": 10.429,
+          "n": 20,
+          "p50": 9.805,
+          "p95": 10.017,
+          "p99": 25.9
+        },
+        "question": "how many emails from Miles Nelson this year",
+        "template": "how many emails from <name> this year"
+      },
+      {
+        "answered": true,
+        "ms": {
+          "max": 187.023,
+          "mean": 67.093,
+          "n": 20,
+          "p50": 58.293,
+          "p95": 86.271,
+          "p99": 187.023
+        },
+        "question": "how much did I spend on Uber this year",
+        "template": "how much did I spend on Uber this year"
+      },
+      {
+        "answered": true,
+        "ms": {
+          "max": 176.052,
+          "mean": 42.312,
+          "n": 20,
+          "p50": 34.657,
+          "p95": 45.818,
+          "p99": 176.052
+        },
+        "question": "latest pdf from Ravi Bianchi",
+        "template": "latest pdf from <name>"
+      },
+      {
+        "answered": true,
+        "ms": {
+          "max": 17.955,
+          "mean": 7.621,
+          "n": 20,
+          "p50": 6.323,
+          "p95": 12.612,
+          "p99": 17.955
+        },
+        "question": "latest invoice",
+        "template": "latest invoice"
+      },
+      {
+        "answered": true,
+        "ms": {
+          "max": 243.13,
+          "mean": 53.971,
+          "n": 20,
+          "p50": 43.245,
+          "p95": 47.541,
+          "p99": 243.13
+        },
+        "question": "what am I waiting on",
+        "template": "what am I waiting on"
+      },
+      {
+        "answered": true,
+        "ms": {
+          "max": 59.13,
+          "mean": 22.304,
+          "n": 20,
+          "p50": 19.476,
+          "p95": 30.506,
+          "p99": 59.13
+        },
+        "question": "what do I owe replies to",
+        "template": "what do I owe replies to"
+      },
+      {
+        "answered": true,
+        "ms": {
+          "max": 60.506,
+          "mean": 43.6,
+          "n": 20,
+          "p50": 40.451,
+          "p95": 57.005,
+          "p99": 60.506
+        },
+        "question": "who emails me the most",
+        "template": "who emails me the most"
+      },
+      {
+        "answered": true,
+        "ms": {
+          "max": 61.81,
+          "mean": 36.72,
+          "n": 20,
+          "p50": 34.833,
+          "p95": 41.611,
+          "p99": 61.81
+        },
+        "question": "who emailed me about the budget",
+        "template": "who emailed me about the budget"
+      },
+      {
+        "answered": true,
+        "ms": {
+          "max": 35.824,
+          "mean": 24.151,
+          "n": 20,
+          "p50": 23.207,
+          "p95": 27.452,
+          "p99": 35.824
+        },
+        "question": "when is the dinner",
+        "template": "when is the dinner"
+      }
+    ]
+  },
+  "build": {
+    "profile": "release",
+    "quick": false
+  },
+  "contention": {
+    "end": {
+      "cpuPressureSomeAvg60Pct": 2.37,
+      "loadAvg1m": 4.0,
+      "memAvailableGiB": 12.7
+    },
+    "start": {
+      "cpuPressureSomeAvg60Pct": 0.57,
+      "loadAvg1m": 1.64,
+      "memAvailableGiB": 13.7
+    }
+  },
+  "corpus": {
+    "accounts": 3,
+    "attachments": 50465,
+    "avgHtmlBytes": 9956.0,
+    "avgTextBytes": 2027.0,
+    "htmlShare": 0.683,
+    "inboxMessages": 3761,
+    "maxHtmlBytes": 43390,
+    "messages": 300000,
+    "messagesPerAccount": [
+      180399,
+      89504,
+      30097
+    ],
+    "messagesWithAttachments": 36206,
+    "newsletterShare": 0.209,
+    "plainTextMiB": 579.831,
+    "rawHtmlMiB": 1944.715,
+    "seed": 42,
+    "threadLength": {
+      "1": 92668,
+      "2-3": 19379,
+      "4-8": 27708,
+      "9+": 0
+    },
+    "threads": 139755,
+    "unreadMessages": 1076,
+    "userLabelledMessages": 36119
+  },
+  "date": "2026-09-26T01:18:30.612180720+00:00",
+  "disk": {
+    "breakdownMiB": {
+      "attachmentRows": 11.938,
+      "bodies (zstd)": 1066.066,
+      "calendar": 0.035,
+      "fullTextIndex": 1072.977,
+      "messageRows": 114.199,
+      "other": 28.73,
+      "threadsAndViews": 97.188
+    },
+    "bytesPerMessage": 8532.0,
+    "mibPer100k": 813.716,
+    "totalMiB": 2441.148
+  },
+  "git": {
+    "commit": "4fca6a1c0e32",
+    "dirtyCrates": false
+  },
+  "ingest": {
+    "chunkSize": 100,
+    "cpuMsPerMessage": 0.741,
+    "firstTenthMessagesPerSec": 1671.0,
+    "ftsOptimizeMs": 40160.319,
+    "lastTenthMessagesPerSec": 904.0,
+    "messages": 300000,
+    "messagesPerSec": 1179.0,
+    "messagesPerSecByTenth": [
+      1671.0,
+      1346.0,
+      1253.0,
+      1147.0,
+      1313.0,
+      1135.0,
+      1208.0,
+      1077.0,
+      1036.0,
+      904.0
+    ],
+    "orderSideTest": {
+      "generatorOrder": {
+        "cpuMsPerMessage": 0.566,
+        "messagesPerSec": 1674.0
+      },
+      "messages": 20000,
+      "newestFirst": {
+        "cpuMsPerMessage": 0.495,
+        "messagesPerSec": 1965.0
+      }
+    },
+    "plainTextMiBPerSec": 2.279,
+    "seconds": 254.439,
+    "writeWaitDuringOptimizeMs": {
+      "max": 1355.859,
+      "mean": 32.402,
+      "n": 764,
+      "p50": 23.07,
+      "p95": 75.89,
+      "p99": 129.539
+    },
+    "writesDuringOptimize": 764
+  },
+  "kind": "backend",
+  "list": {
+    "labelsWithUnreadCounts": {
+      "labels": 96,
+      "ms": {
+        "max": 6.224,
+        "mean": 0.882,
+        "n": 200,
+        "p50": 0.786,
+        "p95": 1.156,
+        "p99": 1.897
+      }
+    },
+    "scroll": {
+      "all40PagesMs": {
+        "max": 497.695,
+        "mean": 62.139,
+        "n": 10,
+        "p50": 14.469,
+        "p95": 497.695,
+        "p99": 497.695
+      },
+      "pageMs": {
+        "max": 54.24,
+        "mean": 1.527,
+        "n": 400,
+        "p50": 0.338,
+        "p95": 8.967,
+        "p99": 26.336
+      },
+      "pages": 40,
+      "threads": 2000
+    },
+    "views": [
+      {
+        "ms": {
+          "max": 197.05,
+          "mean": 1.237,
+          "n": 200,
+          "p50": 0.22,
+          "p95": 0.377,
+          "p99": 1.485
+        },
+        "name": "Inbox (all accounts)",
+        "rows": 50
+      },
+      {
+        "ms": {
+          "max": 91.255,
+          "mean": 0.699,
+          "n": 200,
+          "p50": 0.227,
+          "p95": 0.364,
+          "p99": 0.805
+        },
+        "name": "Inbox, unread only",
+        "rows": 50
+      },
+      {
+        "ms": {
+          "max": 38.967,
+          "mean": 0.432,
+          "n": 200,
+          "p50": 0.222,
+          "p95": 0.377,
+          "p99": 0.419
+        },
+        "name": "Inbox, one account",
+        "rows": 50
+      },
+      {
+        "ms": {
+          "max": 42.078,
+          "mean": 0.43,
+          "n": 200,
+          "p50": 0.201,
+          "p95": 0.351,
+          "p99": 0.433
+        },
+        "name": "Inbox / Newsletters tab",
+        "rows": 50
+      },
+      {
+        "ms": {
+          "max": 26.984,
+          "mean": 0.441,
+          "n": 200,
+          "p50": 0.276,
+          "p95": 0.416,
+          "p99": 0.949
+        },
+        "name": "All mail",
+        "rows": 50
+      },
+      {
+        "ms": {
+          "max": 9.965,
+          "mean": 0.326,
+          "n": 200,
+          "p50": 0.235,
+          "p95": 0.418,
+          "p99": 0.629
+        },
+        "name": "All mail, unread only",
+        "rows": 50
+      },
+      {
+        "ms": {
+          "max": 18.745,
+          "mean": 0.334,
+          "n": 200,
+          "p50": 0.228,
+          "p95": 0.302,
+          "p99": 0.426
+        },
+        "name": "Sent",
+        "rows": 50
+      },
+      {
+        "ms": {
+          "max": 61.072,
+          "mean": 0.51,
+          "n": 200,
+          "p50": 0.196,
+          "p95": 0.234,
+          "p99": 0.378
+        },
+        "name": "Done (archived)",
+        "rows": 50
+      },
+      {
+        "ms": {
+          "max": 43.181,
+          "mean": 0.458,
+          "n": 200,
+          "p50": 0.224,
+          "p95": 0.344,
+          "p99": 0.599
+        },
+        "name": "Label (user label)",
+        "rows": 50
+      },
+      {
+        "ms": {
+          "max": 21.949,
+          "mean": 0.396,
+          "n": 200,
+          "p50": 0.233,
+          "p95": 0.424,
+          "p99": 0.612
+        },
+        "name": "Starred",
+        "rows": 50
+      }
+    ]
+  },
+  "machine": {
+    "arch": "x86_64",
+    "cpu": "Intel Core Processor (Haswell, no TSX)",
+    "kernel": "7.0.0-30-generic",
+    "logicalCores": 8,
+    "os": "Ubuntu 26.04 LTS",
+    "ramGiB": 22.9,
+    "virtualized": true
+  },
+  "open": {
+    "cold": {
+      "firstSearchMs": {
+        "max": 1178.005,
+        "mean": 1111.376,
+        "n": 8,
+        "p50": 1130.064,
+        "p95": 1178.005,
+        "p99": 1178.005
+      },
+      "openMs": {
+        "max": 4.546,
+        "mean": 3.493,
+        "n": 8,
+        "p50": 3.247,
+        "p95": 4.546,
+        "p99": 4.546
+      },
+      "pageCacheEvicted": true,
+      "plusLabelsMs": {
+        "max": 329.145,
+        "mean": 316.588,
+        "n": 8,
+        "p50": 317.783,
+        "p95": 329.145,
+        "p99": 329.145
+      },
+      "timeToFirstListMs": {
+        "max": 231.718,
+        "mean": 218.589,
+        "n": 8,
+        "p50": 222.42,
+        "p95": 231.718,
+        "p99": 231.718
+      }
+    },
+    "diskRandomRead4kMs": {
+      "max": 0.879,
+      "mean": 0.16,
+      "n": 300,
+      "p50": 0.148,
+      "p95": 0.22,
+      "p99": 0.282
+    },
+    "warm": {
+      "firstSearchMs": {
+        "max": 74.908,
+        "mean": 49.553,
+        "n": 30,
+        "p50": 47.081,
+        "p95": 68.213,
+        "p99": 74.908
+      },
+      "openMs": {
+        "max": 1.917,
+        "mean": 1.295,
+        "n": 30,
+        "p50": 1.188,
+        "p95": 1.758,
+        "p99": 1.917
+      },
+      "pageCacheEvicted": false,
+      "plusLabelsMs": {
+        "max": 5.744,
+        "mean": 3.801,
+        "n": 30,
+        "p50": 3.554,
+        "p95": 5.393,
+        "p99": 5.744
+      },
+      "timeToFirstListMs": {
+        "max": 4.166,
+        "mean": 2.796,
+        "n": 30,
+        "p50": 2.593,
+        "p95": 3.923,
+        "p99": 4.166
+      }
+    }
+  },
+  "render": [
+    {
+      "blockedRemoteImages": 39,
+      "inputBytes": 52196,
+      "ms": {
+        "max": 4.768,
+        "mean": 3.282,
+        "n": 20,
+        "p50": 2.858,
+        "p95": 4.671,
+        "p99": 4.768
+      },
+      "name": "50 KB newsletter",
+      "outputBytes": 57190,
+      "trackersRemoved": 1
+    },
+    {
+      "blockedRemoteImages": 155,
+      "inputBytes": 205878,
+      "ms": {
+        "max": 21.328,
+        "mean": 9.751,
+        "n": 20,
+        "p50": 8.852,
+        "p95": 15.341,
+        "p99": 21.328
+      },
+      "name": "200 KB newsletter",
+      "outputBytes": 222417,
+      "trackersRemoved": 1
+    },
+    {
+      "blockedRemoteImages": 1577,
+      "inputBytes": 2097756,
+      "ms": {
+        "max": 150.794,
+        "mean": 107.794,
+        "n": 20,
+        "p50": 100.537,
+        "p95": 149.297,
+        "p99": 150.794
+      },
+      "name": "2 MB newsletter",
+      "outputBytes": 2254496,
+      "trackersRemoved": 1
+    },
+    {
+      "inputBytes": 2097160,
+      "ms": {
+        "max": 55.887,
+        "mean": 45.375,
+        "n": 20,
+        "p50": 44.054,
+        "p95": 50.769,
+        "p99": 55.887
+      },
+      "name": "2 MB plain text, quoted"
+    }
+  ],
+  "schema": 1,
+  "search": {
+    "byKind": {
+      "identifier": {
+        "max": 9.926,
+        "mean": 3.098,
+        "n": 30,
+        "p50": 2.842,
+        "p95": 3.249,
+        "p99": 9.926
+      },
+      "natural": {
+        "max": 18.647,
+        "mean": 10.607,
+        "n": 30,
+        "p50": 9.31,
+        "p95": 15.298,
+        "p99": 18.647
+      },
+      "no match": {
+        "max": 3.725,
+        "mean": 2.744,
+        "n": 30,
+        "p50": 2.655,
+        "p95": 3.706,
+        "p99": 3.725
+      },
+      "operator": {
+        "max": 650.038,
+        "mean": 20.597,
+        "n": 510,
+        "p50": 14.741,
+        "p95": 54.137,
+        "p99": 84.059
+      },
+      "phrase": {
+        "max": 67.542,
+        "mean": 12.43,
+        "n": 60,
+        "p50": 20.385,
+        "p95": 25.704,
+        "p99": 28.52
+      },
+      "words": {
+        "max": 320.643,
+        "mean": 37.071,
+        "n": 150,
+        "p50": 32.781,
+        "p95": 55.372,
+        "p99": 194.932
+      }
+    },
+    "limit": 50,
+    "pooledMs": {
+      "max": 650.038,
+      "mean": 21.364,
+      "n": 810,
+      "p50": 16.112,
+      "p95": 53.774,
+      "p99": 79.93
+    },
+    "queries": [
+      {
+        "kind": "words",
+        "ms": {
+          "max": 320.643,
+          "mean": 39.874,
+          "n": 30,
+          "p50": 28.097,
+          "p95": 46.197,
+          "p99": 320.643
+        },
+        "query": "meeting",
+        "threads": 50,
+        "topHitIsPlanted": false
+      },
+      {
+        "kind": "words",
+        "ms": {
+          "max": 55.372,
+          "mean": 39.601,
+          "n": 30,
+          "p50": 36.769,
+          "p95": 53.529,
+          "p99": 55.372
+        },
+        "query": "invoice",
+        "threads": 50,
+        "topHitIsPlanted": false
+      },
+      {
+        "kind": "words",
+        "ms": {
+          "max": 64.394,
+          "mean": 48.662,
+          "n": 30,
+          "p50": 46.347,
+          "p95": 60.694,
+          "p99": 64.394
+        },
+        "query": "the",
+        "threads": 50,
+        "topHitIsPlanted": false
+      },
+      {
+        "kind": "words",
+        "ms": {
+          "max": 194.932,
+          "mean": 33.491,
+          "n": 30,
+          "p50": 27.294,
+          "p95": 39.333,
+          "p99": 194.932
+        },
+        "query": "lease renewal",
+        "threads": 50,
+        "topHitIsPlanted": true
+      },
+      {
+        "kind": "words",
+        "ms": {
+          "max": 61.763,
+          "mean": 23.728,
+          "n": 30,
+          "p50": 20.979,
+          "p95": 32.243,
+          "p99": 61.763
+        },
+        "query": "quarterly report deadline",
+        "threads": 50,
+        "topHitIsPlanted": false
+      },
+      {
+        "kind": "phrase",
+        "ms": {
+          "max": 3.039,
+          "mean": 0.759,
+          "n": 30,
+          "p50": 0.659,
+          "p95": 0.946,
+          "p99": 3.039
+        },
+        "query": "\"early termination clause\"",
+        "threads": 1,
+        "topHitIsPlanted": true
+      },
+      {
+        "kind": "phrase",
+        "ms": {
+          "max": 67.542,
+          "mean": 24.101,
+          "n": 30,
+          "p50": 22.078,
+          "p95": 28.52,
+          "p99": 67.542
+        },
+        "query": "\"to the\"",
+        "threads": 50,
+        "topHitIsPlanted": false
+      },
+      {
+        "kind": "operator",
+        "ms": {
+          "max": 94.93,
+          "mean": 14.539,
+          "n": 30,
+          "p50": 10.829,
+          "p95": 18.185,
+          "p99": 94.93
+        },
+        "query": "from:mike",
+        "threads": 50,
+        "topHitIsPlanted": false
+      },
+      {
+        "kind": "operator",
+        "ms": {
+          "max": 63.991,
+          "mean": 18.638,
+          "n": 30,
+          "p50": 16.145,
+          "p95": 23.817,
+          "p99": 63.991
+        },
+        "query": "from:mike.delgado@realty.example",
+        "threads": 1,
+        "topHitIsPlanted": true
+      },
+      {
+        "kind": "operator",
+        "ms": {
+          "max": 24.167,
+          "mean": 16.027,
+          "n": 30,
+          "p50": 14.908,
+          "p95": 23.562,
+          "p99": 24.167
+        },
+        "query": "from:mike lease",
+        "threads": 50,
+        "topHitIsPlanted": false
+      },
+      {
+        "kind": "operator",
+        "ms": {
+          "max": 12.133,
+          "mean": 2.522,
+          "n": 30,
+          "p50": 2.122,
+          "p95": 3.815,
+          "p99": 12.133
+        },
+        "query": "has:attachment",
+        "threads": 50,
+        "topHitIsPlanted": false
+      },
+      {
+        "kind": "operator",
+        "ms": {
+          "max": 4.624,
+          "mean": 2.253,
+          "n": 30,
+          "p50": 2.141,
+          "p95": 2.476,
+          "p99": 4.624
+        },
+        "query": "has:pdf",
+        "threads": 50,
+        "topHitIsPlanted": false
+      },
+      {
+        "kind": "operator",
+        "ms": {
+          "max": 13.666,
+          "mean": 2.551,
+          "n": 30,
+          "p50": 2.079,
+          "p95": 2.699,
+          "p99": 13.666
+        },
+        "query": "has:pdf date:\"last spring\"",
+        "threads": 50,
+        "topHitIsPlanted": false
+      },
+      {
+        "kind": "operator",
+        "ms": {
+          "max": 42.739,
+          "mean": 17.154,
+          "n": 30,
+          "p50": 15.189,
+          "p95": 23.55,
+          "p99": 42.739
+        },
+        "query": "invoice after:2025/09/26 before:2026/03/30",
+        "threads": 50,
+        "topHitIsPlanted": false
+      },
+      {
+        "kind": "operator",
+        "ms": {
+          "max": 99.409,
+          "mean": 9.417,
+          "n": 30,
+          "p50": 5.395,
+          "p95": 10.633,
+          "p99": 99.409
+        },
+        "query": "label:Label_3",
+        "threads": 50,
+        "topHitIsPlanted": false
+      },
+      {
+        "kind": "operator",
+        "ms": {
+          "max": 18.781,
+          "mean": 12.787,
+          "n": 30,
+          "p50": 12.267,
+          "p95": 18.168,
+          "p99": 18.781
+        },
+        "query": "label:Label_3 meeting",
+        "threads": 38,
+        "topHitIsPlanted": false
+      },
+      {
+        "kind": "operator",
+        "ms": {
+          "max": 7.934,
+          "mean": 2.723,
+          "n": 30,
+          "p50": 2.466,
+          "p95": 3.405,
+          "p99": 7.934
+        },
+        "query": "is:unread",
+        "threads": 50,
+        "topHitIsPlanted": false
+      },
+      {
+        "kind": "operator",
+        "ms": {
+          "max": 27.528,
+          "mean": 19.872,
+          "n": 30,
+          "p50": 18.888,
+          "p95": 26.31,
+          "p99": 27.528
+        },
+        "query": "is:unread invoice",
+        "threads": 50,
+        "topHitIsPlanted": false
+      },
+      {
+        "kind": "operator",
+        "ms": {
+          "max": 650.038,
+          "mean": 73.944,
+          "n": 30,
+          "p50": 51.216,
+          "p95": 84.059,
+          "p99": 650.038
+        },
+        "query": "in:sent budget",
+        "threads": 50,
+        "topHitIsPlanted": false
+      },
+      {
+        "kind": "operator",
+        "ms": {
+          "max": 161.059,
+          "mean": 30.241,
+          "n": 30,
+          "p50": 25.445,
+          "p95": 28.965,
+          "p99": 161.059
+        },
+        "query": "older_than:2y tax",
+        "threads": 50,
+        "topHitIsPlanted": false
+      },
+      {
+        "kind": "operator",
+        "ms": {
+          "max": 49.074,
+          "mean": 32.374,
+          "n": 30,
+          "p50": 30.777,
+          "p95": 41.74,
+          "p99": 49.074
+        },
+        "query": "invoice -stripe",
+        "threads": 50,
+        "topHitIsPlanted": false
+      },
+      {
+        "kind": "operator",
+        "ms": {
+          "max": 64.311,
+          "mean": 33.079,
+          "n": 30,
+          "p50": 29.531,
+          "p95": 56.519,
+          "p99": 64.311
+        },
+        "query": "lease OR mortgage",
+        "threads": 50,
+        "topHitIsPlanted": false
+      },
+      {
+        "kind": "operator",
+        "ms": {
+          "max": 1.259,
+          "mean": 0.27,
+          "n": 30,
+          "p50": 0.229,
+          "p95": 0.359,
+          "p99": 1.259
+        },
+        "query": "filename:20417",
+        "threads": 1,
+        "topHitIsPlanted": true
+      },
+      {
+        "kind": "operator",
+        "ms": {
+          "max": 231.018,
+          "mean": 61.759,
+          "n": 30,
+          "p50": 53.473,
+          "p95": 75.661,
+          "p99": 231.018
+        },
+        "query": "account:personal invoice",
+        "threads": 50,
+        "topHitIsPlanted": false
+      },
+      {
+        "kind": "identifier",
+        "ms": {
+          "max": 9.926,
+          "mean": 3.098,
+          "n": 30,
+          "p50": 2.842,
+          "p95": 3.249,
+          "p99": 9.926
+        },
+        "query": "INV-20417",
+        "threads": 2,
+        "topHitIsPlanted": true
+      },
+      {
+        "kind": "natural",
+        "ms": {
+          "max": 18.647,
+          "mean": 10.607,
+          "n": 30,
+          "p50": 9.31,
+          "p95": 15.298,
+          "p99": 18.647
+        },
+        "query": "the pdf mike sent about the lease date:\"last spring\"",
+        "threads": 2,
+        "topHitIsPlanted": true
+      },
+      {
+        "kind": "no match",
+        "ms": {
+          "max": 3.725,
+          "mean": 2.744,
+          "n": 30,
+          "p50": 2.655,
+          "p95": 3.706,
+          "p99": 3.725
+        },
+        "query": "zzqxjv",
+        "threads": 0,
+        "topHitIsPlanted": false
+      }
+    ]
+  },
+  "thread": {
+    "avgRenderedKiB": 18.701,
+    "conversationTotalMs": {
+      "max": 18.974,
+      "mean": 2.092,
+      "n": 269,
+      "p50": 1.598,
+      "p95": 4.988,
+      "p99": 7.647
+    },
+    "longestThread": {
+      "messages": 8,
+      "totalMs": 4.448
+    },
+    "newsletterTotalMs": {
+      "max": 8.604,
+      "mean": 2.603,
+      "n": 232,
+      "p50": 2.369,
+      "p95": 4.442,
+      "p99": 6.192
+    },
+    "renderMs": {
+      "max": 4.742,
+      "mean": 0.999,
+      "n": 501,
+      "p50": 0.999,
+      "p95": 2.334,
+      "p99": 2.962
+    },
+    "storeReadMs": {
+      "max": 15.671,
+      "mean": 1.33,
+      "n": 501,
+      "p50": 1.042,
+      "p95": 3.375,
+      "p99": 6.645
+    },
+    "threads": 501,
+    "totalMs": {
+      "max": 18.974,
+      "mean": 2.329,
+      "n": 501,
+      "p50": 2.074,
+      "p95": 4.725,
+      "p99": 7.647
+    }
+  },
+  "wallSeconds": 432.072
+}

@@ -1,0 +1,243 @@
+{
+  "status": "passed",
+  "svg": {
+    "tuxedo-split-a": {
+      "canvas": [
+        1024,
+        1024
+      ],
+      "painted_paths": 2,
+      "colors": [
+        "#182B3A",
+        "#FFFFFF"
+      ],
+      "container": "unchanged"
+    },
+    "tuxedo-split-b": {
+      "canvas": [
+        1024,
+        1024
+      ],
+      "painted_paths": 2,
+      "colors": [
+        "#182B3A",
+        "#FFFFFF"
+      ],
+      "container": "unchanged"
+    },
+    "tuxedo-split-c": {
+      "canvas": [
+        1024,
+        1024
+      ],
+      "painted_paths": 2,
+      "colors": [
+        "#182B3A",
+        "#FFFFFF"
+      ],
+      "container": "unchanged"
+    },
+    "tuxedo-split-d": {
+      "canvas": [
+        1024,
+        1024
+      ],
+      "painted_paths": 2,
+      "colors": [
+        "#182B3A",
+        "#FFFFFF"
+      ],
+      "container": "unchanged"
+    },
+    "ice-floe": {
+      "canvas": [
+        1024,
+        1024
+      ],
+      "painted_paths": 2,
+      "colors": [
+        "#182B3A",
+        "#FFFFFF"
+      ],
+      "container": "unchanged"
+    },
+    "cut-pebble": {
+      "canvas": [
+        1024,
+        1024
+      ],
+      "painted_paths": 3,
+      "colors": [
+        "#182B3A",
+        "#FFFFFF"
+      ],
+      "container": "unchanged"
+    },
+    "ice-floe-small": {
+      "canvas": [
+        1024,
+        1024
+      ],
+      "painted_paths": 2,
+      "colors": [
+        "#182B3A",
+        "#FFFFFF"
+      ],
+      "container": "unchanged"
+    },
+    "cut-pebble-small": {
+      "canvas": [
+        1024,
+        1024
+      ],
+      "painted_paths": 3,
+      "colors": [
+        "#182B3A",
+        "#FFFFFF"
+      ],
+      "container": "unchanged"
+    }
+  },
+  "png": {
+    "tuxedo-split-a": {
+      "size": [
+        1024,
+        1024
+      ],
+      "mode": "RGBA",
+      "alpha_bbox": [
+        100,
+        100,
+        924,
+        924
+      ],
+      "matches_svg": true
+    },
+    "tuxedo-split-b": {
+      "size": [
+        1024,
+        1024
+      ],
+      "mode": "RGBA",
+      "alpha_bbox": [
+        100,
+        100,
+        924,
+        924
+      ],
+      "matches_svg": true
+    },
+    "tuxedo-split-c": {
+      "size": [
+        1024,
+        1024
+      ],
+      "mode": "RGBA",
+      "alpha_bbox": [
+        100,
+        100,
+        924,
+        924
+      ],
+      "matches_svg": true
+    },
+    "tuxedo-split-d": {
+      "size": [
+        1024,
+        1024
+      ],
+      "mode": "RGBA",
+      "alpha_bbox": [
+        100,
+        100,
+        924,
+        924
+      ],
+      "matches_svg": true
+    },
+    "ice-floe": {
+      "size": [
+        1024,
+        1024
+      ],
+      "mode": "RGBA",
+      "alpha_bbox": [
+        100,
+        100,
+        924,
+        924
+      ],
+      "matches_svg": true
+    },
+    "cut-pebble": {
+      "size": [
+        1024,
+        1024
+      ],
+      "mode": "RGBA",
+      "alpha_bbox": [
+        100,
+        100,
+        924,
+        924
+      ],
+      "matches_svg": true
+    },
+    "ice-floe-small": {
+      "size": [
+        1024,
+        1024
+      ],
+      "mode": "RGBA",
+      "alpha_bbox": [
+        100,
+        100,
+        924,
+        924
+      ],
+      "matches_svg": true
+    },
+    "cut-pebble-small": {
+      "size": [
+        1024,
+        1024
+      ],
+      "mode": "RGBA",
+      "alpha_bbox": [
+        100,
+        100,
+        924,
+        924
+      ],
+      "matches_svg": true
+    }
+  },
+  "links": {
+    "checked": 93,
+    "all_resolve": true
+  },
+  "samples": {
+    "200": 12,
+    "32": 12,
+    "16": 12,
+    "64": 12
+  },
+  "renderer": "rsvg-convert",
+  "cut_pebble": "Both SVGs byte-for-byte identical to round 2",
+  "mirror": {
+    "vector_reflection": "exact",
+    "solid_color_interior_mismatches": 0,
+    "note": "Directional raster edge antialiasing is not pixel symmetric; verified independently with the round-2 container alone."
+  },
+  "sheet": {
+    "pixels": [
+      3200,
+      2000
+    ],
+    "viewport": [
+      1600,
+      1000
+    ],
+    "device_scale": 2
+  }
+}

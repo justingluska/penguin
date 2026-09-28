@@ -1,0 +1,59 @@
+/* Sender photos and logos over the monogram (Identity.tsx Avatar).
+   The .avatar box (styles/penguin.css) keeps its size and shape; the image
+   fades in over the initials, so nothing shifts while it loads. */
+.avatar { position: relative; overflow: hidden; }
+.avatar > img {
+  position: absolute; inset: 0; width: 100%; height: 100%;
+  object-fit: cover; border-radius: inherit;
+  opacity: 0; transition: opacity .2s ease-out;
+  user-select: none; pointer-events: none;
+}
+.avatar.has-img > img { opacity: 1; }
+.avatar.has-img { color: transparent; }
+.avatar.no-fade > img { transition: none; }
+
+/* Brands sit on a white rounded-square tile in both themes, like an app icon. */
+.avatar.is-logo {
+  border-radius: 28%; background: #fff;
+  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, .08);
+  transition: border-radius .2s ease-out, background-color .2s ease-out;
+}
+.avatar.is-logo > img { inset: 8%; width: 84%; height: 84%; object-fit: contain; border-radius: 18%; }
+.avatar.no-fade.is-logo { transition: none; }
+@media (prefers-reduced-motion: reduce) {
+  .avatar > img, .avatar.is-logo { transition: none; }
+}
+
+.avatar-md { width: 32px; height: 32px; font-size: 12px; }
+.avatar-row { width: 36px; height: 36px; font-size: 13px; }
+.avatar-2xl { width: 64px; height: 64px; font-size: 22px; }
+
+/* Account avatars (Identity.tsx AccountAvatar): the photo leads, the
+   account's color bar or dot follows tight against it, then the name. */
+.acct-av { flex: none; }
+.avatar-xs.acct-av { font-size: 9px; }
+.acct-av + .acct-bar { margin: 0 -2px 0 -4px; }
+.menu-item .acct-av + .acct-bar { margin: 0 -2px 0 -4px; }
+.acct-av + .dot { margin-left: -4px; }
+.switcher .switcher-av { width: 26px; height: 26px; font-size: 12px; }
+
+/* List rows: one-line rows carry a small avatar inside the sender cell;
+   stacked (three-line) and Floe rows get a larger one spanning the lines. */
+.msg .from .avatar { margin-right: 2px; }
+.msg.stacked.has-avatar {
+  grid-template-columns: 36px minmax(0, 1fr) auto;
+}
+.msg.stacked.has-avatar .row-av { grid-area: 1 / 1 / 4 / 2; align-self: center; display: flex; }
+.msg.stacked.has-avatar .from { grid-area: 1 / 2; }
+.msg.stacked.has-avatar .time { grid-area: 1 / 3; }
+.msg.stacked.has-avatar .subj { grid-area: 2 / 2; }
+.msg.stacked.has-avatar .meta { grid-area: 2 / 3; }
+.msg.stacked.has-avatar .snip { grid-area: 3 / 2 / 4 / 4; }
+.msg.stacked.has-avatar .msg-actions { grid-area: 1 / 3; }
+
+.msg.floe.has-avatar {
+  grid-template-columns: 32px minmax(0, 1fr) auto auto;
+  grid-template-areas: "av from meta time" "av line line line";
+}
+.msg.floe.has-avatar .row-av { grid-area: av; align-self: center; display: flex; }
+.msg.floe.has-avatar .msg-actions { grid-column: 3 / 5; }

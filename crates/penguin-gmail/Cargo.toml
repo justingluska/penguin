@@ -1,0 +1,43 @@
+[package]
+name = "penguin-gmail"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish = false
+
+[dependencies]
+penguin-core.workspace = true
+penguin-provider.workspace = true
+penguin-render.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+tokio.workspace = true
+tracing.workspace = true
+reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls", "http2", "gzip"] }
+keyring = { version = "3", features = ["apple-native"] }
+# gmail-sync: MIME conversion + compose + rate limiting
+base64 = "0.22"
+encoding_rs = "0.8"
+mail-parser = "0.11"
+mail-builder = "0.4"
+futures-util = "0.3"
+fastrand = "2"
+# auth: PKCE, state, loopback redirect parsing (base64 shared with gmail-sync)
+sha2 = "0.10"
+getrandom = "0.3"
+url = "2"
+# calendar: event times (same features as penguin-core)
+chrono = { version = "0.4", default-features = false, features = ["clock", "std"] }
+
+[dev-dependencies]
+tokio = { workspace = true, features = ["test-util"] }
+# sync_bench.rs: gzip size of Gmail responses (same version reqwest's gzip uses)
+flate2 = "1"
+
+# auth: the system sign-in sheet on macOS (ASWebAuthenticationSession, auth/sheet_apple.rs)
+[target.'cfg(target_os = "macos")'.dependencies]
+objc2 = "0.6"
+block2 = "0.6"
+objc2-foundation = { version = "0.3", default-features = false, features = ["std", "NSString", "NSURL", "NSError", "NSObject"] }
+objc2-authentication-services = { version = "0.3", default-features = false, features = ["std", "block2", "ASFoundation", "ASWebAuthenticationSession", "ASWebAuthenticationSessionCallback"] }

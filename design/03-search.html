@@ -1,0 +1,192 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Penguin — Search</title>
+<script>(function(){var t=new URLSearchParams(location.search).get('theme');document.documentElement.dataset.theme=t==='light'?'light':'dark';})();</script>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="penguin.css">
+</head>
+<body>
+<iframe class="bg-frame" id="bg" tabindex="-1" aria-hidden="true"></iframe>
+<script>document.getElementById("bg").src="01-inbox.html?theme="+document.documentElement.dataset.theme;</script>
+<div class="scrim"></div>
+
+<div class="overlay-host">
+  <section class="search panel" role="dialog" aria-label="Search">
+
+    <!-- Query row: operators are syntax-highlighted inline -->
+    <div class="q-row">
+      <svg class="i q-ico"><use href="#i-search"/></svg>
+      <div class="q-text">
+        <span class="tok-op">from:</span><span class="tok-val">mike</span>
+        <span class="tok-op">has:</span><span class="tok-val">pdf</span>
+        <span class="tok-word">lease</span>
+        <span class="tok-op">date:</span><span class="tok-date">"last spring"</span><span class="caret"></span>
+      </div>
+      <button class="btn btn-ghost btn-sm"><svg class="i i-xs"><use href="#i-pin"/></svg>Save<span class="kbd">⌘S</span></button>
+      <span class="kbd">Esc</span>
+    </div>
+
+    <!-- Parsed filter chips mirror the query 1:1 -->
+    <div class="chips-row">
+      <span class="parsed-label">Parsed as</span>
+      <span class="chip"><span class="avatar avatar-xs t-orange">MD</span><b>From</b> Mike Delgado<span class="x"><svg class="i i-2xs"><use href="#i-x"/></svg></span></span>
+      <span class="chip"><svg class="i i-2xs"><use href="#i-file"/></svg><b>Has</b> PDF<span class="x"><svg class="i i-2xs"><use href="#i-x"/></svg></span></span>
+      <span class="chip"><svg class="i i-2xs"><use href="#i-calendar"/></svg><b>Date</b> Mar 1 – May 31, 2026<span class="x"><svg class="i i-2xs"><use href="#i-x"/></svg></span></span>
+      <span class="chip"><b>Words</b> “lease” + lease, leasing, renewal<span class="x"><svg class="i i-2xs"><use href="#i-x"/></svg></span></span>
+      <span class="grow"></span>
+      <span class="latency"><span class="lat-ms">38 ms</span><span class="lat-sep"></span>142,318 messages indexed locally</span>
+    </div>
+
+    <div class="s-body">
+
+      <!-- Facets -->
+      <aside class="facets">
+        <div class="facet">
+          <div class="facet-title">Account</div>
+          <a class="facet-item on"><span class="check"><svg class="i i-2xs"><use href="#i-check"/></svg></span>All accounts<span class="n">9</span></a>
+          <a class="facet-item"><span class="check"></span><i class="dot dot-sm acc-personal"></i>Personal<span class="n">9</span></a>
+          <a class="facet-item dim"><span class="check"></span><i class="dot dot-sm acc-work"></i>Northwind<span class="n">0</span></a>
+          <a class="facet-item dim"><span class="check"></span><i class="dot dot-sm acc-harbor"></i>Harbor Labs<span class="n">0</span></a>
+        </div>
+        <div class="facet">
+          <div class="facet-title">Date</div>
+          <a class="facet-item"><span class="radio"></span>Any time<span class="n">31</span></a>
+          <a class="facet-item on"><span class="radio on"></span>Last spring<span class="n">9</span></a>
+          <a class="facet-item"><span class="radio"></span>Past 12 months<span class="n">17</span></a>
+          <a class="facet-item"><span class="radio"></span>Custom range…</a>
+        </div>
+        <div class="facet">
+          <div class="facet-title">Has</div>
+          <a class="facet-item on"><span class="check"><svg class="i i-2xs"><use href="#i-check"/></svg></span>PDF<span class="n">9</span></a>
+          <a class="facet-item"><span class="check"></span>Image<span class="n">2</span></a>
+          <a class="facet-item"><span class="check"></span>Calendar invite<span class="n">1</span></a>
+        </div>
+        <div class="facet">
+          <div class="facet-title">Label</div>
+          <a class="facet-item"><span class="check"></span><span class="label-sq t-red" style="margin:0 2px 0 0"></span>Home<span class="n">7</span></a>
+          <a class="facet-item"><span class="check"></span><span class="label-sq t-amber" style="margin:0 2px 0 0"></span>Finance<span class="n">2</span></a>
+        </div>
+        <div class="facet">
+          <div class="facet-title">Saved</div>
+          <a class="facet-item"><svg class="i i-2xs faint"><use href="#i-pin"/></svg><span class="mono q-mini">has:receipt this year</span></a>
+          <a class="facet-item"><svg class="i i-2xs faint"><use href="#i-pin"/></svg><span class="mono q-mini">from:priya has:attachment</span></a>
+        </div>
+      </aside>
+
+      <!-- Results -->
+      <div class="results">
+        <div class="group-head"><span>Best match</span><span class="gh-hint"><span class="kbd">↵</span> Open</span></div>
+        <article class="tophit">
+          <div class="th-top">
+            <i class="dot dot-sm acc-personal"></i>
+            <span class="th-from">Mike Delgado</span>
+            <span class="faint">Cedar &amp; Pine Property</span>
+            <span class="grow"></span>
+            <span class="badge t-gray">3 matches in thread</span>
+            <span class="faint tnum" style="font-size:12px">Apr 18, 2026</span>
+          </div>
+          <h3 class="th-subj"><mark>Lease</mark> renewal — 418 Alder St, Unit 3B</h3>
+          <p class="th-snip">“…attached is the signed <mark>lease</mark> renewal for June 1, 2026 through May 31, 2027. Rent stays at $2,450, and the 60-day notice clause from the original <mark>lease</mark> still applies…”</p>
+          <div class="th-files">
+            <span class="att-chip t-red"><span class="mini-ico">PDF</span>Lease_Renewal_2026_Unit3B.pdf</span>
+            <span class="faint" style="font-size:12px">page 1 · “<mark>lease</mark> term”</span>
+          </div>
+        </article>
+
+        <div class="group-head"><span>Attachments <span class="gh-count">3</span></span><span class="gh-hint">Text inside PDFs is indexed</span></div>
+        <div class="att-row">
+          <div class="file t-red"><span class="file-ico">PDF</span><div class="grow"><div class="fname truncate"><mark>Lease</mark>_Renewal_2026_Unit3B.pdf</div><div class="fmeta">Apr 18 · 412 KB · 7 pages</div></div></div>
+          <div class="file t-red"><span class="file-ico">PDF</span><div class="grow"><div class="fname truncate"><mark>Lease</mark>_Addendum_Parking.pdf</div><div class="fmeta">May 6 · 96 KB · 1 page</div></div></div>
+          <div class="file t-red"><span class="file-ico">PDF</span><div class="grow"><div class="fname truncate">Move-in_Inspection.pdf</div><div class="fmeta">Apr 22 · 1.8 MB · 12 pages</div></div></div>
+        </div>
+
+        <div class="group-head"><span>Threads <span class="gh-count">6</span></span><span class="gh-hint">Newest first</span></div>
+        <div class="hits">
+          <div class="hit is-active">
+            <span class="hit-from"><i class="dot dot-sm acc-personal"></i>Mike Delgado</span>
+            <span class="hit-main truncate"><span class="hit-subj">Re: Renewal terms</span><span class="hit-snip"> — “…the <mark>lease</mark> auto-renews unless either side gives notice by March 31…”</span></span>
+            <span class="hit-meta"><svg class="i i-xs"><use href="#i-clip"/></svg><span class="tnum">May 2</span></span>
+          </div>
+          <div class="hit">
+            <span class="hit-from"><i class="dot dot-sm acc-personal"></i>Mike Delgado</span>
+            <span class="hit-main truncate"><span class="hit-subj">Parking spot addendum</span><span class="hit-snip"> — “…spot 14 is now attached to your <mark>lease</mark> at no extra cost…”</span></span>
+            <span class="hit-meta"><svg class="i i-xs"><use href="#i-clip"/></svg><span class="tnum">May 6</span></span>
+          </div>
+          <div class="hit">
+            <span class="hit-from"><i class="dot dot-sm acc-personal"></i>Mike Delgado</span>
+            <span class="hit-main truncate"><span class="hit-subj">Move-in inspection — Unit 3B</span><span class="hit-snip"> — “…per section 4 of the <mark>lease</mark>, please note any existing damage…”</span></span>
+            <span class="hit-meta"><svg class="i i-xs"><use href="#i-clip"/></svg><span class="tnum">Apr 22</span></span>
+          </div>
+          <div class="hit">
+            <span class="hit-from"><i class="dot dot-sm acc-personal"></i>Mike Delgado</span>
+            <span class="hit-main truncate"><span class="hit-subj">Renewal offer for 2026–27</span><span class="hit-snip"> — “…happy to extend the <mark>lease</mark> another year at the same rate if…”</span></span>
+            <span class="hit-meta"><span class="badge t-gray">2</span><svg class="i i-xs"><use href="#i-clip"/></svg><span class="tnum">Mar 12</span></span>
+          </div>
+          <div class="hit">
+            <span class="hit-from"><i class="dot dot-sm acc-personal"></i>Mike Delgado</span>
+            <span class="hit-main truncate"><span class="hit-subj">Rent increase notice — none this year</span><span class="hit-snip"> — “…no change to the rent under the current <mark>lease</mark>…”</span></span>
+            <span class="hit-meta"><svg class="i i-xs"><use href="#i-clip"/></svg><span class="tnum">Mar 3</span></span>
+          </div>
+          <div class="hit-more"><svg class="i i-xs"><use href="#i-down"/></svg>1 more thread<span class="grow"></span><span class="faint">Older matches outside “last spring”: 22</span></div>
+        </div>
+      </div>
+
+      <!-- Answer + people -->
+      <aside class="s-side">
+        <section class="answer">
+          <div class="ans-head">
+            <span class="ai-tag"><svg class="i "><use href="#i-sparkles"/></svg>AI answer</span>
+            <span class="faint" style="font-size:11px">from 2 emails</span>
+            <span class="grow"></span>
+            <span class="toggle on" title="Turn off"><span></span></span>
+            <span class="kbd">⌥A</span>
+          </div>
+          <p class="ans-text">Your renewal with Cedar &amp; Pine runs <b>Jun 1, 2026 – May 31, 2027</b> at <b>$2,450/mo</b>, unchanged from last year. You signed it on Apr 18<sup class="cite">1</sup>. Move-out needs <b>60 days’ written notice</b><sup class="cite">2</sup>.</p>
+          <div class="sources">
+            <a class="src"><span class="cite">1</span><span class="truncate grow">Lease renewal — 418 Alder St, Unit 3B</span><span class="faint tnum">Apr 18</span></a>
+            <a class="src"><span class="cite">2</span><span class="truncate grow">Re: Renewal terms</span><span class="faint tnum">May 2</span></a>
+          </div>
+          <p class="ans-foot">Runs on your device. Answers always cite their sources.</p>
+        </section>
+
+        <div class="group-head" style="margin-top:18px"><span>People <span class="gh-count">2</span></span><span class="gh-hint">“mike”</span></div>
+        <div class="people">
+          <a class="person on">
+            <span class="avatar t-orange">MD</span>
+            <div class="grow" style="min-width:0"><div class="p-name">Mike Delgado</div><div class="faint truncate" style="font-size:12px">mike@cedarpine.example · 23 threads</div></div>
+            <svg class="i i-xs accent-ico"><use href="#i-check"/></svg>
+          </a>
+          <a class="person">
+            <span class="avatar t-green">MO</span>
+            <div class="grow" style="min-width:0"><div class="p-name">Mike Osei</div><div class="faint truncate" style="font-size:12px">mike@harborlabs.example · 4 threads</div></div>
+          </a>
+        </div>
+
+        <div class="group-head" style="margin-top:18px"><span>Recent searches</span><span class="gh-hint"><span class="kbd">⌘↑</span></span></div>
+        <div class="recents">
+          <a class="recent"><svg class="i i-xs"><use href="#i-history"/></svg><span class="mono q-mini">water heater</span></a>
+          <a class="recent"><svg class="i i-xs"><use href="#i-history"/></svg><span class="mono q-mini">flight lisbon has:pdf</span></a>
+          <a class="recent"><svg class="i i-xs"><use href="#i-history"/></svg><span class="mono q-mini">from:priya invoice</span></a>
+        </div>
+      </aside>
+    </div>
+
+    <footer class="s-foot">
+      <span class="hint"><span class="kbd-group"><span class="kbd">↑</span><span class="kbd">↓</span></span>Navigate</span>
+      <span class="hint"><span class="kbd">↵</span>Open at match</span>
+      <span class="hint"><span class="kbd">⌘↵</span>Open in split</span>
+      <span class="hint"><span class="kbd">Tab</span>Next group</span>
+      <span class="hint"><span class="kbd">⌘G</span>Next match</span>
+      <span class="grow"></span>
+      <span class="faint">All 3 accounts · 100% local</span>
+      <button class="btn btn-ghost btn-sm"><svg class="i i-xs"><use href="#i-cloud"/></svg>Also search server<span class="kbd">⌘⇧↵</span></button>
+    </footer>
+  </section>
+</div>
+<script src="penguin.js"></script>
+</body>
+</html>
+

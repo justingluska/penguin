@@ -1,0 +1,13 @@
+/* Settings → General → Notifications (NotificationSettings.tsx). */
+.nt-block { align-items: flex-start; }
+.nt-head, .nt-option { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
+.nt-head .st-muted, .nt-option .st-muted { max-width: 520px; }
+.nt-help { margin: 8px 0 0; display: flex; align-items: center; flex-wrap: wrap; gap: 4px; }
+.nt-test { margin-left: 2px; }
+.nt-warn { margin: 8px 0 0; padding: 8px 10px; border-radius: var(--radius-md); font-size: var(--text-xs);
+  background: color-mix(in srgb, var(--red-a4, var(--bg-interactive)) 60%, transparent); color: var(--text-emphasis); }
+.nt-option { padding: 10px 0 0; margin-top: 10px; border-top: 1px solid var(--border-subtle); }
+.nt-accounts { list-style: none; margin: 10px 0 0; padding: 8px 0 0; border-top: 1px solid var(--border-subtle); }
+.nt-accounts li { display: flex; align-items: center; gap: 8px; height: 34px; font-size: var(--text-xs); color: var(--text-default); }
+.nt-acct { flex: none; max-width: 180px; }
+.nt-state { flex: 1; min-width: 0; margin: 0 !important; }

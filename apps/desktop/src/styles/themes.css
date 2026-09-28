@@ -1,0 +1,652 @@
+/* ==========================================================================
+   Sidebar themes (Settings → General → Appearance). OWNER: themes.
+
+   A theme tints the sidebar and, with "Match accent to theme", the accent.
+   <html data-sidebar-theme="…"> picks one; lib/settings.ts sets it from
+   Settings.sidebarTheme. Every theme defines the same --sb-* / --th-* tokens
+   for dark (default) and light, and the sidebar maps them onto the semantic
+   layer, so components keep using --text-*, --bg-interactive, etc. Any
+   element can carry data-sidebar-theme (the Appearance previews do).
+
+   Text tokens are opaque and fills are #rrggbbaa so tests/themes.test.ts can
+   parse this file and assert WCAG AA (4.5:1) for all four sidebar text levels
+   on the sidebar, on the active fill, and on the primary button.
+
+   Dark pastels are deep, desaturated tints of the same hue, never neon.
+   Graphite is the original look (faint text nudged up to pass AA).
+   ========================================================================== */
+
+/* Graphite */
+:root,
+[data-sidebar-theme="graphite"] {
+  --sb-bg: #000000; --sb-edge: #212629; --sb-text-1: #f0f0f0;
+  --sb-text-2: #a1a4a5; --sb-text-3: #878d8f; --sb-text-4: #7a8184;
+  --sb-fill: #18191ce0; --sb-fill-hover: #b0c7d925; --sb-ring: #b0c7d925;
+  --sb-hairline: #191b1e; --sb-primary: #ffffff; --sb-on-primary: #000000;
+  --th-accent: #0090ff; --th-accent-soft: #0077ff3a; --th-accent-text: #70b8ff; --th-accent-ink: #000000;
+}
+[data-theme="light"],
+[data-theme="light"][data-sidebar-theme="graphite"],
+[data-theme="light"] [data-sidebar-theme="graphite"] {
+  --sb-bg: #fdfdfd; --sb-edge: #d7d7d7; --sb-text-1: #191919;
+  --sb-text-2: #333333; --sb-text-3: #5e5e5e; --sb-text-4: #666666;
+  --sb-fill: #00000014; --sb-fill-hover: #00000026; --sb-ring: #00000026;
+  --sb-hairline: #eeeeee; --sb-primary: #000000; --sb-on-primary: #ffffff;
+  --th-accent: #0090ff; --th-accent-soft: #008ff519; --th-accent-text: #006dcb; --th-accent-ink: #ffffff;
+}
+
+/* Graphite follows the dark shade (styles/penguin.css 1c): a step darker than
+   the shade's canvas, as Black's sidebar is its canvas. The other themes keep
+   their own tint in every shade. */
+[data-theme="dark"][data-dark-shade="charcoal"]:not([data-sidebar-theme]),
+[data-theme="dark"][data-dark-shade="charcoal"][data-sidebar-theme="graphite"],
+[data-theme="dark"][data-dark-shade="charcoal"] [data-sidebar-theme="graphite"] {
+  --sb-bg: #171719; --sb-edge: #323235; --sb-text-1: #f0f0f1;
+  --sb-text-2: #b2b2b5; --sb-text-3: #9c9ca0; --sb-text-4: #9c9ca0;
+  --sb-fill: #27272ae0; --sb-fill-hover: #dddde525; --sb-ring: #dddde525;
+  --sb-hairline: #28282b; --sb-primary: #ffffff; --sb-on-primary: #000000;
+  --th-accent: #0090ff; --th-accent-soft: #0077ff3a; --th-accent-text: #70b8ff; --th-accent-ink: #000000;
+}
+[data-theme="dark"][data-dark-shade="dim"]:not([data-sidebar-theme]),
+[data-theme="dark"][data-dark-shade="dim"][data-sidebar-theme="graphite"],
+[data-theme="dark"][data-dark-shade="dim"] [data-sidebar-theme="graphite"] {
+  --sb-bg: #1d232c; --sb-edge: #39404a; --sb-text-1: #eef0f3;
+  --sb-text-2: #b6bcc5; --sb-text-3: #a3abb6; --sb-text-4: #a3abb6;
+  --sb-fill: #2d353ee0; --sb-fill-hover: #cde0f925; --sb-ring: #cde0f925;
+  --sb-hairline: #2f3640; --sb-primary: #ffffff; --sb-on-primary: #000000;
+  --th-accent: #0090ff; --th-accent-soft: #0077ff3a; --th-accent-text: #70b8ff; --th-accent-ink: #000000;
+}
+[data-theme="dark"][data-dark-shade="navy"]:not([data-sidebar-theme]),
+[data-theme="dark"][data-dark-shade="navy"][data-sidebar-theme="graphite"],
+[data-theme="dark"][data-dark-shade="navy"] [data-sidebar-theme="graphite"] {
+  --sb-bg: #091020; --sb-edge: #222b3f; --sb-text-1: #edf0f6;
+  --sb-text-2: #a5aec1; --sb-text-3: #8b95ac; --sb-text-4: #8b95ac;
+  --sb-fill: #172033e0; --sb-fill-hover: #c5deff25; --sb-ring: #c5deff25;
+  --sb-hairline: #192135; --sb-primary: #ffffff; --sb-on-primary: #000000;
+  --th-accent: #0090ff; --th-accent-soft: #0077ff3a; --th-accent-text: #70b8ff; --th-accent-ink: #000000;
+}
+
+/* Midnight */
+[data-sidebar-theme="midnight"] {
+  --sb-bg: #151c33; --sb-edge: #242d4b; --sb-text-1: #eef1fb;
+  --sb-text-2: #bcc4dc; --sb-text-3: #9ba6c4; --sb-text-4: #8d98b8;
+  --sb-fill: #aabfff12; --sb-fill-hover: #aabfff1f; --sb-ring: #aabfff29;
+  --sb-hairline: #1c2440; --sb-primary: #eef1fb; --sb-on-primary: #151c33;
+  --th-accent: #5b8def; --th-accent-soft: #5b8def33; --th-accent-text: #9dbcff; --th-accent-ink: #000000;
+}
+[data-theme="light"][data-sidebar-theme="midnight"],
+[data-theme="light"] [data-sidebar-theme="midnight"] {
+  --sb-bg: #e1e6f2; --sb-edge: #ccd3e5; --sb-text-1: #0f1830;
+  --sb-text-2: #27324d; --sb-text-3: #465270; --sb-text-4: #4f5b79;
+  --sb-fill: #ffffffa6; --sb-fill-hover: #ffffffd9; --sb-ring: #1a2b5a24;
+  --sb-hairline: #d6dcea; --sb-primary: #151c33; --sb-on-primary: #ffffff;
+  --th-accent: #3a6ae8; --th-accent-soft: #3a6ae81f; --th-accent-text: #2450c4; --th-accent-ink: #ffffff;
+}
+
+/* Arctic */
+[data-sidebar-theme="arctic"] {
+  --sb-bg: #111d22; --sb-edge: #1f343d; --sb-text-1: #e8f5f9;
+  --sb-text-2: #b3cdd5; --sb-text-3: #93b0ba; --sb-text-4: #83a2ad;
+  --sb-fill: #aeeaff12; --sb-fill-hover: #aeeaff1f; --sb-ring: #aeeaff29;
+  --sb-hairline: #172a31; --sb-primary: #e8f5f9; --sb-on-primary: #111d22;
+  --th-accent: #45c0dd; --th-accent-soft: #45c0dd33; --th-accent-text: #8ae0f2; --th-accent-ink: #000000;
+}
+[data-theme="light"][data-sidebar-theme="arctic"],
+[data-theme="light"] [data-sidebar-theme="arctic"] {
+  --sb-bg: #e4f2f6; --sb-edge: #c9e0e8; --sb-text-1: #0b2530;
+  --sb-text-2: #20404c; --sb-text-3: #3d5f6c; --sb-text-4: #466875;
+  --sb-fill: #ffffffa6; --sb-fill-hover: #ffffffd9; --sb-ring: #0b4a6024;
+  --sb-hairline: #d3e7ee; --sb-primary: #0f2a36; --sb-on-primary: #ffffff;
+  --th-accent: #1597bd; --th-accent-soft: #1597bd1f; --th-accent-text: #0b6f8e; --th-accent-ink: #000000;
+}
+
+/* Lavender */
+[data-sidebar-theme="lavender"] {
+  --sb-bg: #1d1834; --sb-edge: #30294b; --sb-text-1: #f1eefc;
+  --sb-text-2: #c2badd; --sb-text-3: #a399c6; --sb-text-4: #948abb;
+  --sb-fill: #c8bbff12; --sb-fill-hover: #c8bbff1f; --sb-ring: #c8bbff29;
+  --sb-hairline: #272042; --sb-primary: #f1eefc; --sb-on-primary: #1d1834;
+  --th-accent: #8b7cf0; --th-accent-soft: #8b7cf033; --th-accent-text: #bcb0ff; --th-accent-ink: #000000;
+}
+[data-theme="light"][data-sidebar-theme="lavender"],
+[data-theme="light"] [data-sidebar-theme="lavender"] {
+  --sb-bg: #efecfb; --sb-edge: #ddd6f5; --sb-text-1: #1c1636;
+  --sb-text-2: #342b55; --sb-text-3: #534a78; --sb-text-4: #5c5382;
+  --sb-fill: #ffffffa6; --sb-fill-hover: #ffffffd9; --sb-ring: #3a2a8a24;
+  --sb-hairline: #e4dff8; --sb-primary: #231b45; --sb-on-primary: #ffffff;
+  --th-accent: #6e56cf; --th-accent-soft: #6e56cf1f; --th-accent-text: #5840b8; --th-accent-ink: #ffffff;
+}
+
+/* Mint */
+[data-sidebar-theme="mint"] {
+  --sb-bg: #0f1d19; --sb-edge: #1c342c; --sb-text-1: #ebf8f3;
+  --sb-text-2: #b2d0c5; --sb-text-3: #90b2a6; --sb-text-4: #80a597;
+  --sb-fill: #a8f5d812; --sb-fill-hover: #a8f5d81f; --sb-ring: #a8f5d829;
+  --sb-hairline: #182b25; --sb-primary: #ebf8f3; --sb-on-primary: #0f1d19;
+  --th-accent: #34b88c; --th-accent-soft: #34b88c33; --th-accent-text: #7fdcb8; --th-accent-ink: #000000;
+}
+[data-theme="light"][data-sidebar-theme="mint"],
+[data-theme="light"] [data-sidebar-theme="mint"] {
+  --sb-bg: #e5f4ed; --sb-edge: #cce7db; --sb-text-1: #0c2b20;
+  --sb-text-2: #1f4538; --sb-text-3: #3c6456; --sb-text-4: #446d5f;
+  --sb-fill: #ffffffa6; --sb-fill-hover: #ffffffd9; --sb-ring: #0c5a4024;
+  --sb-hairline: #d6ede3; --sb-primary: #0f3326; --sb-on-primary: #ffffff;
+  --th-accent: #1f9e74; --th-accent-soft: #1f9e741f; --th-accent-text: #147a58; --th-accent-ink: #000000;
+}
+
+/* Peach */
+[data-sidebar-theme="peach"] {
+  --sb-bg: #201712; --sb-edge: #3b2b21; --sb-text-1: #fcf1ea;
+  --sb-text-2: #d7c0b2; --sb-text-3: #ba9f90; --sb-text-4: #ac9181;
+  --sb-fill: #ffcfb012; --sb-fill-hover: #ffcfb01f; --sb-ring: #ffcfb029;
+  --sb-hairline: #2f221a; --sb-primary: #fcf1ea; --sb-on-primary: #201712;
+  --th-accent: #ea8a5a; --th-accent-soft: #ea8a5a33; --th-accent-text: #ffb48a; --th-accent-ink: #000000;
+}
+[data-theme="light"][data-sidebar-theme="peach"],
+[data-theme="light"] [data-sidebar-theme="peach"] {
+  --sb-bg: #fcefe6; --sb-edge: #f2dccd; --sb-text-1: #3a1d0e;
+  --sb-text-2: #553222; --sb-text-3: #775243; --sb-text-4: #7f5a4b;
+  --sb-fill: #ffffffa6; --sb-fill-hover: #ffffffd9; --sb-ring: #8a3a1424;
+  --sb-hairline: #f6e5d9; --sb-primary: #3f2112; --sb-on-primary: #ffffff;
+  --th-accent: #e0703a; --th-accent-soft: #e0703a1f; --th-accent-text: #b2501f; --th-accent-ink: #000000;
+}
+
+/* Sky */
+[data-sidebar-theme="sky"] {
+  --sb-bg: #0e1a29; --sb-edge: #1b3048; --sb-text-1: #edf5fd;
+  --sb-text-2: #b3c8de; --sb-text-3: #92abc5; --sb-text-4: #839eba;
+  --sb-fill: #b0d4ff12; --sb-fill-hover: #b0d4ff1f; --sb-ring: #b0d4ff29;
+  --sb-hairline: #16263a; --sb-primary: #edf5fd; --sb-on-primary: #0e1a29;
+  --th-accent: #3d9df0; --th-accent-soft: #3d9df033; --th-accent-text: #8cc6ff; --th-accent-ink: #000000;
+}
+[data-theme="light"][data-sidebar-theme="sky"],
+[data-theme="light"] [data-sidebar-theme="sky"] {
+  --sb-bg: #e6f1fc; --sb-edge: #cfe1f5; --sb-text-1: #0d2440;
+  --sb-text-2: #223a58; --sb-text-3: #405a7a; --sb-text-4: #486283;
+  --sb-fill: #ffffffa6; --sb-fill-hover: #ffffffd9; --sb-ring: #0d4a8a24;
+  --sb-hairline: #d9e8f8; --sb-primary: #10294a; --sb-on-primary: #ffffff;
+  --th-accent: #2d86e0; --th-accent-soft: #2d86e01f; --th-accent-text: #1f6bbd; --th-accent-ink: #000000;
+}
+
+/* Rose */
+[data-sidebar-theme="rose"] {
+  --sb-bg: #1f1219; --sb-edge: #3a2230; --sb-text-1: #fcedf3;
+  --sb-text-2: #d9b8c5; --sb-text-3: #bc97a6; --sb-text-4: #af8898;
+  --sb-fill: #ffb8d112; --sb-fill-hover: #ffb8d11f; --sb-ring: #ffb8d129;
+  --sb-hairline: #2d1a24; --sb-primary: #fcedf3; --sb-on-primary: #1f1219;
+  --th-accent: #e5689a; --th-accent-soft: #e5689a33; --th-accent-text: #ff9fc2; --th-accent-ink: #000000;
+}
+[data-theme="light"][data-sidebar-theme="rose"],
+[data-theme="light"] [data-sidebar-theme="rose"] {
+  --sb-bg: #fcecf1; --sb-edge: #f3d6e0; --sb-text-1: #3a1022;
+  --sb-text-2: #552537; --sb-text-3: #774457; --sb-text-4: #7f4c5f;
+  --sb-fill: #ffffffa6; --sb-fill-hover: #ffffffd9; --sb-ring: #8a1a4a24;
+  --sb-hairline: #f7e1e9; --sb-primary: #3f1326; --sb-on-primary: #ffffff;
+  --th-accent: #d6457a; --th-accent-soft: #d6457a1f; --th-accent-text: #b12d60; --th-accent-ink: #000000;
+}
+
+/* Butter */
+[data-sidebar-theme="butter"] {
+  --sb-bg: #1c190e; --sb-edge: #35301b; --sb-text-1: #fbf6e4;
+  --sb-text-2: #d4cca9; --sb-text-3: #b7ae89; --sb-text-4: #a8a07a;
+  --sb-fill: #fff0a812; --sb-fill-hover: #fff0a81f; --sb-ring: #fff0a829;
+  --sb-hairline: #29250f; --sb-primary: #fbf6e4; --sb-on-primary: #1c190e;
+  --th-accent: #d9b233; --th-accent-soft: #d9b23333; --th-accent-text: #f2d56b; --th-accent-ink: #000000;
+}
+[data-theme="light"][data-sidebar-theme="butter"],
+[data-theme="light"] [data-sidebar-theme="butter"] {
+  --sb-bg: #fbf5dc; --sb-edge: #efe4b8; --sb-text-1: #2e2606;
+  --sb-text-2: #463c14; --sb-text-3: #665a2f; --sb-text-4: #6e6237;
+  --sb-fill: #ffffffa6; --sb-fill-hover: #ffffffd9; --sb-ring: #6a5a0a24;
+  --sb-hairline: #f5ecc8; --sb-primary: #332a08; --sb-on-primary: #ffffff;
+  --th-accent: #c99a10; --th-accent-soft: #c99a1024; --th-accent-text: #8a6600; --th-accent-ink: #000000;
+}
+
+/* Sage */
+[data-sidebar-theme="sage"] {
+  --sb-bg: #141a13; --sb-edge: #283325; --sb-text-1: #eff5ec;
+  --sb-text-2: #bdcbb6; --sb-text-3: #9dae95; --sb-text-4: #8ea186;
+  --sb-fill: #d0ebc312; --sb-fill-hover: #d0ebc31f; --sb-ring: #d0ebc329;
+  --sb-hairline: #1e271c; --sb-primary: #eff5ec; --sb-on-primary: #141a13;
+  --th-accent: #7fa86a; --th-accent-soft: #7fa86a33; --th-accent-text: #b2d69f; --th-accent-ink: #000000;
+}
+[data-theme="light"][data-sidebar-theme="sage"],
+[data-theme="light"] [data-sidebar-theme="sage"] {
+  --sb-bg: #ebf1e7; --sb-edge: #d5e1ce; --sb-text-1: #1a2715;
+  --sb-text-2: #2f4128; --sb-text-3: #4d6245; --sb-text-4: #556b4d;
+  --sb-fill: #ffffffa6; --sb-fill-hover: #ffffffd9; --sb-ring: #2f4a2424;
+  --sb-hairline: #e0e9db; --sb-primary: #1f2e19; --sb-on-primary: #ffffff;
+  --th-accent: #5f8a4c; --th-accent-soft: #5f8a4c1f; --th-accent-text: #466d36; --th-accent-ink: #000000;
+}
+
+/* Slate */
+[data-sidebar-theme="slate"] {
+  --sb-bg: #141a21; --sb-edge: #242f3a; --sb-text-1: #eff4f9;
+  --sb-text-2: #bdc9d5; --sb-text-3: #9dabba; --sb-text-4: #909fae;
+  --sb-fill: #c1dbf612; --sb-fill-hover: #c1dbf61f; --sb-ring: #c1dbf629;
+  --sb-hairline: #1c252e; --sb-primary: #eff4f9; --sb-on-primary: #141a21;
+  --th-accent: #7da2c9; --th-accent-soft: #7da2c933; --th-accent-text: #afcbe8; --th-accent-ink: #000000;
+}
+[data-theme="light"][data-sidebar-theme="slate"],
+[data-theme="light"] [data-sidebar-theme="slate"] {
+  --sb-bg: #ebf1f7; --sb-edge: #d3dee9; --sb-text-1: #17232e;
+  --sb-text-2: #2e3c4a; --sb-text-3: #4a5868; --sb-text-4: #526170;
+  --sb-fill: #ffffffa6; --sb-fill-hover: #ffffffd9; --sb-ring: #304a6424;
+  --sb-hairline: #dfe7f0; --sb-primary: #1c2834; --sb-on-primary: #ffffff;
+  --th-accent: #466c93; --th-accent-soft: #466c931f; --th-accent-text: #3d6084; --th-accent-ink: #ffffff;
+}
+
+/* Mauve */
+[data-sidebar-theme="mauve"] {
+  --sb-bg: #1d171f; --sb-edge: #342a36; --sb-text-1: #f6f1f8;
+  --sb-text-2: #cfc3d1; --sb-text-3: #b2a4b5; --sb-text-4: #a597a9;
+  --sb-fill: #e7cded12; --sb-fill-hover: #e7cded1f; --sb-ring: #e7cded29;
+  --sb-hairline: #29212b; --sb-primary: #f6f1f8; --sb-on-primary: #1d171f;
+  --th-accent: #bc9ac3; --th-accent-soft: #bc9ac333; --th-accent-text: #d6bddc; --th-accent-ink: #000000;
+}
+[data-theme="light"][data-sidebar-theme="mauve"],
+[data-theme="light"] [data-sidebar-theme="mauve"] {
+  --sb-bg: #f4eef5; --sb-edge: #e3d8e5; --sb-text-1: #281d2b;
+  --sb-text-2: #423546; --sb-text-3: #5f5163; --sb-text-4: #68596b;
+  --sb-fill: #ffffffa6; --sb-fill-hover: #ffffffd9; --sb-ring: #563d5c24;
+  --sb-hairline: #ebe3ed; --sb-primary: #2d2230; --sb-on-primary: #ffffff;
+  --th-accent: #85638d; --th-accent-soft: #85638d1f; --th-accent-text: #705077; --th-accent-ink: #ffffff;
+}
+
+/* Sand */
+[data-sidebar-theme="sand"] {
+  --sb-bg: #1d1911; --sb-edge: #342d20; --sb-text-1: #f6f3ed;
+  --sb-text-2: #cec7b8; --sb-text-3: #b1a897; --sb-text-4: #a59c8a;
+  --sb-fill: #e6d6b512; --sb-fill-hover: #e6d6b51f; --sb-ring: #e6d6b529;
+  --sb-hairline: #292318; --sb-primary: #f6f3ed; --sb-on-primary: #1d1911;
+  --th-accent: #c4ae82; --th-accent-soft: #c4ae8233; --th-accent-text: #d5c6a5; --th-accent-ink: #000000;
+}
+[data-theme="light"][data-sidebar-theme="sand"],
+[data-theme="light"] [data-sidebar-theme="sand"] {
+  --sb-bg: #f3f0e8; --sb-edge: #e2dcce; --sb-text-1: #282112;
+  --sb-text-2: #423928; --sb-text-3: #5f5643; --sb-text-4: #675e4b;
+  --sb-fill: #ffffffa6; --sb-fill-hover: #ffffffd9; --sb-ring: #55452324;
+  --sb-hairline: #ebe6db; --sb-primary: #2d2517; --sb-on-primary: #ffffff;
+  --th-accent: #8d7748; --th-accent-soft: #8d77481f; --th-accent-text: #6f5b2f; --th-accent-ink: #000000;
+}
+
+/* Mocha */
+[data-sidebar-theme="mocha"] {
+  --sb-bg: #24160c; --sb-edge: #3f2717; --sb-text-1: #fdf1ea;
+  --sb-text-2: #ddc1af; --sb-text-3: #c2a28d; --sb-text-4: #b69580;
+  --sb-fill: #ffc9a212; --sb-fill-hover: #ffc9a21f; --sb-ring: #ffc9a229;
+  --sb-hairline: #321f11; --sb-primary: #fdf1ea; --sb-on-primary: #24160c;
+  --th-accent: #c39271; --th-accent-soft: #c3927133; --th-accent-text: #e4bfa7; --th-accent-ink: #000000;
+}
+[data-theme="light"][data-sidebar-theme="mocha"],
+[data-theme="light"] [data-sidebar-theme="mocha"] {
+  --sb-bg: #f1e3da; --sb-edge: #e6cdbd; --sb-text-1: #341a07;
+  --sb-text-2: #51321d; --sb-text-3: #6f4e38; --sb-text-4: #785740;
+  --sb-fill: #ffffffa6; --sb-fill-hover: #ffffffd9; --sb-ring: #6f360024;
+  --sb-hairline: #ecd8cb; --sb-primary: #391f0c; --sb-on-primary: #ffffff;
+  --th-accent: #86563b; --th-accent-soft: #86563b1f; --th-accent-text: #7e5138; --th-accent-ink: #ffffff;
+}
+
+/* Crimson */
+[data-sidebar-theme="crimson"] {
+  --sb-bg: #271313; --sb-edge: #442323; --sb-text-1: #ffefee;
+  --sb-text-2: #e4bcbb; --sb-text-3: #ca9c9b; --sb-text-4: #be8f8e;
+  --sb-fill: #ffbebd12; --sb-fill-hover: #ffbebd1f; --sb-ring: #ffbebd29;
+  --sb-hairline: #361b1b; --sb-primary: #ffefee; --sb-on-primary: #271313;
+  --th-accent: #f0555b; --th-accent-soft: #f0555b33; --th-accent-text: #ffa4a1; --th-accent-ink: #000000;
+}
+[data-theme="light"][data-sidebar-theme="crimson"],
+[data-theme="light"] [data-sidebar-theme="crimson"] {
+  --sb-bg: #ffeaea; --sb-edge: #f7d2d1; --sb-text-1: #391516;
+  --sb-text-2: #572c2c; --sb-text-3: #774848; --sb-text-4: #805050;
+  --sb-fill: #ffffffa6; --sb-fill-hover: #ffffffd9; --sb-ring: #7a272d24;
+  --sb-hairline: #fbdedd; --sb-primary: #3e191a; --sb-on-primary: #ffffff;
+  --th-accent: #d02a3a; --th-accent-soft: #d02a3a1f; --th-accent-text: #b00727; --th-accent-ink: #ffffff;
+}
+
+/* Amber */
+[data-sidebar-theme="amber"] {
+  --sb-bg: #241606; --sb-edge: #3f280b; --sb-text-1: #fcf2e6;
+  --sb-text-2: #dcc3a6; --sb-text-3: #c1a382; --sb-text-4: #b59774;
+  --sb-fill: #ffcc8c12; --sb-fill-hover: #ffcc8c1f; --sb-ring: #ffcc8c29;
+  --sb-hairline: #322008; --sb-primary: #fcf2e6; --sb-on-primary: #241606;
+  --th-accent: #f7a232; --th-accent-soft: #f7a23233; --th-accent-text: #f7b975; --th-accent-ink: #000000;
+}
+[data-theme="light"][data-sidebar-theme="amber"],
+[data-theme="light"] [data-sidebar-theme="amber"] {
+  --sb-bg: #fbeedf; --sb-edge: #efd8be; --sb-text-1: #331b00;
+  --sb-text-2: #51330c; --sb-text-3: #6f502a; --sb-text-4: #775833;
+  --sb-fill: #ffffffa6; --sb-fill-hover: #ffffffd9; --sb-ring: #6f380024;
+  --sb-hairline: #f5e3cf; --sb-primary: #392000; --sb-on-primary: #ffffff;
+  --th-accent: #e98b00; --th-accent-soft: #e98b001f; --th-accent-text: #964300; --th-accent-ink: #000000;
+}
+
+/* Olive */
+[data-sidebar-theme="olive"] {
+  --sb-bg: #1b1a09; --sb-edge: #312f12; --sb-text-1: #f5f4e8;
+  --sb-text-2: #cbc9ac; --sb-text-3: #adab89; --sb-text-4: #a19f7b;
+  --sb-fill: #dfdb9912; --sb-fill-hover: #dfdb991f; --sb-ring: #dfdb9929;
+  --sb-hairline: #27250e; --sb-primary: #f5f4e8; --sb-on-primary: #1b1a09;
+  --th-accent: #b6af4d; --th-accent-soft: #b6af4d33; --th-accent-text: #cfcb89; --th-accent-ink: #000000;
+}
+[data-theme="light"][data-sidebar-theme="olive"],
+[data-theme="light"] [data-sidebar-theme="olive"] {
+  --sb-bg: #f2f1e2; --sb-edge: #dfdec3; --sb-text-1: #252302;
+  --sb-text-2: #3f3c16; --sb-text-3: #5b5933; --sb-text-4: #64613b;
+  --sb-fill: #ffffffa6; --sb-fill-hover: #ffffffd9; --sb-ring: #504a0024;
+  --sb-hairline: #e9e8d3; --sb-primary: #2a2806; --sb-on-primary: #ffffff;
+  --th-accent: #7f7700; --th-accent-soft: #7f77001f; --th-accent-text: #686000; --th-accent-ink: #ffffff;
+}
+
+/* Forest */
+[data-sidebar-theme="forest"] {
+  --sb-bg: #0d1e12; --sb-edge: #193521; --sb-text-1: #ebf7ee;
+  --sb-text-2: #b3d0ba; --sb-text-3: #91b399; --sb-text-4: #84a78c;
+  --sb-fill: #a9eab912; --sb-fill-hover: #a9eab91f; --sb-ring: #a9eab929;
+  --sb-hairline: #132a1a; --sb-primary: #ebf7ee; --sb-on-primary: #0d1e12;
+  --th-accent: #36a558; --th-accent-soft: #36a55833; --th-accent-text: #93dba2; --th-accent-ink: #000000;
+}
+[data-theme="light"][data-sidebar-theme="forest"],
+[data-theme="light"] [data-sidebar-theme="forest"] {
+  --sb-bg: #e6f5e9; --sb-edge: #cae4d0; --sb-text-1: #082914;
+  --sb-text-2: #1f442a; --sb-text-3: #3b6146; --sb-text-4: #44694e;
+  --sb-fill: #ffffffa6; --sb-fill-hover: #ffffffd9; --sb-ring: #00582724;
+  --sb-hairline: #d8eddc; --sb-primary: #0e2e19; --sb-on-primary: #ffffff;
+  --th-accent: #0a6d37; --th-accent-soft: #0a6d371f; --th-accent-text: #0a6633; --th-accent-ink: #ffffff;
+}
+
+/* Teal */
+[data-sidebar-theme="teal"] {
+  --sb-bg: #031e1d; --sb-edge: #033634; --sb-text-1: #e7f7f6;
+  --sb-text-2: #a7d1cf; --sb-text-3: #82b4b2; --sb-text-4: #74a8a6;
+  --sb-fill: #89ebe712; --sb-fill-hover: #89ebe71f; --sb-ring: #89ebe729;
+  --sb-hairline: #032a29; --sb-primary: #e7f7f6; --sb-on-primary: #031e1d;
+  --th-accent: #35c9c2; --th-accent-soft: #35c9c233; --th-accent-text: #81dad4; --th-accent-ink: #000000;
+}
+[data-theme="light"][data-sidebar-theme="teal"],
+[data-theme="light"] [data-sidebar-theme="teal"] {
+  --sb-bg: #e0f5f4; --sb-edge: #bfe5e3; --sb-text-1: #002928;
+  --sb-text-2: #004443; --sb-text-3: #25625f; --sb-text-4: #2f6a68;
+  --sb-fill: #ffffffa6; --sb-fill-hover: #ffffffd9; --sb-ring: #00595724;
+  --sb-hairline: #d0edeb; --sb-primary: #002f2d; --sb-on-primary: #ffffff;
+  --th-accent: #008381; --th-accent-soft: #0083811f; --th-accent-text: #006e6b; --th-accent-ink: #ffffff;
+}
+
+/* Ocean */
+[data-sidebar-theme="ocean"] {
+  --sb-bg: #071c28; --sb-edge: #0e3146; --sb-text-1: #e8f6ff;
+  --sb-text-2: #abcde3; --sb-text-3: #88afca; --sb-text-4: #7aa3be;
+  --sb-fill: #95e2ff12; --sb-fill-hover: #95e2ff1f; --sb-ring: #95e2ff29;
+  --sb-hairline: #0b2737; --sb-primary: #e8f6ff; --sb-on-primary: #071c28;
+  --th-accent: #1f8abe; --th-accent-soft: #1f8abe33; --th-accent-text: #90d1f8; --th-accent-ink: #000000;
+}
+[data-theme="light"][data-sidebar-theme="ocean"],
+[data-theme="light"] [data-sidebar-theme="ocean"] {
+  --sb-bg: #e2f3ff; --sb-edge: #c3e1f6; --sb-text-1: #00253b;
+  --sb-text-2: #103f59; --sb-text-3: #2f5c78; --sb-text-4: #386481;
+  --sb-fill: #ffffffa6; --sb-fill-hover: #ffffffd9; --sb-ring: #004e8024;
+  --sb-hairline: #d2eafa; --sb-primary: #002a40; --sb-on-primary: #ffffff;
+  --th-accent: #005b90; --th-accent-soft: #005b901f; --th-accent-text: #005687; --th-accent-ink: #ffffff;
+}
+
+/* Indigo */
+[data-sidebar-theme="indigo"] {
+  --sb-bg: #15172b; --sb-edge: #272b4a; --sb-text-1: #f0f3ff;
+  --sb-text-2: #bfc5e8; --sb-text-3: #a0a6cf; --sb-text-4: #939ac4;
+  --sb-fill: #c7d1ff12; --sb-fill-hover: #c7d1ff1f; --sb-ring: #c7d1ff29;
+  --sb-hairline: #1f213b; --sb-primary: #f0f3ff; --sb-on-primary: #15172b;
+  --th-accent: #6464ed; --th-accent-soft: #6464ed33; --th-accent-text: #b4bfff; --th-accent-ink: #000000;
+}
+[data-theme="light"][data-sidebar-theme="indigo"],
+[data-theme="light"] [data-sidebar-theme="indigo"] {
+  --sb-bg: #ecefff; --sb-edge: #d5dafb; --sb-text-1: #1b1d3f;
+  --sb-text-2: #32365e; --sb-text-3: #4d537d; --sb-text-4: #565b86;
+  --sb-fill: #ffffffa6; --sb-fill-hover: #ffffffd9; --sb-ring: #3a3c8924;
+  --sb-hairline: #e0e5fe; --sb-primary: #202244; --sb-on-primary: #ffffff;
+  --th-accent: #3d3bb8; --th-accent-soft: #3d3bb81f; --th-accent-text: #3937ac; --th-accent-ink: #ffffff;
+}
+
+/* Plum */
+[data-sidebar-theme="plum"] {
+  --sb-bg: #211420; --sb-edge: #3b2539; --sb-text-1: #faf0f9;
+  --sb-text-2: #d7bed4; --sb-text-3: #bb9fb8; --sb-text-4: #af92ac;
+  --sb-fill: #f8c4f212; --sb-fill-hover: #f8c4f21f; --sb-ring: #f8c4f229;
+  --sb-hairline: #2e1d2d; --sb-primary: #faf0f9; --sb-on-primary: #211420;
+  --th-accent: #c76ac0; --th-accent-soft: #c76ac033; --th-accent-text: #f2aceb; --th-accent-ink: #000000;
+}
+[data-theme="light"][data-sidebar-theme="plum"],
+[data-theme="light"] [data-sidebar-theme="plum"] {
+  --sb-bg: #f8ecf7; --sb-edge: #ebd4e8; --sb-text-1: #2f182d;
+  --sb-text-2: #4b2f48; --sb-text-3: #694b66; --sb-text-4: #71546e;
+  --sb-fill: #ffffffa6; --sb-fill-hover: #ffffffd9; --sb-ring: #65316124;
+  --sb-hairline: #f2e0ef; --sb-primary: #341d32; --sb-on-primary: #ffffff;
+  --th-accent: #9c3b96; --th-accent-soft: #9c3b961f; --th-accent-text: #8d3288; --th-accent-ink: #ffffff;
+}
+
+/* --------------------------------------------------------------------------
+   Map the theme onto the semantic layer inside the sidebar. Floating panels
+   opened from the sidebar (switcher, sync popover) keep the app's tokens:
+   they're captured on :root before the sidebar redefines them.
+   -------------------------------------------------------------------------- */
+:root {
+  --app-text-emphasis: var(--text-emphasis); --app-text-default: var(--text-default);
+  --app-text-muted: var(--text-muted); --app-text-faint: var(--text-faint);
+  --app-bg-interactive: var(--bg-interactive); --app-bg-interactive-hover: var(--bg-interactive-hover);
+  --app-border-interactive: var(--border-interactive); --app-border-subtle: var(--border-subtle);
+  --app-bg-accent: var(--bg-accent); --app-bg-accent-hover: var(--bg-accent-hover); --app-text-on-accent: var(--text-on-accent);
+}
+.sidebar {
+  background: var(--sb-bg); border-right-color: var(--sb-edge);
+  --text-emphasis: var(--sb-text-1); --text-default: var(--sb-text-2);
+  --text-muted: var(--sb-text-3); --text-faint: var(--sb-text-4);
+  --bg-interactive: var(--sb-fill); --bg-interactive-hover: var(--sb-fill-hover);
+  --border-interactive: var(--sb-ring); --border-subtle: var(--sb-hairline);
+  --bg-accent: var(--sb-primary); --text-on-accent: var(--sb-on-primary);
+  --bg-accent-hover: color-mix(in srgb, var(--sb-primary) 86%, var(--sb-bg));
+}
+.sidebar :is(.panel, .tooltip) {
+  --text-emphasis: var(--app-text-emphasis); --text-default: var(--app-text-default);
+  --text-muted: var(--app-text-muted); --text-faint: var(--app-text-faint);
+  --bg-interactive: var(--app-bg-interactive); --bg-interactive-hover: var(--app-bg-interactive-hover);
+  --border-interactive: var(--app-border-interactive); --border-subtle: var(--app-border-subtle);
+  --bg-accent: var(--app-bg-accent); --bg-accent-hover: var(--app-bg-accent-hover); --text-on-accent: var(--app-text-on-accent);
+}
+
+/* --------------------------------------------------------------------------
+   Accent color (Settings → General → Accent color): <html data-accent-color>.
+   The caret, focus ring, unread dot, checkboxes, the Cards and Mail
+   selections and "today" take it. Blue is the design system's own
+   (penguin.css) and needs no rule. --accent-text is AA on every canvas,
+   --accent-ink is the text on a solid accent fill (black or white, whichever
+   reads), and Mail's darkened selection keeps white text at AA
+   (tests/listStyles.test.ts). The default ink is the primary button's, so
+   Blue looks as it always has.
+   -------------------------------------------------------------------------- */
+:root { --accent-ink: var(--text-on-accent); }
+:root[data-accent-color="purple"] { --accent: #9e6ad8; --accent-soft: #9e6ad83a; --accent-text: #d19dff; --accent-ink: #000000; }
+:root[data-theme="light"][data-accent-color="purple"] { --accent: #8e4ec6; --accent-soft: #8e4ec61c; --accent-text: #8145b5; --accent-ink: #ffffff; }
+:root[data-accent-color="pink"] { --accent: #d6409f; --accent-soft: #d6409f3a; --accent-text: #ff8dcc; --accent-ink: #000000; }
+:root[data-theme="light"][data-accent-color="pink"] { --accent: #d6409f; --accent-soft: #d6409f1c; --accent-text: #c2298a; --accent-ink: #000000; }
+:root[data-accent-color="red"] { --accent: #e5484d; --accent-soft: #e5484d3a; --accent-text: #ff9592; --accent-ink: #000000; }
+:root[data-theme="light"][data-accent-color="red"] { --accent: #e5484d; --accent-soft: #e5484d1c; --accent-text: #ce2c31; --accent-ink: #000000; }
+:root[data-accent-color="orange"] { --accent: #f76b15; --accent-soft: #f76b153a; --accent-text: #ffa057; --accent-ink: #000000; }
+:root[data-theme="light"][data-accent-color="orange"] { --accent: #f76b15; --accent-soft: #f76b151c; --accent-text: #b84700; --accent-ink: #000000; }
+:root[data-accent-color="yellow"] { --accent: #e2a336; --accent-soft: #e2a3363a; --accent-text: #ffca16; --accent-ink: #000000; }
+:root[data-theme="light"][data-accent-color="yellow"] { --accent: #d4940b; --accent-soft: #d4940b24; --accent-text: #9e5c00; --accent-ink: #000000; }
+:root[data-accent-color="green"] { --accent: #30a46c; --accent-soft: #30a46c3a; --accent-text: #3dd68c; --accent-ink: #000000; }
+:root[data-theme="light"][data-accent-color="green"] { --accent: #30a46c; --accent-soft: #30a46c1c; --accent-text: #1d7a50; --accent-ink: #000000; }
+:root[data-accent-color="teal"] { --accent: #12a594; --accent-soft: #12a5943a; --accent-text: #0bd8b6; --accent-ink: #000000; }
+:root[data-theme="light"][data-accent-color="teal"] { --accent: #12a594; --accent-soft: #12a5941c; --accent-text: #007a69; --accent-ink: #000000; }
+:root[data-accent-color="graphite"] { --accent: #98989f; --accent-soft: #98989f3a; --accent-text: #c7c7cc; --accent-ink: #000000; }
+:root[data-theme="light"][data-accent-color="graphite"] { --accent: #8e8e93; --accent-soft: #8e8e9324; --accent-text: #5b5b60; --accent-ink: #000000; }
+
+/* "Match accent to theme": caret, focus, unread, progress follow the theme,
+   over any accent color ([data-theme] outranks the light accent rules). */
+:root[data-accent="theme"][data-theme] {
+  --accent: var(--th-accent); --accent-soft: var(--th-accent-soft); --accent-text: var(--th-accent-text); --accent-ink: var(--th-accent-ink);
+}
+
+/* --------------------------------------------------------------------------
+   Corner style (Settings → General → Corners): <html data-corners>. Rounded
+   is penguin.css's radius scale; Subtle and Square step every radius down.
+   Pills and circles (999px, 50%) stay round in every style.
+   -------------------------------------------------------------------------- */
+:root { --radius-row: 10px; --radius-card: 14px; }
+:root[data-corners="subtle"] {
+  --radius-sm: 3px; --radius-md: 4px; --radius-lg: 5px; --radius-xl: 7px;
+  --radius-2xl: 10px; --radius-3xl: 14px; --radius-row: 6px; --radius-card: 8px;
+}
+:root[data-corners="square"] {
+  --radius-sm: 2px; --radius-md: 2px; --radius-lg: 2px; --radius-xl: 3px;
+  --radius-2xl: 4px; --radius-3xl: 5px; --radius-row: 2px; --radius-card: 3px;
+}
+
+/* --------------------------------------------------------------------------
+   List rows: account = a thin colored bar on the leading edge (unified inbox
+   of several accounts); unread = heavier weight + an accent dot by the time
+   (styles/penguin.css), so identity and state never share a place.
+   -------------------------------------------------------------------------- */
+.msg.has-acct::after {
+  content: ""; position: absolute; left: 2px; top: 7px; bottom: 7px; width: 3px;
+  border-radius: 3px; background: var(--tm, var(--t11)); opacity: .85; pointer-events: none;
+}
+.msg.stacked.has-acct::after { top: 9px; bottom: 9px; }
+
+/* --------------------------------------------------------------------------
+   Appearance: theme swatches, each a tiny sidebar | list preview.
+   -------------------------------------------------------------------------- */
+.th-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(72px, 1fr)); gap: 4px; margin-top: 12px; }
+.th-grid .th-swatch { padding: 4px 4px 6px; gap: 5px; }
+.th-swatch {
+  display: flex; flex-direction: column; gap: 6px; padding: 5px 5px 7px; border-radius: var(--radius-xl);
+  text-align: left; border: 1px solid transparent;
+}
+.th-swatch:hover { background: var(--bg-row-hover); }
+.th-swatch.selected { border-color: var(--border-interactive); background: var(--bg-row-selected); }
+.th-preview {
+  position: relative; display: flex; height: 46px; border-radius: 8px; overflow: hidden;
+  background: var(--background); box-shadow: inset 0 0 0 1px var(--border-default);
+}
+.th-swatch.selected .th-preview { box-shadow: 0 0 0 2px var(--accent), inset 0 0 0 1px var(--border-default); }
+.th-side {
+  width: 40%; flex: none; display: flex; flex-direction: column; gap: 4px; padding: 6px 5px;
+  background: var(--sb-bg); border-right: 1px solid var(--sb-edge);
+}
+.th-side i { display: block; height: 4px; border-radius: 2px; background: var(--sb-text-4); opacity: .55; }
+.th-side i:first-child { height: 8px; border-radius: 3px; background: var(--sb-primary); opacity: 1; margin-bottom: 2px; }
+.th-side i.on { background: var(--sb-text-1); opacity: .9; box-shadow: 0 0 0 2px var(--sb-fill-hover); }
+.th-list { flex: 1; display: flex; flex-direction: column; gap: 5px; padding: 7px 6px 7px 8px; }
+.th-list i { position: relative; display: block; height: 4px; border-radius: 2px; background: var(--text-faint); opacity: .35; }
+.th-list i.unread { opacity: .8; background: var(--text-default); }
+.th-list i.unread::before { content: ""; position: absolute; left: -6px; top: -1px; width: 4px; height: 6px; border-radius: 50%; background: var(--th-accent); }
+.th-name { display: flex; align-items: center; gap: 6px; padding: 0 2px; font-size: var(--text-xs); color: var(--text-default); }
+.th-swatch.selected .th-name { color: var(--text-emphasis); font-weight: 500; }
+.th-dot { width: 8px; height: 8px; border-radius: 50%; flex: none; background: var(--th-accent); }
+
+/* Accent color: one dot per color; the picked one ringed in itself. Dimmed
+   while "Match accent to theme" overrides it. */
+.ac-row { display: flex; flex-wrap: wrap; gap: 8px; padding: 3px; flex: none; }
+.ac-row.is-overridden .ac-dot:not(.selected) { opacity: .45; }
+.ac-dot {
+  width: 20px; height: 20px; border-radius: 50%; background: var(--ac);
+  box-shadow: inset 0 0 0 1px rgb(0 0 0 / .12); outline: none;
+}
+.ac-dot:hover { box-shadow: 0 0 0 2px var(--bg-panel), 0 0 0 3px var(--text-faint); }
+.ac-dot.selected { box-shadow: 0 0 0 2px var(--bg-panel), 0 0 0 4px var(--ac); }
+.ac-dot:focus-visible { box-shadow: 0 0 0 2px var(--bg-panel), 0 0 0 4px var(--ac), 0 0 0 6px var(--accent-soft); }
+/* Corners: each option shows its own corner, whatever style is on. */
+.cn-choice button { display: inline-flex; align-items: center; gap: 6px; }
+.cn-glyph { width: 12px; height: 12px; flex: none; border: 1.5px solid currentColor; border-right: 0; border-bottom: 0; opacity: .8; }
+.cn-rounded { border-top-left-radius: 7px; }
+.cn-subtle { border-top-left-radius: 4px; }
+.cn-square { border-top-left-radius: 1px; }
+
+/* Dark mode shade: a tiny dark window (sidebar | list | reading pane) that
+   carries data-theme="dark" data-dark-shade, so it draws from that shade's
+   tokens in either mode. */
+.sh-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; margin-top: 12px; max-width: 520px; }
+.sh-preview {
+  display: flex; height: 58px; border-radius: 9px; overflow: hidden;
+  background: var(--background); box-shadow: inset 0 0 0 1px var(--border-default);
+}
+.th-swatch.selected .sh-preview { box-shadow: 0 0 0 2px var(--accent), inset 0 0 0 1px var(--border-default); }
+.sh-side { width: 24%; flex: none; display: flex; flex-direction: column; gap: 5px; padding: 9px 5px; background: var(--shade-side); border-right: 1px solid var(--border-default); }
+.sh-list { width: 36%; flex: none; display: flex; flex-direction: column; gap: 3px; padding: 6px 4px; border-right: 1px solid var(--border-subtle); }
+.sh-pane { flex: 1; display: flex; flex-direction: column; gap: 5px; padding: 8px 7px; }
+.sh-preview i { display: block; height: 3px; border-radius: 2px; background: var(--text-faint); opacity: .7; }
+.sh-side i.on { background: var(--text-emphasis); opacity: .9; }
+.sh-list i { height: 11px; border-radius: 3px; background: none; opacity: 1; position: relative; }
+.sh-list i::after { content: ""; position: absolute; left: 4px; right: 5px; top: 4px; height: 3px; border-radius: 2px; background: var(--text-faint); }
+.sh-list i.unread::after { background: var(--text-emphasis); right: 9px; }
+.sh-list i.unread::before { content: ""; position: absolute; right: 2px; top: 4px; width: 3px; height: 3px; border-radius: 50%; background: var(--accent); }
+.sh-list i.sel { background: var(--bg-row-selected); }
+.sh-pane b { display: block; height: 5px; width: 70%; border-radius: 2px; background: var(--text-emphasis); opacity: .85; margin-bottom: 2px; }
+.sh-pane i:last-child { width: 60%; }
+
+/* --------------------------------------------------------------------------
+   Account colors: the real hex, not a snapped tone (lib/accountColor.ts).
+   .t-acct pairs with an .ac-<hex> rule that sets --acct (the color),
+   --acct-on-dark / --acct-on-light (the color nudged to pass AA as text) and
+   --acct-ink. From those it defines the usual tone variables, plus --tm: the
+   "mark" color that dots, bars and swatches use. Every other tone's mark is
+   its --t11, so a tone nested inside an account-colored row stays its own.
+   Tint shares mirror ACCT_TINTS; tests/themes.test.ts checks both.
+   -------------------------------------------------------------------------- */
+:is(.t-green, .t-blue, .t-amber, .t-red, .t-violet, .t-orange, .t-cyan, .t-gray) { --tm: var(--t11); }
+.t-acct {
+  --tm: var(--acct); --t11: var(--acct-on-dark);
+  --t3: color-mix(in srgb, var(--acct) 14%, transparent);
+  --t4: color-mix(in srgb, var(--acct) 20%, transparent);
+  --t5: color-mix(in srgb, var(--acct) 26%, transparent);
+}
+[data-theme="light"] .t-acct {
+  --t11: var(--acct-on-light);
+  --t3: color-mix(in srgb, var(--acct) 10%, transparent);
+  --t4: color-mix(in srgb, var(--acct) 15%, transparent);
+  --t5: color-mix(in srgb, var(--acct) 22%, transparent);
+}
+/* Dots (penguin.css .dot) take the mark, so a picked color shows as picked. */
+.dot { background: var(--acc, var(--tm, var(--t11, var(--text-faint)))); }
+
+/* --------------------------------------------------------------------------
+   Account bar: a thin vertical stripe of the account's color beside its name
+   (sidebar accounts list, switcher). Occupies an 18px icon slot.
+   -------------------------------------------------------------------------- */
+.acct-bar { display: inline-block; flex: none; width: 3px; height: 16px; margin: 0 7px 0 8px; border-radius: 2px; background: var(--tm, var(--t11)); }
+.menu-item .acct-bar { height: 14px; margin: 0 6px 0 7px; }
+.switcher-menu .sw-email { font-size: var(--text-xs); }
+
+/* --------------------------------------------------------------------------
+   Settings → Accounts: nickname (inline rename) and color popover.
+   -------------------------------------------------------------------------- */
+.acc-color-wrap { position: relative; }
+.acc-color-btn { width: 24px; height: 24px; display: grid; place-items: center; border-radius: var(--radius-lg); }
+.acc-color-btn:hover, .acc-color-btn[aria-expanded="true"] { background: var(--bg-interactive-hover); }
+.acc-color-pop { position: absolute; z-index: 20; top: 30px; left: -4px; padding: 10px; }
+
+/* The color grid (components/ColorGrid.tsx, and the sidebar's Color submenu):
+   ten columns, one hue per column, light to dark down the rows. */
+.color-grid { display: grid; grid-template-columns: repeat(var(--cols, 10), 22px); gap: 6px; }
+.acc-swatch {
+  width: 22px; height: 22px; display: grid; place-items: center; border-radius: 50%;
+  background: var(--tm, var(--t11)); color: var(--acct-ink, var(--bg-panel));
+  box-shadow: inset 0 0 0 1px var(--gray-a3); outline: none;
+}
+.acc-swatch:hover, .acc-swatch.active { box-shadow: 0 0 0 2px var(--bg-panel), 0 0 0 3px var(--text-faint); }
+.acc-swatch:focus-visible { box-shadow: 0 0 0 2px var(--bg-panel), 0 0 0 4px var(--accent); }
+.acc-swatch.selected { box-shadow: 0 0 0 2px var(--bg-panel), 0 0 0 4px var(--tm, var(--t11)); }
+.acc-swatch.selected:focus-visible, .acc-swatch.selected.active { box-shadow: 0 0 0 2px var(--bg-panel), 0 0 0 4px var(--tm, var(--t11)), 0 0 0 6px var(--accent-soft); }
+.acc-swatch .i { stroke-width: 3; }
+button.acc-nick { display: inline-flex; align-items: center; gap: 6px; max-width: 100%; margin-left: -6px; padding: 1px 6px; border-radius: var(--radius-md); text-align: left; }
+button.acc-nick:hover { background: var(--bg-interactive-hover); }
+.acc-nick-ico { color: var(--text-faint); opacity: 0; }
+.acc-nick:hover .acc-nick-ico, .acc-nick:focus-visible .acc-nick-ico { opacity: 1; }
+.acc-nick-form { margin: -3px 0 -1px -6px; }
+.acc-nick-input {
+  width: min(240px, 100%); height: 26px; padding: 0 8px; border-radius: var(--radius-lg);
+  background: var(--bg-interactive); border: 1px solid var(--border-interactive);
+  font-size: var(--text-sm); font-weight: 500; color: var(--text-emphasis); outline: none;
+}
+.acc-nick-input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+.acc-nick-input::placeholder { color: var(--text-placeholder); font-weight: 400; }
+.st-appearance { align-items: flex-start; }

@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024" role="img" aria-labelledby="title desc">
+  <title id="title">Penguin — Cut pebble — optical 16–32px</title>
+  <!-- Enlarged counters / gaps for small display sizes. -->
+  <desc id="desc">A single tilted white egg is divided by a broad envelope V; only the penguin's silhouette remains.</desc>
+  <path fill="#182B3A" d="M324 100H700C852 100 924 172 924 324V700C924 852 852 924 700 924H324C172 924 100 852 100 700V324C100 172 172 100 324 100Z"/>
+  <g transform="rotate(12 512 512)">
+    <path fill="#FFFFFF" d="M512 238C628 238 708 406 708 566C708 706 623 778 512 778C401 778 316 706 316 566C316 406 396 238 512 238Z"/>
+    <path fill="none" stroke="#182B3A" stroke-width="88" stroke-linejoin="miter" d="M290 438L512 586L734 438"/>
+  </g>
+</svg>

@@ -1,0 +1,15 @@
+target/
+node_modules/
+dist/
+.DS_Store
+*.db
+*.db-wal
+*.db-shm
+.env
+.env.*
+# never commit OAuth client secrets or tokens
+google-oauth-client*.json
+client_secret*.json
+apps/desktop/src-tauri/gen/*
+# search-eval real-mail mode: your queries, judgments and runs (docs/SEARCH-EVAL.md)
+eval-private/

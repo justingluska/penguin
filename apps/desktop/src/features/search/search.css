@@ -1,0 +1,191 @@
+/* Search overlay additions on top of penguin.css section 11 (.search, .q-row…). */
+
+.sx-host { align-items: center; padding: 24px; }
+.search.sx { width: min(1216px, 100%); height: min(800px, 100%); margin: 0; }
+
+/* Query box: transparent input over a highlighted mirror. Same font on both
+   layers so the caret and selection line up. */
+.qi { position: relative; flex: 1; min-width: 0; height: 32px; }
+.qi-mirror, .qi-input {
+  position: absolute; inset: 0; margin: 0; padding: 0; border: 0;
+  font: 400 20px/32px var(--font-sans); letter-spacing: -.2px;
+  font-feature-settings: "cv11", "ss01";
+  white-space: pre; overflow: hidden;
+}
+.qi-mirror { color: var(--text-emphasis); pointer-events: none; }
+.qi-input { width: 100%; background: transparent; color: transparent; caret-color: var(--accent); outline: none; }
+.qi-input::placeholder { color: var(--text-placeholder); }
+.qi-input::selection { background: var(--accent-soft); color: transparent; }
+.qm-op { color: var(--accent-text); }
+.qm-val { color: var(--text-emphasis); }
+.qm-date { text-decoration: underline dotted var(--green-a11); text-decoration-thickness: 1.5px; text-underline-offset: 5px; }
+.qm-phrase { color: var(--text-emphasis); }
+.qm-neg, .qm-negop { color: var(--text-muted); text-decoration: line-through; text-decoration-color: var(--text-faint); }
+.qm-negop .qm-op { color: var(--red-a11); }
+
+.qi-ac { position: absolute; top: 40px; z-index: 5; min-width: 280px; max-width: 460px; padding: 4px 0; }
+.qi-ac .menu-item { font-size: var(--text-sm); gap: 10px; cursor: default; }
+.qi-ac .kbd { margin-left: auto; }
+.qi-ac-hint { color: var(--text-faint); font-size: var(--text-xs); }
+
+.sx-esc { cursor: pointer; }
+.q-row .btn:disabled { opacity: .45; cursor: default; }
+
+.sx-chips { display: flex; align-items: center; gap: 6px; min-width: 0; overflow-x: auto; scrollbar-width: none; }
+.sx-chips::-webkit-scrollbar { display: none; }
+.sx-chips .chip { flex: none; }
+.chips-row .chip .x { cursor: pointer; }
+.chips-row .chip .x:hover { color: var(--text-emphasis); background: var(--bg-interactive-hover); }
+.sx-syncing { color: var(--amber-a11); }
+/* A question with no chips to show: no empty band between it and the answer. */
+.chips-row.is-ask:not(:has(.chip, .parsed-label, .sx-literal)) { display: none; }
+/* Footer note: "22 ms · 142,318 local" (the full sentence is its tooltip). */
+.sx-stats { flex-shrink: 0; color: var(--text-faint); font-variant-numeric: tabular-nums; cursor: default; }
+.sx-stats-ms { font: 500 11px/1 var(--font-mono); color: var(--text-muted); }
+
+/* Scrollable columns (the static mockup clips them). */
+.sx-results, .sx-facets, .search .s-side { overflow-y: auto; scrollbar-width: thin; }
+.sx-results { padding-bottom: 20px; }
+.sx-row { cursor: default; }
+.tophit.is-active { box-shadow: inset 0 0 0 1px var(--gray-a5); }
+.tophit:not(.is-active)::before { background: var(--text-faint); }
+.file.is-active { background: var(--bg-row-selected); border-color: var(--border-interactive); box-shadow: inset 0 0 0 1px var(--border-interactive); }
+.hit.is-active { background: var(--bg-row-selected); }
+.hit.sx-unread .hit-subj { font-weight: 600; }
+.hit-main .hit-snip mark, .hit-main .hit-subj mark { padding: 0 1px; }
+.th-snip { display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+.person { cursor: default; }
+
+.sx-facets .facet-item { cursor: default; user-select: none; }
+.facet-item .n.stale { opacity: .45; }
+
+.sx-more { width: 100%; border-radius: var(--radius-xl); text-align: left; }
+.sx-more:hover { background: var(--bg-row-hover); color: var(--text-emphasis); }
+
+
+/* Empty + no-results states */
+.sx-empty, .sx-none { padding: 18px 2px 0; max-width: 560px; }
+.sx-empty-title { font-size: var(--text-lg); font-weight: 600; letter-spacing: -.2px; color: var(--text-emphasis); }
+.sx-empty-copy { margin-top: 6px; font-size: var(--text-sm); line-height: 21px; color: var(--text-muted); }
+.sx-none .sx-fixes { margin-top: 10px; }
+.sx-sync-note { margin-top: 14px; align-items: flex-start; }
+.hit.sx-qrow { grid-template-columns: 16px minmax(0, 1fr) 24px; }
+.sx-qrow .q-mini, .sx-fix .q-mini { font-size: 12.5px; color: var(--text-default); }
+.sx-fix { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text-emphasis); }
+.sx-forget { opacity: 0; }
+.sx-qrow:hover .sx-forget, .sx-qrow.is-active .sx-forget { opacity: 1; }
+/* "Recent searches" heading: its key hint, then Clear. */
+.group-head > .gh-end { display: inline-flex; align-items: center; gap: 12px; min-width: 0; margin-left: 12px; }
+.gh-end .gh-hint { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.gh-clear { flex: none; font-size: var(--text-xs); font-weight: 500; color: var(--text-muted); }
+.gh-clear:hover { color: var(--text-emphasis); }
+.sx-tip { font-size: 11.5px; }
+.sx-q .qm-date { text-underline-offset: 3px; }
+.sx-error { display: flex; align-items: center; gap: 8px; margin-top: 12px; padding: 8px 12px; border-radius: var(--radius-xl);
+  background: var(--red-a3); color: var(--red-a11); font-size: var(--text-sm); }
+
+.s-foot .btn:disabled { opacity: .5; cursor: not-allowed; }
+.s-foot .btn:disabled:hover { background: transparent; color: var(--text-default); }
+.sx-results .file .fmeta { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.th-files .att-chip { max-width: 100%; min-width: 0; }
+.chips-row .parsed-label { white-space: nowrap; }
+.hit.sx-qrow:has(.sx-fix-n) { grid-template-columns: 16px minmax(0, 1fr) auto; }
+.sx-fix-n { font-size: var(--text-xs); }
+.chip.chip-error { background: var(--amber-a3); border-color: var(--amber-a5); color: var(--text-default); cursor: pointer; }
+.chip.chip-error > .i { color: var(--amber-a11); }
+.chip-error-raw { font-size: 11px; color: var(--text-muted); max-width: 180px; overflow: hidden; text-overflow: ellipsis; }
+.sx-date-hint { display: flex; align-items: center; gap: 8px; flex: none; height: 30px; margin: -6px 16px 4px 52px; font-size: var(--text-xs); color: var(--text-muted); }
+.sx-date-hint > .i { color: var(--green-a11); }
+.sx-date-hint-go { display: inline-flex; align-items: center; gap: 6px; height: 22px; padding: 0 4px 0 8px; border-radius: var(--radius-md);
+  background: var(--green-a3); color: var(--text-emphasis); font-size: 12px; }
+.sx-date-hint-go:hover { background: var(--green-a4); }
+.sx-date-hint-go .kbd { height: 16px; min-width: 16px; font-size: 10px; }
+
+/* "Understood as …": plain English read as operators (nl.ts). */
+.sx-nl > .i { color: var(--accent-text); }
+.sx-nl .sx-nl-go { background: var(--accent-soft); max-width: min(640px, 60vw); overflow: hidden; }
+.sx-nl .sx-nl-go:hover { background: var(--bg-interactive-hover); }
+.sx-nl .sx-nl-go .sx-q { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sx-nl .btn { height: 22px; font-size: 12px; color: var(--text-muted); }
+.q-row .btn.on { background: var(--bg-interactive); color: var(--text-emphasis); }
+
+/* Search tips (⌘/). */
+.sx-tips { padding: 14px 2px 8px; }
+.sx-tips-head { display: flex; align-items: flex-start; gap: 10px; }
+.sx-tips-head .sx-empty-copy { max-width: 620px; }
+.sx-tips-head .gh-hint { font-size: var(--text-xs); color: var(--text-faint); margin-top: 4px; }
+.sx-tips-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); gap: 6px 22px; margin-top: 12px; }
+.sx-tips-group .group-head { margin-top: 10px; }
+.sx-tips-title { display: inline-flex; align-items: center; gap: 6px; }
+.sx-tip-row { cursor: pointer; min-width: 0; }
+.sx-tip-row .sx-q { flex: none; }
+.sx-tip-row .sx-tip { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-align: right; }
+.sx-tips-foot { margin-top: 16px; font-size: var(--text-xs); }
+.sx-q .qm-op { color: var(--accent-text); }
+
+/* ---- Search experience (docs/SEARCH-UX.md) ------------------------------ */
+
+/* Suggestions as you type: one quiet line under the box, like the date hint.
+   Text first, small, the first one taken with Tab. */
+.sx-suggest { display: flex; align-items: center; gap: 6px; flex: none; height: 30px; margin: -6px 16px 4px 52px; overflow: hidden; }
+.sx-sug { display: inline-flex; align-items: center; gap: 6px; flex: none; height: 24px; padding: 0 8px 0 4px; border-radius: var(--radius-lg);
+  font-size: 12px; color: var(--text-default); white-space: nowrap; cursor: default; }
+.sx-sug:hover { background: var(--bg-row-hover); color: var(--text-emphasis); }
+.sx-sug.on { background: var(--bg-interactive); box-shadow: inset 0 0 0 1px var(--border-interactive); color: var(--text-emphasis); }
+.sx-sug .avatar-xs { width: 18px; height: 18px; font-size: 8px; }
+.sx-sug > .i { color: var(--text-faint); margin-left: 3px; }
+.sx-sug-label { font-weight: 500; }
+.sx-sug-detail { max-width: 200px; overflow: hidden; text-overflow: ellipsis; }
+.sx-sug-tile { display: inline-flex; align-items: center; justify-content: center; width: 18px; height: 18px; border-radius: 5px;
+  background: var(--gray-a3); color: var(--text-muted); font: 600 10px/1 var(--font-sans); }
+.sx-sug-recent, .sx-sug-refine { padding-left: 6px; }
+.sx-sug .kbd { height: 16px; min-width: 16px; font-size: 10px; margin-left: 2px; }
+
+/* Plain English read as chips: a way back to the plain words. */
+.sx-chips .sx-literal { flex: none; height: 24px; font-size: 12px; color: var(--text-faint); }
+.sx-chips .sx-literal:hover { color: var(--text-emphasis); }
+
+/* Top results after the first: two lines, the matching passage under the subject. */
+.sx-top-more { margin-top: 6px; }
+.sx-toprow { display: grid; grid-template-columns: 24px minmax(0, 1fr); align-items: center; column-gap: 10px; min-height: 52px; padding: 7px 8px;
+  border-radius: var(--radius-xl); font-size: var(--text-sm); }
+.sx-toprow:hover { background: var(--bg-row-hover); }
+.sx-toprow.is-active { background: var(--bg-row-selected); }
+.sx-toprow-main { min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.sx-toprow-line { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.sx-toprow-subj { color: var(--text-emphasis); font-weight: 500; min-width: 0; }
+.sx-toprow.sx-unread .sx-toprow-subj { font-weight: 600; }
+.sx-toprow-date { font-size: var(--text-xs); flex: none; }
+.sx-toprow-snip { display: flex; align-items: center; gap: 0; min-width: 0; color: var(--text-muted); font-size: 12.5px; }
+.sx-toprow-snip .dot { margin-right: 6px; flex: none; }
+.sx-toprow-from { color: var(--text-default); flex: none; }
+.sx-toprow-snip > span:last-child { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* A passage that matched in meaning reads like any snippet: no label, words marked where present. */
+.sx-passage mark { padding: 0 1px; }
+
+/* Rows that arrive for the query already on screen slide in (never above the selection: stable.ts). */
+[data-enter] { animation: sx-enter var(--dur-row) var(--ease-glide) both; }
+@keyframes sx-enter { from { opacity: 0; transform: translateY(-4px); } }
+@media (prefers-reduced-motion: reduce) { [data-enter] { animation: none; } }
+
+/* An empty answer mid-typing: the last rows stay, dimmed, for a moment (useInstantSearch). */
+.sx-results.is-stale { opacity: .55; }
+
+/* "Getting smarter: 42% of your mail indexed" — only while meaning search is still indexing. */
+.sx-smarter { display: inline-flex; align-items: center; gap: 6px; flex-shrink: 0; color: var(--text-faint); }
+.sx-smarter-ring { width: 12px; height: 12px; transform: rotate(-90deg); flex: none; }
+.sx-smarter-ring circle { fill: none; stroke-width: 2.5; }
+.sx-smarter-ring circle:first-child { stroke: var(--gray-a3); }
+.sx-smarter-ring circle:last-child { stroke: var(--accent); stroke-linecap: round; transition: stroke-dasharray var(--dur) var(--ease-out); }
+
+/* Did you mean */
+.sx-dym { display: flex; align-items: center; gap: 8px; width: 100%; height: 34px; margin-top: 8px; padding: 0 10px; border-radius: var(--radius-xl);
+  background: var(--bg-interactive); font-size: var(--text-sm); color: var(--text-default); text-align: left; }
+.sx-dym b { color: var(--text-emphasis); font-weight: 600; }
+.sx-dym .tnum { margin-left: auto; font-size: var(--text-xs); }
+.sx-dym:hover { background: var(--bg-interactive-hover); }
+.sx-dym-go { color: var(--accent-text); font: inherit; text-decoration: underline; text-decoration-color: var(--accent-soft); text-underline-offset: 3px; }
+.sx-dym-go:hover { text-decoration-color: currentColor; }
+.sx-none .sx-corrected { margin-top: 10px; }
+.sx-none .sx-empty-copy + .sx-fixes { margin-top: 6px; }

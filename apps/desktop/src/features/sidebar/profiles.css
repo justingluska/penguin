@@ -1,0 +1,11 @@
+/* Account profiles in the sidebar switcher (see app/profiles.ts). */
+.switcher-menu { max-height: min(560px, calc(100vh - 80px)); overflow-y: auto; }
+.switcher-menu .menu-head {
+  height: 24px; display: flex; align-items: flex-end; padding: 0 12px 4px;
+  font-size: 11px; font-weight: 500; color: var(--text-faint);
+}
+.profile-tile { font-size: 13px; line-height: 1; }
+.acct-tile.tile-sm { width: 20px; height: 20px; border-radius: 6px; font-size: 11px; margin: 0 -2px; }
+.switcher-menu .sw-profile .faint { font-size: var(--text-xs); }
+.switcher-menu .sw-manage { color: var(--text-muted); font-size: var(--text-sm); }
+.switcher-menu .sw-manage:hover { color: var(--text-emphasis); }

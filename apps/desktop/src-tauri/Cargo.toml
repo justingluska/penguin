@@ -1,0 +1,111 @@
+[package]
+name = "penguin-desktop"
+description = "Penguin — fast, local-first email"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish = false
+# Two binaries live here (the app and penguin-cli); `cargo run` / `tauri dev`
+# must pick the app.
+default-run = "penguin-desktop"
+
+[lib]
+name = "penguin_desktop_lib"
+
+[[bin]]
+name = "penguin-desktop"
+path = "src/main.rs"
+
+[features]
+# Search by meaning on the GPU (WebGPU over Metal) instead of the CPU, for
+# trying it on a Mac: it needs Dawn's libwebgpu_dawn.dylib where the binary
+# can load it, which release builds don't bundle yet (docs/SEMANTIC.md,
+# "Accelerators").
+embed-webgpu = ["penguin-semantic/webgpu"]
+
+[[bin]]
+name = "penguin-cli"
+path = "src/bin/penguin-cli.rs"
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+# Builds and links the Swift bridge to Apple's Foundation Models (thread
+# summaries, build.rs `summaries_bridge`; macOS only, a no-op elsewhere).
+swift-rs = { version = "1.0.8", features = ["build"] }
+# Reads tauri.conf.json's version (build.rs `app_version`).
+serde_json.workspace = true
+
+[dependencies]
+tauri = { version = "2", features = [] }
+tauri-plugin-opener = "2"
+# Rules "notify" action (Rust-side only; no JS permission is granted).
+tauri-plugin-notification = "2"
+penguin-core.workspace = true
+penguin-gmail.workspace = true
+penguin-graph.workspace = true
+penguin-imap.workspace = true
+penguin-provider.workspace = true
+penguin-render.workspace = true
+# Search by meaning (src/semantic/): the real embedder (ONNX Runtime,
+# statically linked).
+penguin-semantic = { workspace = true, features = ["onnx"] }
+# Self-update (src/updater.rs; Rust-side only, no JS permission is granted).
+tauri-plugin-updater = "2"
+serde.workspace = true
+serde_json.workspace = true
+tokio.workspace = true
+tracing.workspace = true
+tracing-subscriber = { version = "0.3", default-features = false, features = ["fmt", "env-filter", "std"] }
+base64 = "0.22"
+dirs = "6"
+# Per-call random boundary for untrusted email content in MCP output (agent/context.rs).
+getrandom = "0.3"
+# penguin-cli mcp: official MCP Rust SDK (stdio server, tool macros, JSON Schema via its schemars re-export).
+rmcp = { version = "3.4", default-features = false, features = ["server", "macros", "transport-io"] }
+# Sender avatars (src/avatars/): HTTP for BIMI logos, company icons, Gravatar
+# and the People API (same reqwest as penguin-gmail, no new tree); every
+# fetched image is decoded and re-encoded as PNG, SVG only by rasterizing
+# (resvg without text, fonts or raster-image support).
+reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls", "http2", "gzip"] }
+sha2 = "0.10"
+url = "2"
+image = { version = "0.25", default-features = false, features = ["png", "jpeg", "gif", "webp", "ico", "bmp"] }
+resvg = { version = "0.45", default-features = false }
+# Add account: Thunderbird autoconfig XML (src/providers/autoconfig.rs);
+# already in the tree via resvg/usvg. Refuses DTDs by default.
+roxmltree = "0.20"
+# Rules: scheduled (daily/weekly) triggers in local time; already in the tree via penguin-core.
+chrono = { version = "0.4", default-features = false, features = ["clock", "std"] }
+
+# New-mail notifications that open their thread when clicked (src/notify.rs):
+# the notification library tauri-plugin-notification itself uses (same
+# version and features, nothing new to build), called directly because the
+# plugin reports no clicks on desktop.
+[target.'cfg(any(target_os = "macos", target_os = "linux"))'.dependencies]
+notify-rust = "4.11"
+
+[dev-dependencies]
+# The in-memory provider/backend for dispatch tests (providers/registry.rs).
+penguin-provider = { workspace = true, features = ["fake"] }
+# outgoing_tests.rs parses the MIME that was sent (same version as penguin-gmail).
+mail-parser = "0.11"
+
+# Text services for the context menus; see src/text_services.rs.
+[target.'cfg(target_os = "macos")'.dependencies]
+# Drag a picture or attachment out to Finder or another app as a file
+# (src/file_export.rs): CrabNebula's drag-rs, the crate behind
+# tauri-plugin-drag, used directly so the UI can only drag files the app
+# wrote. Its objc2 / objc2-app-kit are the ones already in the tree.
+drag = "2.1"
+# Save As: the system save panel (NSSavePanel), without tauri-plugin-dialog
+# and its fs plugin; no default features (those are the Linux backends).
+rfd = { version = "0.15", default-features = false }
+objc2 = "0.6"
+# QoS classes for background work (src/qos.rs); already in the tree.
+libc = "0.2"
+# NSProcessInfo: thermal state and Low Power Mode for the semantic indexer
+# (src/semantic/power.rs).
+objc2-foundation = { version = "0.3", default-features = false, features = ["std", "NSString", "NSRange", "NSArray", "NSProcessInfo"] }
+# NSSpellChecker: context-menu spelling suggestions; NSPasteboard: copy_text
+# (src/text_services.rs).
+objc2-app-kit = { version = "0.3", default-features = false, features = ["std", "NSApplication", "NSResponder", "NSSpellChecker", "NSPasteboard"] }

@@ -1,0 +1,39 @@
+[package]
+name = "penguin-provider"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish = false
+
+[features]
+# The in-memory `FakeProvider` / `FakeBackend` and the conformance checks,
+# for other crates' tests (`penguin-provider = { features = ["fake"] }` in
+# dev-dependencies). Always on for this crate's own tests.
+fake = []
+
+[dependencies]
+penguin-core.workspace = true
+# compose: outgoing HTML goes through the strict composer allowlist
+penguin-render.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+tokio.workspace = true
+tracing.workspace = true
+# Object-safe async trait methods (`Arc<dyn MailProvider>`); already in the
+# tree through tauri/zbus.
+async-trait = "0.1"
+# compose: outgoing MIME (moved from penguin-gmail, same versions)
+base64 = "0.22"
+mail-builder = "0.4"
+# outbox: schedule ids
+fastrand = "2"
+# ids: stable fallback message ids for IMAP servers without OBJECTID
+sha2 = "0.10"
+# credentials: the Keychain vault shared by the IMAP and Microsoft providers
+keyring = { version = "3", features = ["apple-native"] }
+
+[dev-dependencies]
+tokio = { workspace = true, features = ["test-util"] }
+# compose tests parse what they built (same version as penguin-gmail)
+mail-parser = "0.11"

@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024" role="img" aria-labelledby="title desc">
+  <title id="title">Penguin — Tuxedo split</title>
+  <desc id="desc">An ink squircle and a white belly share a curved boundary; the belly begins with an envelope V.</desc>
+  <!-- Hand-authored continuous corners. 824px tile, 100px transparent margin. -->
+  <path fill="#182B3A" d="M324 100H700C852 100 924 172 924 324V700C924 852 852 924 700 924H324C172 924 100 852 100 700V324C100 172 172 100 324 100Z"/>
+  <path fill="#FFFFFF" d="M380 342L592 506L924 324V700C924 852 852 924 700 924H548C340 776 282 536 380 342Z"/>
+</svg>

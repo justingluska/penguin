@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Penguin — Accounts & sync</title>
+<script>(function(){var t=new URLSearchParams(location.search).get('theme');document.documentElement.dataset.theme=t==='light'?'light':'dark';})();</script>
+<link rel="stylesheet" href="penguin.css">
+<link rel="stylesheet" href="penguin-screens-2.css">
+</head>
+<body class="screens-2">
+<div class="s2-shell">
+<header class="s2-top"><a class="s2-brand" href="index.html" data-theme-link><svg class="logo" viewBox="0 0 26 26" aria-label="Penguin"><rect x=".5" y=".5" width="25" height="25" rx="8" fill="var(--logo-tile)" stroke="var(--logo-ring)"/><path d="M13 8.6c-1.1-1.9-5.3-1.9-5.6 1.7-.2 2.4.5 4.6 1.2 6.4.8 2.2 2.3 3.9 4.4 3.9s3.6-1.7 4.4-3.9c.7-1.8 1.4-4 1.2-6.4-.3-3.6-4.5-3.6-5.6-1.7Z" fill="#f5f5f4"/><circle cx="10.9" cy="11.6" r="1.05" fill="#0b0c0e"/><circle cx="15.1" cy="11.6" r="1.05" fill="#0b0c0e"/><path d="M11.8 13.5h2.4L13 15.4Z" fill="#ff9d4d"/></svg><span>Penguin</span></a><span class="grow"></span><nav class="s2-route" aria-label="Setup progress"><span class="complete"><svg class="i i-xs" aria-hidden="true"><use href="#i-check"/></svg> Client connected</span><svg class="i i-xs" aria-hidden="true"><use href="#i-right"/></svg><span class="current">2 · Add accounts</span></nav></header>
+<main class="s2-content">
+  <div class="sync-page">
+    <h1 class="s2-title">Three accounts. One inbox.</h1>
+    <p class="s2-subtitle">Your mail is coming home. Penguin starts with your newest messages, then works back through the rest.</p>
+    <section class="card sync-summary" aria-label="Account sync progress">
+      <div class="sync-summary-head"><span>Connected accounts</span><span class="grow"></span><span class="row-flex"><svg class="i i-xs" aria-hidden="true"><use href="#i-database"/></svg>Syncing to this Mac</span></div>
+      <article class="sync-account acc-work">
+        <i class="dot"></i><div>
+          <div class="sync-name"><strong>Northwind</strong><span class="sync-email">sam@northwind.example</span><span class="grow"></span><span class="badge t-gray">Backfilling</span></div>
+          <div class="sync-phase"><span>Backfilling</span><span class="tnum emph">38,112 / 142,318</span><span class="muted">messages</span><span class="grow"></span><span class="tnum muted">27%</span></div>
+          <div class="sync-progress" role="progressbar" aria-label="Northwind backfill" aria-valuemin="0" aria-valuemax="142318" aria-valuenow="38112"><span></span></div>
+          <p class="s2-muted">Recent mail is ready · adding older messages to local search</p>
+        </div>
+      </article>
+      <article class="sync-account acc-harbor">
+        <i class="dot"></i><div>
+          <div class="sync-name"><strong>Harbor Labs</strong><span class="sync-email">sam@harborlabs.example</span><span class="grow"></span><span class="badge t-green"><svg class="i i-xs" aria-hidden="true"><use href="#i-check"/></svg>Incremental</span></div>
+          <div class="sync-phase">Up to date<span class="muted">·</span><span class="tnum">103,622 messages indexed</span><span class="grow"></span><span class="muted">Just now</span></div>
+          <p class="s2-muted">Full history is ready · checking for new mail</p>
+        </div>
+      </article>
+      <article class="sync-account acc-personal">
+        <i class="dot"></i><div>
+          <div class="sync-name"><strong>Personal</strong><span class="sync-email">sam@okafor.example</span><span class="grow"></span><span class="badge t-amber">Needs sign-in</span></div>
+          <div class="sync-phase"><span>Your Google session expired. Saved mail is still available.</span><span class="grow"></span><button class="btn btn-secondary btn-sm">Reconnect <svg class="i i-xs" aria-hidden="true"><use href="#i-external"/></svg></button></div>
+          <p class="s2-muted">Sync resumes where it left off after you sign in.</p>
+        </div>
+      </article>
+    </section>
+    <div class="s2-note sync-note"><svg class="i i-sm" aria-hidden="true"><use href="#i-info"/></svg><p>Recent mail is usable already. Search coverage grows as older messages arrive.<br>You can keep using Penguin while it catches up.</p></div>
+    <div class="sync-actions"><a class="btn btn-ghost" href="06-welcome.html" data-theme-link><svg class="i i-sm" aria-hidden="true"><use href="#i-plus"/></svg>Add another account</a><a class="btn btn-primary" href="01-inbox.html" data-theme-link>Continue to inbox <span class="kbd">↵</span></a></div>
+    <p class="privacy-line"><svg class="i i-xs" aria-hidden="true"><use href="#i-shield"/></svg>No Penguin servers. Tokens stay in your Mac's Keychain.</p>
+  </div>
+</main>
+<footer class="statusbar s2-foot"><span class="hint"><span class="kbd">Tab</span>Next control</span><span class="hint"><span class="kbd">↵</span>Select</span><span class="right"><svg class="i i-xs" aria-hidden="true"><use href="#i-lock"/></svg>Direct from Google to your Mac</span></footer>
+</div>
+<script src="penguin.js"></script>
+<script src="penguin-screens-2.js"></script>
+</body>
+</html>

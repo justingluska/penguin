@@ -1,0 +1,76 @@
+/* Thread summary card (features/summary). OWNER: summaries.
+   A quiet panel above the messages: violet mark, the gist in body size,
+   points and requests as short lists, each with a small "#3 · Maya" chip
+   that jumps to the source message. */
+
+.ai-card {
+  margin: 4px 0 18px;
+  padding: 10px 14px 12px;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-xl);
+  background: linear-gradient(180deg, var(--violet-a2, var(--gray-a2)), transparent 70%), var(--bg-subtle, transparent);
+  color: var(--text-default);
+  font-size: var(--text-sm);
+  line-height: 1.5;
+}
+.preview-body .ai-card { margin: 8px 0 14px; }
+
+.ai-card-head { display: flex; align-items: center; gap: 6px; min-height: 26px; }
+.ai-card-mark { color: var(--violet-a11); flex: none; }
+.ai-card-title { font-weight: 600; font-size: var(--text-xs); letter-spacing: .01em; color: var(--text-muted); }
+.ai-card-status { font-size: var(--text-xs); color: var(--text-faint); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ai-card-close { padding: 0 6px; }
+.ai-card.is-busy .ai-card-mark { animation: ai-pulse 1.2s var(--ease-out, ease-out) infinite alternate; }
+@keyframes ai-pulse { from { opacity: .45; } to { opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { .ai-card.is-busy .ai-card-mark { animation: none; } }
+
+.ai-card-body { display: grid; gap: 8px; margin-top: 4px; }
+.ai-gist { margin: 0; font-size: var(--text-base); line-height: 1.5; color: var(--text-default); }
+.ai-gist-sk { display: block; height: 14px; width: 80%; }
+
+.ai-points, .ai-asks ul { margin: 0; padding: 0; list-style: none; display: grid; gap: 4px; }
+.ai-points li { position: relative; padding-left: 14px; color: var(--text-default); }
+.ai-points li::before {
+  content: ""; position: absolute; left: 3px; top: .62em;
+  width: 4px; height: 4px; border-radius: 50%; background: var(--text-faint);
+}
+.ai-asks { display: grid; gap: 4px; padding-top: 2px; }
+.ai-asks-title { font-size: var(--text-xs); font-weight: 600; color: var(--text-muted); }
+.ai-asks li { display: flex; align-items: baseline; gap: 6px; flex-wrap: wrap; }
+.ai-ask-mark { color: var(--violet-a11); flex: none; transform: translateY(2px); }
+.ai-due {
+  padding: 1px 6px; border-radius: 5px;
+  background: var(--amber-a3); color: var(--amber-a11);
+  font-size: var(--text-2xs); font-weight: 600; white-space: nowrap;
+}
+
+/* "#3 · Maya": jumps to the source message. */
+.ai-src {
+  display: inline-flex; align-items: center; height: 18px; padding: 0 6px; margin-left: 2px;
+  border: 1px solid var(--border-subtle); border-radius: 5px;
+  background: var(--gray-a2); color: var(--text-muted);
+  font: 500 var(--text-2xs)/1 var(--font-sans); font-variant-numeric: tabular-nums;
+  white-space: nowrap; cursor: pointer; vertical-align: 1px;
+}
+.ai-src:hover { color: var(--text-default); border-color: var(--violet-a5, var(--border-subtle)); background: var(--violet-a3, var(--gray-a3)); }
+.ai-src:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+
+.ai-card-skeleton { display: grid; gap: 8px; margin-top: 8px; }
+.ai-card-skeleton .sk { display: block; height: 11px; }
+
+.ai-card-stale, .ai-card-error {
+  display: flex; align-items: center; gap: 10px; margin: 6px 0 4px;
+  padding: 6px 8px 6px 10px; border-radius: var(--radius-lg);
+  font-size: var(--text-xs);
+}
+.ai-card-stale { background: var(--amber-a2, var(--gray-a2)); color: var(--text-muted); }
+.ai-card-stale span, .ai-card-error span { flex: 1; min-width: 0; }
+.ai-card.is-stale .ai-card-body { opacity: .72; }
+.ai-card-error { background: var(--red-a2, var(--gray-a2)); color: var(--red-a11, var(--text-default)); }
+
+.ai-foot { margin: 8px 0 0; font-size: var(--text-2xs); color: var(--text-faint); }
+
+/* The toolbar button: the sparkle turns violet while the card is open, pulses while summarizing. */
+.ai-btn[aria-pressed="true"] .i, .ai-btn.is-busy .i { color: var(--violet-a11); }
+.ai-btn.is-busy .i { animation: ai-pulse 1.2s var(--ease-out, ease-out) infinite alternate; }
+@media (prefers-reduced-motion: reduce) { .ai-btn.is-busy .i { animation: none; } }

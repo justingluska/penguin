@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024" role="img" aria-labelledby="title desc">
+  <title id="title">Penguin — Tuxedo split B — Lifted beak</title>
+  <desc id="desc">The split tilts thirty degrees counterclockwise, lifting the envelope fold into a more directional bird profile.</desc>
+  <!-- Two painted paths, two colors. Original round-2 tile and 100px margins. -->
+  <defs><clipPath id="tile-clip"><use href="#tile"/></clipPath></defs>
+  <path id="tile" fill="#182B3A" d="M324 100H700C852 100 924 172 924 324V700C924 852 852 924 700 924H324C172 924 100 852 100 700V324C100 172 172 100 324 100Z"/>
+  <g clip-path="url(#tile-clip)">
+    <path fill="#FFFFFF" d="M312.685 430.776L578.282 466.804L1293.441 -710.505L1900 1900H1500L804 966C445 853 280 650 312.685 430.776Z"/>
+  </g>
+</svg>

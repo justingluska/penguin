@@ -1,0 +1,151 @@
+{
+ "id": "m2",
+ "threadId": "t2",
+ "labelIds": [
+  "INBOX"
+ ],
+ "snippet": "Report attached",
+ "internalDate": "1758500000000",
+ "payload": {
+  "partId": "",
+  "mimeType": "multipart/mixed",
+  "filename": "",
+  "headers": [
+   {
+    "name": "From",
+    "value": "Finance Bot <finance@acme.example>"
+   },
+   {
+    "name": "To",
+    "value": "me@penguin.example"
+   },
+   {
+    "name": "Subject",
+    "value": "Q3 report"
+   }
+  ],
+  "body": {
+   "size": 0
+  },
+  "parts": [
+   {
+    "partId": "0",
+    "mimeType": "multipart/alternative",
+    "filename": "",
+    "headers": [
+     {
+      "name": "Content-Type",
+      "value": "multipart/alternative; boundary=x"
+     }
+    ],
+    "body": {
+     "size": 0
+    },
+    "parts": [
+     {
+      "partId": "0.0",
+      "mimeType": "text/plain",
+      "filename": "",
+      "headers": [
+       {
+        "name": "Content-Type",
+        "value": "text/plain; charset=utf-8"
+       }
+      ],
+      "body": {
+       "size": 16,
+       "data": "U2VlIGF0dGFjaGVkLgo"
+      }
+     },
+     {
+      "partId": "0.1",
+      "mimeType": "text/html",
+      "filename": "",
+      "headers": [
+       {
+        "name": "Content-Type",
+        "value": "text/html; charset=utf-8"
+       }
+      ],
+      "body": {
+       "size": 22,
+       "data": "PHA-U2VlIGF0dGFjaGVkLjwvcD4"
+      }
+     }
+    ]
+   },
+   {
+    "partId": "1",
+    "mimeType": "application/pdf",
+    "filename": "Q3 report.pdf",
+    "headers": [
+     {
+      "name": "Content-Type",
+      "value": "application/pdf; name=\"Q3 report.pdf\""
+     },
+     {
+      "name": "Content-Disposition",
+      "value": "attachment; filename=\"Q3 report.pdf\""
+     },
+     {
+      "name": "Content-Transfer-Encoding",
+      "value": "base64"
+     }
+    ],
+    "body": {
+     "attachmentId": "ANGjdJ_pdf",
+     "size": 204800
+    }
+   },
+   {
+    "partId": "2",
+    "mimeType": "text/plain",
+    "filename": "notes.txt",
+    "headers": [
+     {
+      "name": "Content-Type",
+      "value": "text/plain; charset=utf-8; name=notes.txt"
+     },
+     {
+      "name": "Content-Disposition",
+      "value": "attachment; filename=notes.txt"
+     }
+    ],
+    "body": {
+     "attachmentId": "ANGjdJ_txt",
+     "size": 1200
+    }
+   },
+   {
+    "partId": "3",
+    "mimeType": "message/rfc822",
+    "filename": "",
+    "headers": [
+     {
+      "name": "Content-Type",
+      "value": "message/rfc822"
+     }
+    ],
+    "body": {
+     "attachmentId": "ANGjdJ_eml",
+     "size": 5000
+    }
+   },
+   {
+    "partId": "4",
+    "mimeType": "text/calendar",
+    "filename": "",
+    "headers": [
+     {
+      "name": "Content-Type",
+      "value": "text/calendar; charset=utf-8; method=REQUEST"
+     }
+    ],
+    "body": {
+     "size": 30,
+     "data": "QkVHSU46VkNBTEVOREFSDQpFTkQ6VkNBTEVOREFSDQo"
+    }
+   }
+  ]
+ }
+}

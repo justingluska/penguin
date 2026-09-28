@@ -1,0 +1,174 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Envelope",
+  "description": "Every payload: `{\"schemaVersion\": 1, \"kind\": \"...\", \"data\": {...}}`.",
+  "type": "object",
+  "properties": {
+    "data": {
+      "$ref": "#/$defs/ThreadListOut"
+    },
+    "kind": {
+      "description": "\"search\" | \"thread\" | \"threads\" | \"labels\" | \"people\" | \"accounts\" | \"attachmentText\" | \"ask\" | \"ruleMatch\" | \"error\"",
+      "type": "string"
+    },
+    "schemaVersion": {
+      "type": "integer",
+      "format": "uint32",
+      "minimum": 0
+    }
+  },
+  "required": [
+    "schemaVersion",
+    "kind",
+    "data"
+  ],
+  "$defs": {
+    "AddressOut": {
+      "type": "object",
+      "properties": {
+        "email": {
+          "type": "string"
+        },
+        "name": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "email"
+      ]
+    },
+    "ScopeOut": {
+      "description": "What a request was limited to.",
+      "type": "object",
+      "properties": {
+        "account": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "accountIds": {
+          "description": "The profile's member accounts, when a profile was given.",
+          "type": [
+            "array",
+            "null"
+          ],
+          "items": {
+            "type": "string"
+          }
+        },
+        "profile": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      }
+    },
+    "ThreadListOut": {
+      "type": "object",
+      "properties": {
+        "labelId": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "nextBefore": {
+          "description": "Pass as `before` to get the next page; null when this page wasn't full.",
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "int64"
+        },
+        "scope": {
+          "$ref": "#/$defs/ScopeOut"
+        },
+        "threads": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ThreadSummaryOut"
+          }
+        },
+        "view": {
+          "description": "\"inbox\" | \"starred\" | \"sent\" | \"drafts\" | \"done\" | \"trash\" | \"spam\" | \"all\" | \"label\"",
+          "type": "string"
+        }
+      },
+      "required": [
+        "view",
+        "scope",
+        "threads"
+      ]
+    },
+    "ThreadSummaryOut": {
+      "type": "object",
+      "properties": {
+        "accountId": {
+          "type": "string"
+        },
+        "hasAttachments": {
+          "type": "boolean"
+        },
+        "labelIds": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "lastDate": {
+          "type": "integer",
+          "format": "int64"
+        },
+        "lastDateIso": {
+          "type": "string"
+        },
+        "messageCount": {
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        },
+        "participants": {
+          "description": "Distinct senders, latest first.",
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/AddressOut"
+          }
+        },
+        "snippet": {
+          "type": "string"
+        },
+        "starred": {
+          "type": "boolean"
+        },
+        "subject": {
+          "type": "string"
+        },
+        "threadId": {
+          "type": "string"
+        },
+        "unread": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "accountId",
+        "threadId",
+        "subject",
+        "snippet",
+        "participants",
+        "messageCount",
+        "unread",
+        "starred",
+        "hasAttachments",
+        "labelIds",
+        "lastDate",
+        "lastDateIso"
+      ]
+    }
+  }
+}

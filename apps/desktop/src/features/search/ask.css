@@ -1,0 +1,186 @@
+/* Ask answer card (AskCard.tsx), above the search results. */
+
+.ask-card {
+  /* Sparkline series: validated pair (light and dark surfaces, CVD-safe). */
+  --ask-them: #0090ff;
+  --ask-me: #ef5f00;
+  margin: 12px 0 6px; padding: 14px 16px 10px; border-radius: var(--radius-2xl);
+  border: 1px solid var(--border-default); background: var(--bg-panel);
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}
+.ask-card.ask-none { box-shadow: none; }
+.ask-card.ask-stale { opacity: .7; transition: opacity 120ms; }
+.ask-loading { box-shadow: none; }
+
+.ask-head { display: flex; align-items: center; gap: 6px; font-size: 11px; font-weight: 600; letter-spacing: .3px; text-transform: uppercase; color: var(--text-muted); }
+.ask-head .faint { text-transform: none; letter-spacing: 0; font-weight: 400; }
+.ask-conf { height: 18px; padding: 0 6px; border-radius: var(--radius-md); font-size: 10.5px; line-height: 18px; text-transform: none; letter-spacing: 0; }
+.ask-conf-high { background: var(--green-a3); color: var(--green-a11); }
+.ask-conf-medium { background: var(--blue-a3); color: var(--blue-a11); }
+.ask-conf-low { background: var(--amber-a3); color: var(--amber-a11); }
+.ask-conf-none { background: var(--gray-a3); color: var(--text-muted); }
+
+.ask-headline { margin-top: 8px; font-size: 19px; line-height: 26px; font-weight: 600; letter-spacing: -.2px; color: var(--text-emphasis); }
+.ask-detail { margin-top: 4px; font-size: var(--text-sm); line-height: 20px; color: var(--text-muted); }
+
+.ask-chips, .ask-foot { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.ask-didyou { margin-top: 10px; font-size: var(--text-xs); }
+.ask-chip { cursor: pointer; gap: 4px; }
+.ask-chip:hover { background: var(--bg-interactive-hover); color: var(--text-emphasis); }
+.ask-chip:disabled { cursor: default; }
+
+.ask-facts { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 6px 18px; margin: 12px 0 0; }
+.ask-fact { min-width: 0; }
+.ask-fact dt { font-size: 11px; color: var(--text-faint); }
+.ask-fact dd { margin: 1px 0 0; font-size: var(--text-sm); line-height: 19px; color: var(--text-default); overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+.ask-fact.is-cited dd a { cursor: pointer; color: var(--text-emphasis); text-decoration: underline dotted var(--text-faint); text-underline-offset: 3px; }
+.ask-fact.is-cited dd a:hover { color: var(--accent-text); }
+
+.ask-items { margin-top: 12px; border-top: 1px solid var(--border-subtle, var(--gray-a3)); padding-top: 6px; }
+.ask-item { display: grid; grid-template-columns: 120px minmax(0, 1fr) auto auto; align-items: center; gap: 12px; height: 34px; padding: 0 8px; border-radius: var(--radius-lg); cursor: default; }
+.ask-item:hover, .ask-item.is-active { background: var(--bg-row-selected); }
+.ask-item-who { font-size: var(--text-sm); color: var(--text-default); }
+.ask-item-main { display: flex; align-items: baseline; gap: 8px; min-width: 0; }
+.ask-item-subj { font-size: var(--text-sm); color: var(--text-emphasis); flex: none; max-width: 60%; }
+.ask-item-note { font-size: var(--text-xs); color: var(--text-muted); min-width: 0; }
+.ask-item-date { font-size: var(--text-xs); color: var(--text-faint); text-align: right; white-space: nowrap; min-width: 48px; }
+.ask-amt { font: 500 var(--text-sm) var(--font-mono); color: var(--text-emphasis); font-variant-numeric: tabular-nums; }
+.ask-amt.neg { color: var(--green-a11); }
+
+.ask-foot { margin-top: 10px; }
+.ask-steps { margin: 8px 0 2px; padding: 8px 12px 8px 28px; border-radius: var(--radius-lg); background: var(--gray-a2); font-size: var(--text-xs); line-height: 19px; color: var(--text-muted); }
+.ask-steps code { font-family: var(--font-mono); color: var(--text-default); }
+
+/* Sparkline: stacked per-period bars, 2px surface gap between stacks. */
+.ask-spark { margin-top: 12px; }
+.ask-spark-legend { display: flex; align-items: center; gap: 14px; font-size: var(--text-xs); color: var(--text-muted); }
+.ask-spark-legend b { color: var(--text-default); font-weight: 600; }
+.ask-spark-legend .sw { display: inline-block; width: 8px; height: 8px; border-radius: 2px; margin-right: 3px; vertical-align: 0; }
+.ask-spark-legend .sw.them { background: var(--ask-them); }
+.ask-spark-legend .sw.me { background: var(--ask-me); }
+.ask-spark-svg { display: block; margin-top: 6px; max-width: 100%; height: auto; overflow: visible; }
+.ask-spark-svg .them { fill: var(--ask-them); }
+.ask-spark-svg .me { fill: var(--ask-me); }
+.ask-spark-svg .zero { fill: var(--gray-a5); }
+.ask-spark-svg .hit { fill: transparent; }
+.ask-spark-svg g.on .hit { fill: var(--gray-a3); }
+.ask-spark-svg .mk { cursor: pointer; }
+.ask-spark-svg .mk-dot { fill: var(--bg-panel); stroke: var(--text-muted); stroke-width: 1.5; }
+.ask-spark-svg .mk-end { fill: var(--text-emphasis); stroke: var(--bg-panel); stroke-width: 2; }
+.ask-spark-axis { display: flex; justify-content: space-between; max-width: 100%; font-size: 10.5px; margin-top: 2px; }
+
+.sx-mode { display: inline-flex; height: 26px; padding: 2px; gap: 2px; border-radius: var(--radius-lg); background: var(--gray-a3); }
+.sx-mode button { height: 22px; padding: 0 8px; border: 0; border-radius: var(--radius-md); background: transparent; color: var(--text-muted); font-size: var(--text-xs); cursor: pointer; }
+.sx-mode button.on { background: var(--bg-panel); color: var(--text-emphasis); box-shadow: 0 1px 2px var(--gray-a4); }
+
+/* ---- rich answers (AskFacts.tsx) ---- */
+.ask-coverage { display: flex; align-items: center; gap: 5px; margin-top: 6px; font-size: var(--text-xs); }
+
+/* Fact cards: one per flight, stay, order, parcel, bill, booking. */
+.ask-fcards { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 8px; margin-top: 12px; }
+.ask-fcards.is-one { grid-template-columns: minmax(0, 520px); }
+.ask-fcard { display: flex; flex-direction: column; gap: 8px; min-width: 0; padding: 10px 12px 8px; border-radius: var(--radius-xl); border: 1px solid var(--border-default); background: var(--bg-subtle); cursor: default; transition: border-color 80ms, background 80ms; }
+.ask-fcard:hover, .ask-fcard.is-active { border-color: var(--accent); background: var(--bg-row-selected); }
+.ask-fcard-head { display: flex; align-items: center; gap: 6px; min-width: 0; color: var(--text-muted); }
+.ask-fcard-title { font-size: var(--text-sm); font-weight: 600; color: var(--text-emphasis); flex: none; max-width: 60%; }
+.ask-fcard-sub { font-size: var(--text-xs); color: var(--text-muted); min-width: 0; }
+.ask-fcard-body { display: flex; flex-direction: column; gap: 8px; }
+.ask-fcard-foot { display: flex; align-items: center; gap: 6px; font-size: 11px; min-width: 0; }
+.ask-status { flex: none; height: 18px; padding: 0 6px; border-radius: var(--radius-md); font-size: 10.5px; line-height: 18px; background: var(--t3, var(--gray-a3)); color: var(--t11, var(--text-muted)); }
+.ask-status.t-gray { --t3: var(--gray-a3); --t11: var(--text-muted); }
+
+/* Flight: IATA codes with the route between them. */
+.ask-route { display: grid; grid-template-columns: minmax(0, 1fr) 64px minmax(0, 1fr); align-items: center; gap: 6px; }
+.ask-end { display: flex; flex-direction: column; min-width: 0; }
+.ask-end-arr { align-items: flex-end; text-align: right; }
+.ask-iata { font: 600 22px/26px var(--font-mono); letter-spacing: .5px; color: var(--text-emphasis); }
+.ask-city { font-size: var(--text-xs); color: var(--text-muted); max-width: 100%; }
+.ask-time { font-size: var(--text-sm); color: var(--text-default); font-variant-numeric: tabular-nums; min-height: 19px; }
+.ask-route-line { position: relative; display: flex; align-items: center; justify-content: flex-end; color: var(--text-faint); }
+.ask-route-line span { position: absolute; left: 0; right: 8px; top: 50%; border-top: 1px dashed var(--gray-a5); }
+
+.ask-fields { display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 4px 12px; }
+.ask-field { display: flex; flex-direction: column; min-width: 0; }
+.ask-field.is-wide { grid-column: span 2; }
+.ask-copy .mono { white-space: nowrap; }
+.ask-field-label { font-size: 10.5px; color: var(--text-faint); }
+.ask-field-value { font-size: var(--text-sm); color: var(--text-default); overflow-wrap: anywhere; }
+.ask-lines { font-size: var(--text-sm); color: var(--text-default); }
+.ask-copy { display: inline-flex; align-items: center; gap: 4px; max-width: 100%; }
+.ask-copy .mono { font-family: var(--font-mono); letter-spacing: .3px; }
+.ask-copy-btn { display: inline-flex; align-items: center; justify-content: center; width: 18px; height: 18px; padding: 0; border: 0; border-radius: var(--radius-sm); background: transparent; color: var(--text-faint); cursor: pointer; }
+.ask-copy-btn:hover { background: var(--bg-interactive-hover); color: var(--text-emphasis); }
+
+/* Parcel: four-step progress. */
+.ask-steps-bar { display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; margin: 0; padding: 0; list-style: none; }
+.ask-steps-bar li { padding-top: 6px; border-top: 3px solid var(--gray-a4); font-size: 10.5px; color: var(--text-faint); }
+.ask-steps-bar li.done { border-top-color: var(--accent); color: var(--text-default); }
+.ask-steps-bar.is-problem li.done { border-top-color: var(--red-a11); }
+.ask-track { align-self: flex-start; }
+
+/* Bill: the amount large. */
+.ask-bill { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+.ask-bill-amt { font: 600 22px/26px var(--font-mono); font-variant-numeric: tabular-nums; color: var(--text-emphasis); }
+.ask-bill-due { font-size: var(--text-sm); color: var(--text-muted); }
+
+/* Quoted passages. */
+.ask-passages { display: flex; flex-direction: column; gap: 6px; margin-top: 12px; }
+.ask-passage { margin: 0; padding: 8px 12px; border-left: 3px solid var(--gray-a5); border-radius: 0 var(--radius-lg) var(--radius-lg) 0; background: var(--gray-a2); cursor: default; }
+.ask-passage:first-child { border-left-color: var(--accent); }
+.ask-passage:hover, .ask-passage.is-active { background: var(--bg-row-selected); }
+.ask-passage blockquote { margin: 0; font-size: var(--text-sm); line-height: 20px; color: var(--text-emphasis); }
+.ask-passage mark { background: var(--accent-soft); color: inherit; border-radius: 2px; padding: 0 1px; }
+.ask-passage figcaption { display: flex; gap: 4px; margin-top: 3px; font-size: var(--text-xs); min-width: 0; white-space: nowrap; }
+.ask-passage-who { color: var(--text-muted); }
+
+/* A sum: the total, what it's made of, what was left out. */
+.ask-sum { display: flex; flex-direction: column; align-items: flex-start; gap: 4px; margin-top: 12px; padding: 10px 12px; border-radius: var(--radius-xl); background: var(--gray-a2); }
+.ask-sum-totals { font-size: var(--text-base); }
+.ask-sum-total b { font: 600 20px/26px var(--font-mono); font-variant-numeric: tabular-nums; color: var(--text-emphasis); }
+.ask-sum-basis { font-size: var(--text-xs); }
+
+/* Person card. */
+.ask-person { display: flex; align-items: center; gap: 12px; margin-top: 12px; }
+.ask-person-main { display: flex; flex-direction: column; min-width: 0; }
+.ask-person-name { font-size: var(--text-base); font-weight: 600; color: var(--text-emphasis); }
+.ask-person-sub { font-size: var(--text-xs); max-width: 100%; }
+.ask-person-facts { display: flex; flex-wrap: wrap; gap: 4px 14px; margin-top: 3px; font-size: var(--text-sm); }
+.ask-person-fact a { cursor: pointer; color: var(--text-default); text-decoration: underline dotted var(--text-faint); text-underline-offset: 3px; }
+
+.ask-items.is-sources { border-top: 0; padding-top: 0; }
+.ask-items-head { margin: 2px 8px 2px; font-size: 11px; }
+.ask-more { margin: 2px 8px; padding: 0; border: 0; background: none; font-size: var(--text-xs); color: var(--accent-text); cursor: pointer; }
+
+/* "Understood as": the question read as a query, as small editable chips. */
+.ask-q { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; margin-top: 8px; font-size: var(--text-xs); }
+.ask-q.is-busy { opacity: .6; }
+.ask-q-label { display: inline-flex; align-items: center; gap: 3px; margin-right: 2px; }
+.ask-q-chip { display: inline-flex; align-items: center; gap: 2px; height: 22px; padding: 0 7px; border-radius: var(--radius-md); background: var(--gray-a3); color: var(--text-default); font-size: var(--text-xs); line-height: 22px; white-space: nowrap; }
+.ask-q-chip.is-time { background: var(--accent-soft); color: var(--accent-text); }
+.ask-q-text { padding: 0; border: 0; background: none; color: inherit; font: inherit; cursor: default; }
+button.ask-q-text { cursor: pointer; }
+button.ask-q-text:hover { text-decoration: underline dotted; text-underline-offset: 3px; }
+.ask-q-x { display: inline-flex; align-items: center; justify-content: center; width: 14px; height: 14px; margin-right: -3px; padding: 0; border: 0; border-radius: 50%; background: none; color: var(--text-muted); cursor: pointer; }
+.ask-q-x:hover { background: var(--gray-a4); color: var(--text-emphasis); }
+.ask-q-select { padding: 0 2px 0 4px; }
+.ask-q-select select { height: 20px; border: 0; background: none; color: inherit; font: inherit; cursor: pointer; }
+.ask-q-select select:focus-visible { outline: 2px solid var(--accent-soft); border-radius: var(--radius-sm); }
+.ask-q-input { width: 180px; border: 1px solid var(--border-default); background: var(--bg-panel); outline: none; }
+.ask-q-input:focus { border-color: var(--accent-text); }
+.ask-q-add { border: 1px dashed var(--border-default); background: none; color: var(--text-muted); cursor: pointer; }
+.ask-q-add:hover { color: var(--text-emphasis); }
+.ask-q-source { flex-basis: 100%; margin-top: 1px; font-size: 11px; }
+.ask-understanding { display: flex; align-items: center; gap: 5px; margin-top: 8px; font-size: var(--text-xs); }
+
+/* Grouped counts and sums, and the two sides of a comparison. */
+.ask-groups { display: flex; flex-direction: column; gap: 2px; margin-top: 12px; }
+.ask-group { display: grid; grid-template-columns: minmax(90px, 180px) minmax(40px, 1fr) auto; align-items: center; gap: 12px; height: 28px; padding: 0 8px; border-radius: var(--radius-lg); font-size: var(--text-sm); }
+.ask-group.is-cited { cursor: pointer; }
+.ask-group.is-cited:hover { background: var(--bg-row-selected); }
+.ask-group-label { display: inline-flex; align-items: center; gap: 4px; color: var(--text-default); }
+.ask-group.is-best .ask-group-label { font-weight: 600; color: var(--text-emphasis); }
+.ask-group-bar { height: 8px; border-radius: 4px; background: var(--gray-a2); overflow: hidden; }
+.ask-group-bar i { display: block; height: 100%; border-radius: 4px; background: var(--gray-a6); }
+.ask-group.is-best .ask-group-bar i { background: var(--accent); }
+.ask-group-value { font: 500 var(--text-sm) var(--font-mono); font-variant-numeric: tabular-nums; color: var(--text-emphasis); text-align: right; white-space: nowrap; }
+.ask-groups.is-compare .ask-group { height: 32px; }

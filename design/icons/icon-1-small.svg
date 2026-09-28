@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024" role="img" aria-labelledby="title desc">
+  <title id="title">Penguin — Tuxedo post — optical size</title>
+  <desc id="desc">A friendly ink penguin whose white belly folds into an envelope, on a pale ice app tile.</desc>
+  <!-- Flat optical variant for 16–32px. -->
+  <!-- 824px continuous-corner tile, 100px clear canvas margin. -->
+  <path d="M316 100H708C852 100 924 172 924 316V708C924 852 852 924 708 924H316C172 924 100 852 100 708V316C100 172 172 100 316 100Z" fill="#dae6ef"/>
+  <g>
+    <path d="M328 469C283 498 256 554 251 612C248 641 270 650 291 624L347 557Z M696 469C741 498 768 554 773 612C776 641 754 650 733 624L677 557Z" fill="#14212e"/>
+    <path d="M512 237C383 237 308 335 308 492V575C308 710 379 778 512 778S716 710 716 575V492C716 335 641 237 512 237Z" fill="#142231"/>
+    <!-- One continuous white bib: face above, envelope belly below. -->
+    <path d="M512 374C466 308 353 314 350 414L351 644C351 704 394 735 512 735S673 704 673 644L674 414C671 314 558 308 512 374Z" fill="#ffffff"/>
+    <path d="M354 518L495 612Q512 624 529 612L670 518" fill="none" stroke="#547185" stroke-width="32" stroke-linecap="round" stroke-linejoin="round"/>
+    <circle cx="430" cy="423" r="36" fill="#111c28"/><circle cx="594" cy="423" r="36" fill="#111c28"/>
+    <path d="M462 474Q512 460 562 474L521 532Q512 544 503 532Z" fill="#f5ad4f"/>
+  </g>
+</svg>

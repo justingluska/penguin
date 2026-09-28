@@ -1,0 +1,168 @@
+# Does the Mac app still build with the Swift bridge to Apple's Foundation
+# Models (thread summaries, docs/SUMMARIES.md)?
+#
+# The dev box is Linux, where the bridge isn't compiled at all, so this is
+# where it is proven. Three Xcodes, because the bridge's compile-time guards
+# depend on the SDK:
+#   - Xcode 26.x default on macos-26 (what release.yml's macos-latest uses):
+#     full app build (debug and release), the bridge smoke test, and a check
+#     that FoundationModels is linked weak (the app must launch on macOS < 26).
+#   - Xcode 26.0.1 and 26.3: the first SDKs with FoundationModels, before
+#     the macOS 26.4 token APIs. The Swift package alone must compile.
+#   - Xcode 27 (preview image): the new error types, and SwiftPM's release
+#     builds hiding non-public @_cdecl symbols (docs/SUMMARIES.md). Full app build.
+#   - macOS 15 (no FoundationModels): both release smoke binaries must launch
+#     and answer "macOS older than 26".
+# Runners are VMs, where Apple Intelligence doesn't run (Apple DTS:
+# developer.apple.com/forums/thread/787445): the smoke test checks the
+# bridge answers "unavailable" cleanly, not the model itself.
+#
+# Runs on pushes to ai/** branches and by hand. Never on main (release.yml
+# owns main).
+name: macos-check
+
+on:
+  workflow_dispatch:
+  push:
+    branches: ["ai/**"]
+
+concurrency:
+  group: macos-check-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  CARGO_TERM_COLOR: always
+  BRIDGE: apps/desktop/src-tauri/swift/PenguinAI
+
+jobs:
+  swift-only:
+    name: Swift bridge compiles (Xcode ${{ matrix.xcode }})
+    runs-on: macos-26
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        xcode: ["26.0.1", "26.3"]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Select Xcode ${{ matrix.xcode }}
+        run: sudo xcode-select -s "/Applications/Xcode_${{ matrix.xcode }}.app"
+      - name: Toolchain
+        run: |
+          xcodebuild -version
+          swift --version
+          xcrun --sdk macosx --show-sdk-version
+      - name: swift build (release, deployment target 11.0 like the Rust build)
+        run: |
+          sdk="$(xcrun --sdk macosx --show-sdk-path)"
+          swift build --package-path "$BRIDGE" -c release --arch arm64 \
+            -Xswiftc -sdk -Xswiftc "$sdk" -Xswiftc -target -Xswiftc arm64-apple-macosx11.0
+      - name: Exported entry points
+        run: |
+          lib="$(find "$BRIDGE/.build" -name libPenguinAI.a | head -1)"
+          nm -gU "$lib" | grep -E ' _penguin_ai_(availability|build_features|cancel|context_size|generate|prewarm)$'
+
+  app:
+    name: App build + bridge smoke test (${{ matrix.name }})
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 75
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # Bits: 1 FoundationModels, 2 macOS 26.4 token APIs, 4 Xcode 27 error types.
+          - name: Xcode 26 default
+            runner: macos-26
+            features: 3
+          - name: Xcode 27
+            runner: xcode-27
+            features: 7
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Toolchain
+        run: |
+          sw_vers
+          xcodebuild -version
+          swift --version
+          xcrun --sdk macosx --show-sdk-version
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          # swift-rs uses llvm-objcopy from here on Xcode 27.
+          components: llvm-tools
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: ". -> target"
+          key: macos-check-${{ matrix.runner }}
+
+      # tauri::generate_context! wants the frontend dir to exist; the UI
+      # itself isn't under test here.
+      - name: Placeholder frontend
+        run: mkdir -p apps/desktop/dist && echo '<!doctype html><title>Penguin</title>' > apps/desktop/dist/index.html
+
+      - name: cargo build (debug)
+        run: cargo build --locked -p penguin-desktop --bins --example summary_bridge
+
+      - name: Bridge smoke test
+        env:
+          EXPECT_FEATURES: ${{ matrix.features }}
+        run: target/debug/examples/summary_bridge
+
+      - name: Linking (FoundationModels and Swift concurrency weak, run path /usr/lib/swift)
+        run: |
+          bin=target/debug/penguin-desktop
+          otool -L "$bin" | grep -E 'FoundationModels|libswift' | tee /tmp/libs.txt
+          for lib in FoundationModels.framework libswift_Concurrency.dylib; do
+            grep "$lib" /tmp/libs.txt | grep -q ', weak)' || { echo "::error::$lib is not weak-linked"; exit 1; }
+          done
+          otool -l "$bin" | grep -A2 LC_RPATH | grep -q ' /usr/lib/swift ' || { echo "::error::no /usr/lib/swift run path"; exit 1; }
+          # Every other Swift library must come from the OS by absolute path.
+          if grep '@rpath/libswift' /tmp/libs.txt | grep -v libswift_Concurrency; then echo "::error::unexpected @rpath Swift library"; exit 1; fi
+
+      - name: Minimum macOS of the binary
+        run: otool -l target/debug/penguin-desktop | grep -A4 LC_BUILD_VERSION | head -6
+
+      - name: Rust tests for summaries (macOS)
+        run: cargo test --locked -p penguin-desktop --lib summary
+
+      - name: cargo build (release)
+        run: cargo build --locked --release -p penguin-desktop --bin penguin-desktop --example summary_bridge
+
+      - name: Bridge smoke test (release)
+        env:
+          EXPECT_FEATURES: ${{ matrix.features }}
+        run: target/release/examples/summary_bridge
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: summary-bridge-${{ matrix.runner }}
+          path: target/release/examples/summary_bridge
+          retention-days: 3
+
+  # The same release binaries on a macOS without FoundationModels: they must
+  # launch and report "macOS older than 26", not crash on a missing
+  # framework or Swift runtime.
+  older-macos:
+    name: Runs on macOS 15 (no FoundationModels), built with ${{ matrix.runner }}
+    needs: app
+    runs-on: macos-15
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        runner: [macos-26, xcode-27]
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: summary-bridge-${{ matrix.runner }}
+      - name: Smoke test on macOS 15
+        run: |
+          sw_vers
+          chmod +x summary_bridge
+          ./summary_bridge | tee out.txt
+          grep -q 'reason: Some(OsTooOld)' out.txt || { echo "::error::expected OsTooOld on macOS 15"; exit 1; }

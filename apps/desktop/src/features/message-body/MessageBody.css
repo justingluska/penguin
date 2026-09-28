@@ -1,0 +1,107 @@
+/* Message body: sandboxed frame + remote-images bar.
+   OWNER: security-render agent. Tokens come from styles/penguin.css. */
+
+.mb { outline: none; min-width: 0; }
+
+.mb-bar {
+  display: flex; align-items: center; gap: 6px; flex-wrap: wrap;
+  margin: 0 0 10px; padding: 5px 6px 5px 10px;
+  border: 1px solid var(--border-default); border-radius: var(--radius-lg);
+  background: var(--bg-subtle);
+  font-size: var(--text-xs); line-height: 18px; color: var(--text-muted);
+}
+.mb-bar .i { color: var(--text-faint); flex: none; }
+.mb-bar.is-quiet { border-color: transparent; background: transparent; padding-left: 0; color: var(--text-faint); }
+.mb-count { font-variant-numeric: tabular-nums; }
+.mb-sep { color: var(--text-faint); }
+.mb-load {
+  height: var(--control-h-sm); padding: 0 8px; margin: -2px 0;
+  border: 0; border-radius: var(--radius-md); background: transparent;
+  font: inherit; font-weight: 500; color: var(--accent-text); cursor: pointer;
+  transition: background-color var(--dur-fast) var(--ease-in-out);
+}
+.mb-load:hover { background: var(--accent-soft); }
+.mb-load:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.mb-load:disabled { cursor: default; color: var(--text-faint); background: transparent; }
+.mb-trackers { margin-left: auto; padding-right: 4px; color: var(--text-faint); }
+/* Right end of the row (the Unsubscribe button); follows the tracker count
+   when there is one. */
+.mb-trail { margin-left: auto; display: inline-flex; align-items: center; min-width: 0; }
+.mb-trackers + .mb-trail { margin-left: 0; }
+/* "Show original colors" (dark email bodies): right side, before the trail. */
+.mb-scheme { margin-left: auto; }
+.mb-trackers + .mb-scheme, .mb-scheme + .mb-trail { margin-left: 0; }
+/* "Save all images (N)": starts the right side, left of "Show original colors". */
+.mb-saveall { margin-left: auto; display: inline-flex; align-items: center; gap: 5px; }
+.mb-saveall .i { color: inherit; }
+.mb-trackers + .mb-saveall, .mb-saveall + .mb-scheme, .mb-saveall + .mb-trail { margin-left: 0; }
+
+/* The tracker count opens the privacy details (PrivacyDialog). */
+.mb-privacy {
+  display: inline-flex; align-items: center; gap: 6px;
+  height: var(--control-h-sm); margin: -2px 0; padding: 0 6px;
+  border: 0; border-radius: var(--radius-md); background: transparent;
+  font: inherit; color: inherit; cursor: pointer;
+  text-decoration: underline dotted; text-decoration-color: var(--text-faint); text-underline-offset: 3px;
+}
+.mb-bar.is-quiet .mb-privacy { margin-left: -6px; }
+.mb-privacy:hover { background: var(--gray-a3); color: var(--text-default); }
+.mb-privacy:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+/* A tracker loaded because "Block tracking pixels" is off. */
+.mb-privacy.is-warn, .mb-privacy.is-warn .i { color: var(--amber-a11); }
+
+.pv-dialog { width: 520px; }
+.pv-title { display: flex; align-items: center; gap: 8px; }
+.pv-title .i { color: var(--green-a11); }
+.pv-list { list-style: none; margin: 12px 0 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.pv-item { padding: 10px 12px; border: 1px solid var(--border-default); border-radius: var(--radius-lg); background: var(--bg-subtle); }
+.pv-item-head { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.pv-item-title { font-weight: 600; font-size: var(--text-sm); color: var(--text-emphasis); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pv-tag { flex: none; padding: 1px 6px; border-radius: 999px; font-size: var(--text-2xs); line-height: 16px; font-weight: 500; background: var(--amber-a3); color: var(--amber-a11); }
+.pv-tag.is-hidden { background: var(--violet-a3); color: var(--violet-a11); }
+.pv-status { flex: none; margin-left: auto; font-size: var(--text-2xs); line-height: 16px; color: var(--text-faint); }
+.pv-status.is-loaded { color: var(--amber-a11); font-weight: 500; }
+.pv-title .i.is-warn { color: var(--amber-a11); }
+.pv-params { font-family: var(--font-mono); font-size: 12px; }
+.pv-count { font-size: var(--text-xs); color: var(--text-faint); font-variant-numeric: tabular-nums; }
+.pv-addr {
+  margin: 4px 0 6px; font: 12px/18px var(--font-mono); color: var(--text-muted);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  user-select: text; -webkit-user-select: text;
+}
+.pv-query { color: var(--text-faint); }
+.modal p.pv-line { font-size: var(--text-xs); line-height: 18px; color: var(--text-muted); margin: 0; }
+.modal p.pv-line + p.pv-line { margin-top: 2px; }
+.pv-more { margin-top: 8px; }
+.pv-section {
+  display: flex; align-items: center; gap: 8px; margin: 18px 0 6px;
+  font-size: var(--text-sm); font-weight: 600; color: var(--text-emphasis);
+}
+.pv-section .i { color: var(--text-muted); }
+
+.mb-frame {
+  display: block; width: 100%; border: 0;
+  background: transparent;
+  /* Height is set inline from the measured content height. */
+}
+
+/* HTML mail renders on a light canvas in both themes. In dark mode it sits
+   on the dark surface as a rounded card (like Superhuman/Mimestream) rather
+   than being color-inverted, which breaks brand colors and images. */
+.mb-frame.is-html {
+  color-scheme: light;
+  background: #fff;
+  border-radius: var(--radius-xl);
+}
+[data-theme="light"] .mb-frame.is-html { box-shadow: 0 0 0 1px var(--border-default); }
+/* Dark email bodies (experimental): the document is darkened in place
+   (darkBody.ts); the card takes its dark canvas and a hairline edge. */
+.mb-frame.is-html.is-dark {
+  color-scheme: dark;
+  background: #1c1c1e;
+  box-shadow: 0 0 0 1px var(--border-default);
+}
+
+/* Plain text blends into the thread; the document follows the app theme.
+   The frame element inherits the app's color-scheme, which must match the
+   document's or the browser paints an opaque backdrop behind it. */

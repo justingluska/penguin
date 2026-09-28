@@ -1,0 +1,97 @@
+/* Verification codes: the list-row pill and the thread banner (features/otp). */
+
+/* ---- list-row code chip (OtpPill) ----
+   One button: [ 918 273 | ⧉ ]. Replaces the snippet; sits on the text
+   column. 24px tall so it reads as a component, not an inline tag. */
+.otp-chip {
+  --chip-bg: var(--accent-soft);
+  --chip-fg: var(--accent-text);
+  --chip-line: color-mix(in srgb, var(--accent) 38%, transparent);
+  display: inline-flex; align-items: stretch;
+  height: 24px; max-width: 100%; margin: 0; padding: 0;
+  border: 1px solid var(--chip-line); border-radius: 7px;
+  background: var(--chip-bg); color: var(--chip-fg);
+  font: inherit; cursor: pointer; overflow: hidden;
+  vertical-align: middle; white-space: nowrap; flex: none;
+  transition: background var(--dur-fast) var(--ease-out), border-color var(--dur-fast) var(--ease-out), box-shadow var(--dur-fast) var(--ease-out);
+}
+.otp-chip-main { display: inline-flex; align-items: center; gap: 6px; padding: 0 9px 0 10px; min-width: 0; }
+.otp-chip-code {
+  display: inline-flex; gap: .42em;
+  font: 600 14.5px/1 var(--font-mono); letter-spacing: .09em;
+  font-variant-numeric: tabular-nums; color: inherit;
+}
+.otp-chip-copy {
+  display: inline-flex; align-items: center; gap: 4px; padding: 0 8px;
+  border-left: 1px solid var(--chip-line);
+  font: 500 var(--text-xs)/1 var(--font-sans);
+  opacity: .8;
+}
+.otp-chip-hint { font: italic 500 var(--text-2xs)/1 var(--font-sans); color: var(--text-faint); }
+.otp-chip-text { font: 500 var(--text-xs)/1 var(--font-sans); }
+.otp-chip:hover { border-color: var(--accent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 14%, transparent); }
+.otp-chip:hover .otp-chip-copy { opacity: 1; background: color-mix(in srgb, var(--accent) 16%, transparent); }
+.otp-chip:active { transform: translateY(.5px); }
+.otp-chip:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+/* Older than 20 min: still copyable, no longer shouting. */
+.otp-chip.is-stale {
+  --chip-bg: var(--gray-a2); --chip-fg: var(--text-muted); --chip-line: var(--border-subtle);
+}
+/* Sender failed DMARC/DKIM: dashed and marked; copies only on a click. */
+.otp-chip.is-unverified {
+  --chip-bg: transparent; --chip-fg: var(--text-muted); --chip-line: var(--border-default, var(--border-subtle));
+  border-style: dashed;
+}
+.otp-chip.is-unverified .otp-chip-copy { border-left-style: dashed; }
+.otp-chip-shield { color: var(--amber-a11); }
+.otp-chip.is-stale:hover, .otp-chip.is-unverified:hover { border-color: var(--border-interactive, var(--border-subtle)); box-shadow: none; }
+.otp-chip.is-stale:hover .otp-chip-copy, .otp-chip.is-unverified:hover .otp-chip-copy { background: var(--gray-a3); }
+.otp-chip.is-link { --chip-bg: var(--gray-a2); --chip-fg: var(--text-default); --chip-line: var(--border-subtle); cursor: default; }
+.otp-chip.is-link:hover { box-shadow: none; border-color: var(--chip-line); }
+
+/* Copied wins over every variant for its moment. */
+.otp-chip.is-copied {
+  --chip-bg: var(--green-a3); --chip-fg: var(--green-a11);
+  --chip-line: color-mix(in srgb, var(--green-a11) 40%, transparent);
+  border-style: solid;
+}
+.otp-chip.is-copied .otp-chip-copy { opacity: 1; border-left-style: solid; }
+
+/* Where the chip sits: the snippet slot of each row layout, on the text column. */
+.msg .line .otp-slot { display: inline-flex; align-items: center; margin-left: 10px; vertical-align: middle; }
+.msg.stacked.has-otp { grid-template-rows: 18px 18px 24px; row-gap: 3px; }
+.msg.stacked .otp-slot { grid-area: 3 / 1 / 4 / 3; display: flex; align-items: center; min-width: 0; }
+.msg.stacked.has-avatar .otp-slot { grid-area: 3 / 2 / 4 / 4; }
+/* Compact density: a slightly shorter chip keeps breathing room in the row. */
+[data-density="compact"] .msg.stacked.has-otp { grid-template-rows: 18px 18px 22px; }
+[data-density="compact"] .msg .otp-chip { height: 22px; }
+
+/* ---- thread banner ---- */
+.otp-banner {
+  display: flex; align-items: center; gap: 14px;
+  margin: 2px 0 14px; padding: 12px 14px 12px 16px;
+  border: 1px solid color-mix(in srgb, var(--accent) 30%, transparent);
+  border-radius: var(--radius-xl);
+  background: var(--accent-soft);
+}
+.otp-banner:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.otp-banner-text { display: flex; flex-direction: column; gap: 4px; min-width: 0; flex: 1; }
+.otp-banner-label {
+  display: flex; align-items: center; gap: 8px;
+  font-size: var(--text-xs); font-weight: 500; color: var(--text-muted);
+}
+.otp-banner-code {
+  font: 600 28px/1.1 var(--font-mono); letter-spacing: .14em;
+  color: var(--text-emphasis); user-select: all; cursor: copy;
+  overflow-wrap: anywhere;
+}
+.otp-banner .otp-copy { flex: none; background: var(--bg-accent); color: var(--text-on-accent); border-color: transparent; }
+.otp-banner .otp-copy:hover { background: var(--bg-accent-hover); }
+.otp-banner:not(.is-unverified) .otp-copy .kbd { background: color-mix(in srgb, var(--text-on-accent) 18%, transparent); color: var(--text-on-accent); border-color: transparent; }
+.otp-banner .otp-copy.is-copied { background: var(--green-a4); color: var(--green-a11); }
+.otp-banner.is-stale { background: var(--gray-a2); border-color: var(--border-subtle); }
+.otp-banner.is-stale .otp-banner-code { color: var(--text-default); }
+.otp-banner.is-unverified { background: transparent; border-style: dashed; border-color: var(--border-subtle); }
+.otp-banner.is-unverified .otp-copy { background: var(--gray-a3); color: var(--text-default); }
+.otp-banner.is-link { gap: 10px; padding: 10px 14px; background: var(--gray-a2); border-color: var(--border-subtle); color: var(--text-muted); }
+.otp-hint { font: italic 500 var(--text-2xs)/1 var(--font-sans); color: var(--text-faint); }

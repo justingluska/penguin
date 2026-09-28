@@ -1,0 +1,166 @@
+# Search by meaning on Apple silicon: does the embedder build with the
+# WebGPU accelerator, does it give the CPU's vectors, and how fast are the
+# batching, thread and accelerator choices (docs/SEMANTIC.md, "Embedding
+# speed" and "Accelerators")?
+#
+# The dev box is Linux x86-64, so this is where the Mac numbers come from.
+# Runners are VMs (3 cores of an M1, no Neural Engine, a paravirtualized
+# GPU): the CPU numbers are real Apple-silicon cores, fewer of them than a
+# Mac has; the GPU result says whether WebGPU works and agrees with the
+# CPU, not how fast a real Mac's GPU is.
+#
+# Runs on pushes to ai/embed-perf that touch the embedder, and by hand
+# (with an optional full search-eval run on the CPU provider).
+name: macos-embed
+
+on:
+  workflow_dispatch:
+    inputs:
+      eval:
+        description: "Also run search-eval --mode penguin --embedder gemma (CPU, about 30 min on the runner)"
+        type: boolean
+        default: false
+  push:
+    branches: ["ai/embed-perf"]
+    paths:
+      - "crates/penguin-semantic/**"
+      - ".github/workflows/macos-embed.yml"
+
+concurrency:
+  group: macos-embed-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  CARGO_TERM_COLOR: always
+  # The pinned model (crates/penguin-semantic/src/model.rs, EMBEDDINGGEMMA_Q4);
+  # the benchmark checks every file's sha256 against the spec before loading.
+  MODEL_REPO: onnx-community/embeddinggemma-300m-ONNX
+  MODEL_REV: 5090578d9565bb06545b4552f76e6bc2c93e4a66
+  PENGUIN_SEMANTIC_MODEL_DIR: ${{ github.workspace }}/model
+  # The eval harness's mailbox cut into passages (search-eval texts), the
+  # same text the Linux numbers in docs/SEMANTIC.md use.
+  PERF_TEXTS: ${{ github.workspace }}/texts.json
+
+jobs:
+  embed:
+    name: Embedder on Apple silicon (CPU, WebGPU)
+    runs-on: macos-26
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Machine
+        run: |
+          sw_vers
+          sysctl -n machdep.cpu.brand_string hw.ncpu hw.memsize
+          system_profiler SPDisplaysDataType
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      # ort-sys downloads ONNX Runtime into ~/Library/Caches/ort.pyke.io and
+      # doesn't re-run once target/ is restored. The static library travels
+      # inside ort-sys's rlib, but Dawn's dylib is linked from that folder,
+      # so it goes into the same cache entry as target/.
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: macos-embed-ort
+          cache-directories: ~/Library/Caches/ort.pyke.io
+
+      - name: Model files (pinned revision)
+        run: |
+          mkdir -p model/onnx
+          for f in onnx/model_q4.onnx onnx/model_q4.onnx_data tokenizer.json; do
+            curl -fsSL --retry 3 -o "model/$f" "https://huggingface.co/$MODEL_REPO/resolve/$MODEL_REV/$f"
+          done
+          shasum -a 256 model/onnx/* model/tokenizer.json
+
+      - name: Build (tests and the benchmark, WebGPU compiled in)
+        run: |
+          cargo test --locked --release -p penguin-semantic --features webgpu --lib --no-run
+          cargo build --locked --release -p penguin-semantic --features webgpu --example embed_perf
+          cargo build --locked --release -p penguin-eval
+
+      - name: Passages (search-eval texts)
+        run: target/release/search-eval texts --out "$PERF_TEXTS"
+
+      # Dawn (WebGPU) is the one dynamic library: ort's download ships it
+      # next to the static ONNX Runtime. Put it where cargo's binaries look
+      # (target/release/deps is on their dyld fallback path).
+      - name: Dawn next to the binaries
+        run: |
+          dawn="$(find "$HOME/Library/Caches/ort.pyke.io" -name 'libwebgpu_dawn.dylib' | head -1)"
+          echo "dawn: $dawn"
+          ls -la "$dawn"
+          cp "$dawn" target/release/deps/
+          cp "$dawn" target/release/examples/
+          # The benchmark runs directly (not through cargo): look next to itself.
+          bin=target/release/examples/embed_perf
+          install_name_tool -add_rpath @executable_path "$bin"
+          codesign -f -s - "$bin"
+          otool -L "$bin" | grep -i dawn
+
+      - name: Unit tests (penguin-semantic, WebGPU compiled in)
+        run: cargo test --locked --release -p penguin-semantic --features webgpu --lib
+
+      - name: Tokenizer memory and the BPE cache
+        run: |
+          PERF_MODE=tokenizer target/release/examples/embed_perf | tee -a "$GITHUB_STEP_SUMMARY"
+          # Load, tokenize, drop five times on one thread: the crate's
+          # default word cache, then the embedder's setting (off).
+          PERF_MODE=cycles target/release/examples/embed_perf | tee -a "$GITHUB_STEP_SUMMARY"
+          PERF_MODE=cycles PERF_BPE_CACHE=0 target/release/examples/embed_perf | tee -a "$GITHUB_STEP_SUMMARY"
+
+      - name: Do vectors depend on batching? (CPU provider)
+        env:
+          PERF_MODE: padding
+          PERF_N: "96"
+        run: target/release/examples/embed_perf | tee -a "$GITHUB_STEP_SUMMARY"
+
+      # One process per row, three interleaved repetitions: the runner is
+      # a shared VM and one pass is noisy.
+      - name: Batching and spinning, before and after (CPU provider, 3 threads)
+        env:
+          PERF_N: "240"
+          PERF_THREADS: "3"
+        run: |
+          set -o pipefail
+          for rep in 1 2 3; do
+            echo "rep $rep" | tee -a "$GITHUB_STEP_SUMMARY"
+            # The old batching: 16 passages a run, no token budget.
+            PERF_BATCH_TOKENS=100000000 PERF_MAX_BATCH=16 target/release/examples/embed_perf | tail -1 | tee -a "$GITHUB_STEP_SUMMARY"
+            PERF_BATCH_TOKENS=100000000 PERF_MAX_BATCH=1 target/release/examples/embed_perf | tail -1 | tee -a "$GITHUB_STEP_SUMMARY"
+            for bt in 128 256 512; do
+              PERF_BATCH_TOKENS=$bt target/release/examples/embed_perf | tail -1 | tee -a "$GITHUB_STEP_SUMMARY"
+            done
+            PERF_SPIN=1 target/release/examples/embed_perf | tail -1 | tee -a "$GITHUB_STEP_SUMMARY"
+          done
+
+      - name: Threads (CPU provider)
+        env:
+          PERF_N: "160"
+          PERF_THREADS: "1,2,3"
+        run: target/release/examples/embed_perf | tee -a "$GITHUB_STEP_SUMMARY"
+
+      - name: WebGPU (Dawn over Metal) against the CPU
+        env:
+          PERF_N: "240"
+          PERF_THREADS: "3"
+          RUST_LOG: warn
+        run: |
+          set -o pipefail
+          PERF_ACCEL=cpu target/release/examples/embed_perf | tee -a "$GITHUB_STEP_SUMMARY"
+          # A GPU wants wide batches: the default budget and wider ones.
+          PERF_ACCEL=webgpu PERF_BATCH_TOKENS=0,1024,4096 target/release/examples/embed_perf | tee -a "$GITHUB_STEP_SUMMARY"
+
+      - name: Real-model tests (CPU provider)
+        run: cargo test --locked --release -p penguin-semantic --features onnx --test real_model -- --nocapture
+
+      - name: Search quality on Apple silicon (search-eval, CPU provider)
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.eval }}
+        env:
+          EVAL_THREADS: "3"
+        run: |
+          target/release/search-eval run --mode penguin --embedder gemma --name mac-gemma | tee -a "$GITHUB_STEP_SUMMARY"

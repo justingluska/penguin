@@ -1,0 +1,36 @@
+/* Settings → You (You.tsx). */
+.me-card { display: flex; align-items: center; gap: 16px; padding: 8px 0 14px; }
+.me-photo-btn { position: relative; flex: none; border-radius: 50%; }
+.me-photo-btn:focus-visible { outline-offset: 2px; }
+.me-photo-edit {
+  position: absolute; right: -2px; bottom: -2px; width: 22px; height: 22px; border-radius: 50%;
+  display: grid; place-items: center; background: var(--bg-panel); border: 1px solid var(--border-default);
+  color: var(--text-muted); opacity: 0; transition: opacity 120ms;
+}
+.me-photo-btn:hover .me-photo-edit, .me-photo-btn:focus-visible .me-photo-edit { opacity: 1; }
+.me-card-text { min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.me-card-name { font-size: var(--text-base); font-weight: 600; color: var(--text-emphasis); }
+.me-photo-actions { display: flex; gap: 6px; margin-top: 8px; }
+.me-google { align-items: center; }
+.me-google-pick { display: flex; align-items: center; gap: 8px; flex: none; }
+.me-google-select { min-width: 200px; max-width: 260px; }
+.settings-note .icon { vertical-align: -2px; }
+
+/* Crop dialog */
+.me-crop { width: 320px; display: flex; flex-direction: column; align-items: center; }
+.me-crop h3 { align-self: flex-start; }
+.me-crop-view {
+  position: relative; overflow: hidden; margin-top: 6px; border-radius: var(--radius-xl);
+  background: var(--bg-interactive); cursor: grab; touch-action: none; user-select: none;
+}
+.me-crop-view:active { cursor: grabbing; }
+.me-crop-view img { position: absolute; left: 0; top: 0; max-width: none; transform-origin: 0 0; pointer-events: none; }
+/* Everything outside the circle is dimmed; the circle is what's kept. */
+.me-crop-mask {
+  position: absolute; inset: 0; border-radius: 50%; pointer-events: none;
+  box-shadow: 0 0 0 999px rgb(0 0 0 / 0.55); outline: 1px solid rgb(255 255 255 / 0.6);
+}
+.me-crop-zoom { display: flex; align-items: center; gap: 8px; width: 240px; margin-top: 14px; color: var(--text-muted); }
+.me-crop-zoom input { flex: 1; }
+.me-crop-help { margin-top: 6px; text-align: center; }
+.me-crop .st-confirm-actions { align-self: stretch; }

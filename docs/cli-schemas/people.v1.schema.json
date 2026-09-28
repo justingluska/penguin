@@ -1,0 +1,100 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Envelope",
+  "description": "Every payload: `{\"schemaVersion\": 1, \"kind\": \"...\", \"data\": {...}}`.",
+  "type": "object",
+  "properties": {
+    "data": {
+      "$ref": "#/$defs/PeopleOut"
+    },
+    "kind": {
+      "description": "\"search\" | \"thread\" | \"threads\" | \"labels\" | \"people\" | \"accounts\" | \"attachmentText\" | \"ask\" | \"ruleMatch\" | \"error\"",
+      "type": "string"
+    },
+    "schemaVersion": {
+      "type": "integer",
+      "format": "uint32",
+      "minimum": 0
+    }
+  },
+  "required": [
+    "schemaVersion",
+    "kind",
+    "data"
+  ],
+  "$defs": {
+    "PeopleOut": {
+      "type": "object",
+      "properties": {
+        "people": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/PersonOut"
+          }
+        },
+        "query": {
+          "type": "string"
+        },
+        "scope": {
+          "$ref": "#/$defs/ScopeOut"
+        }
+      },
+      "required": [
+        "query",
+        "scope",
+        "people"
+      ]
+    },
+    "PersonOut": {
+      "type": "object",
+      "properties": {
+        "email": {
+          "type": "string"
+        },
+        "messageCount": {
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        },
+        "name": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "email",
+        "messageCount"
+      ]
+    },
+    "ScopeOut": {
+      "description": "What a request was limited to.",
+      "type": "object",
+      "properties": {
+        "account": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "accountIds": {
+          "description": "The profile's member accounts, when a profile was given.",
+          "type": [
+            "array",
+            "null"
+          ],
+          "items": {
+            "type": "string"
+          }
+        },
+        "profile": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      }
+    }
+  }
+}

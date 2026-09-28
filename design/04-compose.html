@@ -1,0 +1,97 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Penguin — Compose</title>
+<script>(function(){var t=new URLSearchParams(location.search).get('theme');document.documentElement.dataset.theme=t==='light'?'light':'dark';})();</script>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="penguin.css">
+</head>
+<body>
+<iframe class="bg-frame" id="bg" tabindex="-1" aria-hidden="true"></iframe>
+<script>document.getElementById("bg").src="01-inbox.html?theme="+document.documentElement.dataset.theme;</script>
+<div class="scrim"></div>
+
+<div class="overlay-host center">
+  <section class="composer panel" role="dialog" aria-label="New message">
+    <header class="cmp-head">
+      <span class="cmp-title">New message</span>
+      <span class="faint" style="font-size:12px">Draft saved</span>
+      <span class="grow"></span>
+      <button class="btn btn-ghost btn-sm btn-icon"><svg class="i i-xs"><use href="#i-minus"/></svg></button>
+      <button class="btn btn-ghost btn-sm btn-icon"><svg class="i i-xs"><use href="#i-expand"/></svg></button>
+      <button class="btn btn-ghost btn-sm"><svg class="i i-xs"><use href="#i-x"/></svg><span class="kbd">Esc</span></button>
+    </header>
+
+    <div class="field">
+      <span class="f-label">From</span>
+      <button class="from-select acc-work"><i class="dot"></i><span class="emph">Sam Okafor</span><span class="faint">sam@northwind.example</span><svg class="i i-xs faint"><use href="#i-down"/></svg></button>
+      <span class="grow"></span>
+      <span class="f-hint">Switch <span class="kbd-group"><span class="kbd">⌥1</span><span class="kbd">⌥2</span><span class="kbd">⌥3</span></span></span>
+    </div>
+    <div class="field">
+      <span class="f-label">To</span>
+      <span class="rcpt"><span class="avatar avatar-xs t-violet">PN</span>Priya Natarajan</span>
+      <span class="rcpt"><span class="avatar avatar-xs t-cyan">MB</span>Marco Bellini</span>
+      <span class="rcpt ext"><span class="avatar avatar-xs t-amber">DW</span>Dana Whitfield</span>
+      <span class="grow"></span>
+      <span class="f-links"><a>Cc</a><a>Bcc</a></span>
+    </div>
+    <div class="field">
+      <span class="f-label">Subject</span>
+      <span class="subject-input">Stakeholder review moves to Monday, Sep 28</span>
+    </div>
+
+    <div class="cmp-body">
+      <p>Hi Priya, Marco —</p>
+      <p>Quick update: the stakeholder review for the Q4 brand refresh is moving to <span class="smart-date">Monday, Sep 28 at 2:00 PM</span>. Dana will join for the first half to cover the rollout plan.</p>
+      <p>Before we meet, could you <span class="snip-trigger">;rev</span><span class="caret"></span></p>
+
+      <!-- Snippet picker -->
+      <div class="snippets panel">
+        <div class="sn-list">
+          <div class="sn-head"><span>Snippets</span><span class="faint mono" style="font-size:11px">;rev</span></div>
+          <a class="menu-item active"><span class="sn-key">;review</span><span class="truncate">Review checklist</span></a>
+          <a class="menu-item"><span class="sn-key">;revisit</span><span class="truncate">Revisit next quarter</span></a>
+          <a class="menu-item"><span class="sn-key">;moved</span><span class="truncate">Meeting moved</span></a>
+          <a class="menu-item"><span class="sn-key">;thx</span><span class="truncate">Thanks + next steps</span></a>
+        </div>
+        <div class="sn-preview">
+          <div class="faint" style="font-size:11px;margin-bottom:6px">Preview · used 41 times</div>
+          <p>…review the deck ahead of time and flag anything blocking in the doc by <span class="var">{day before}</span>? That keeps the session focused on decisions.</p>
+          <div class="sn-foot"><span class="kbd">↵</span>Insert<span class="kbd">Tab</span>Next variable</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="cmp-tools">
+      <div class="btn-split">
+        <button class="btn btn-primary btn-sm">Send<span class="kbd">⌘↵</span></button>
+        <button class="btn btn-primary btn-sm"><svg class="i i-xs"><use href="#i-down"/></svg></button>
+      </div>
+      <button class="btn btn-secondary btn-sm"><svg class="i i-xs"><use href="#i-clock"/></svg>Tomorrow, 8:00 AM<span class="kbd">⌘⇧↵</span></button>
+      <span class="tool-sep"></span>
+      <button class="btn btn-ghost btn-sm btn-icon"><svg class="i i-xs"><use href="#i-bold"/></svg></button>
+      <button class="btn btn-ghost btn-sm btn-icon"><svg class="i i-xs"><use href="#i-italic"/></svg></button>
+      <button class="btn btn-ghost btn-sm btn-icon"><svg class="i i-xs"><use href="#i-list"/></svg></button>
+      <button class="btn btn-ghost btn-sm btn-icon"><svg class="i i-xs"><use href="#i-link"/></svg></button>
+      <button class="btn btn-ghost btn-sm btn-icon"><svg class="i i-xs"><use href="#i-clip"/></svg></button>
+      <button class="btn btn-ghost btn-sm"><svg class="i i-xs"><use href="#i-zap"/></svg>Snippets<span class="kbd">;</span></button>
+      <span class="grow"></span>
+      <button class="btn btn-ghost btn-sm ai-btn"><svg class="i i-xs"><use href="#i-sparkles"/></svg>Draft with AI<span class="kbd">⌘J</span></button>
+      <button class="btn btn-ghost btn-sm btn-icon"><svg class="i i-xs"><use href="#i-trash"/></svg></button>
+    </div>
+    <div class="cmp-foot">
+      <span><svg class="i i-2xs"><use href="#i-undo"/></svg>Undo send for 10 seconds <span class="kbd">Z</span></span>
+      <span class="dotsep"></span>
+      <span>Priya is 5h ahead — 8:00 AM here is 1:00 PM for her</span>
+      <span class="grow"></span>
+      <span>Sending as <span class="emph">Northwind</span></span>
+    </div>
+  </section>
+</div>
+<script src="penguin.js"></script>
+</body>
+</html>
+

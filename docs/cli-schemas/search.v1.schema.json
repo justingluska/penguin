@@ -1,0 +1,297 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Envelope",
+  "description": "Every payload: `{\"schemaVersion\": 1, \"kind\": \"...\", \"data\": {...}}`.",
+  "type": "object",
+  "properties": {
+    "data": {
+      "$ref": "#/$defs/SearchOut"
+    },
+    "kind": {
+      "description": "\"search\" | \"thread\" | \"threads\" | \"labels\" | \"people\" | \"accounts\" | \"attachmentText\" | \"ask\" | \"ruleMatch\" | \"error\"",
+      "type": "string"
+    },
+    "schemaVersion": {
+      "type": "integer",
+      "format": "uint32",
+      "minimum": 0
+    }
+  },
+  "required": [
+    "schemaVersion",
+    "kind",
+    "data"
+  ],
+  "$defs": {
+    "AddressOut": {
+      "type": "object",
+      "properties": {
+        "email": {
+          "type": "string"
+        },
+        "name": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "email"
+      ]
+    },
+    "AttachmentHitOut": {
+      "type": "object",
+      "properties": {
+        "accountId": {
+          "type": "string"
+        },
+        "attachment": {
+          "$ref": "#/$defs/AttachmentOut"
+        },
+        "date": {
+          "type": "integer",
+          "format": "int64"
+        },
+        "dateIso": {
+          "type": "string"
+        },
+        "from": {
+          "$ref": "#/$defs/AddressOut"
+        },
+        "messageId": {
+          "type": "string"
+        },
+        "threadId": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "accountId",
+        "threadId",
+        "messageId",
+        "attachment",
+        "from",
+        "date",
+        "dateIso"
+      ]
+    },
+    "AttachmentOut": {
+      "type": "object",
+      "properties": {
+        "filename": {
+          "type": "string"
+        },
+        "id": {
+          "type": "string"
+        },
+        "mimeType": {
+          "type": "string"
+        },
+        "size": {
+          "type": "integer",
+          "format": "uint64",
+          "minimum": 0
+        }
+      },
+      "required": [
+        "id",
+        "filename",
+        "mimeType",
+        "size"
+      ]
+    },
+    "ChipOut": {
+      "type": "object",
+      "properties": {
+        "kind": {
+          "type": "string"
+        },
+        "label": {
+          "type": "string"
+        },
+        "raw": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "kind",
+        "label",
+        "raw"
+      ]
+    },
+    "HitOut": {
+      "type": "object",
+      "properties": {
+        "accountId": {
+          "type": "string"
+        },
+        "date": {
+          "description": "Unix ms.",
+          "type": "integer",
+          "format": "int64"
+        },
+        "dateIso": {
+          "description": "RFC 3339, UTC.",
+          "type": "string"
+        },
+        "from": {
+          "$ref": "#/$defs/AddressOut"
+        },
+        "hasAttachments": {
+          "type": "boolean"
+        },
+        "labelIds": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "matchCount": {
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        },
+        "messageId": {
+          "description": "Best-matching message in the thread.",
+          "type": "string"
+        },
+        "snippet": {
+          "description": "Plain-text excerpt (no markup).",
+          "type": "string"
+        },
+        "subject": {
+          "type": "string"
+        },
+        "threadId": {
+          "type": "string"
+        },
+        "unread": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "accountId",
+        "threadId",
+        "messageId",
+        "subject",
+        "from",
+        "date",
+        "dateIso",
+        "snippet",
+        "matchCount",
+        "labelIds",
+        "hasAttachments",
+        "unread"
+      ]
+    },
+    "PersonOut": {
+      "type": "object",
+      "properties": {
+        "email": {
+          "type": "string"
+        },
+        "messageCount": {
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        },
+        "name": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "email",
+        "messageCount"
+      ]
+    },
+    "ScopeOut": {
+      "description": "What a request was limited to.",
+      "type": "object",
+      "properties": {
+        "account": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "accountIds": {
+          "description": "The profile's member accounts, when a profile was given.",
+          "type": [
+            "array",
+            "null"
+          ],
+          "items": {
+            "type": "string"
+          }
+        },
+        "profile": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      }
+    },
+    "SearchOut": {
+      "type": "object",
+      "properties": {
+        "attachments": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/AttachmentHitOut"
+          }
+        },
+        "chips": {
+          "description": "Parsed operators, e.g. {kind:\"from\", label:\"From Bo Park\", raw:\"from:bo\"}.",
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ChipOut"
+          }
+        },
+        "hits": {
+          "description": "One per matching thread, best first.",
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/HitOut"
+          }
+        },
+        "indexedMessages": {
+          "description": "Messages in the local index (all accounts).",
+          "type": "integer",
+          "format": "uint64",
+          "minimum": 0
+        },
+        "people": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/PersonOut"
+          }
+        },
+        "query": {
+          "type": "string"
+        },
+        "scope": {
+          "$ref": "#/$defs/ScopeOut"
+        },
+        "tookMs": {
+          "type": "number",
+          "format": "double"
+        }
+      },
+      "required": [
+        "query",
+        "scope",
+        "chips",
+        "hits",
+        "attachments",
+        "people",
+        "tookMs",
+        "indexedMessages"
+      ]
+    }
+  }
+}

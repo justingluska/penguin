@@ -1,0 +1,63 @@
+# id	source	category	question	gold  (held out: written after tuning, see docs/ASK-QUESTIONS.md)
+h001	user	count	how often did I fly in august	flights count @aug
+h002	user	count	number of flights I took in july	flights count @jul
+h003	pogue-35	count	how many flights have I been on this year	flights count @thisyear past
+h004	pogue-35	count	count my flights from last year	flights count @lastyear
+h005	pogue-35	count	how many times did I travel to Madrid in 2025	flights count @2025 place=madrid dir=to
+h006	pogue-35	count	how many round trips did I book in 2025	flights count trips @2025
+h007	pogue-35	count	flights to London this year: how many?	flights count @thisyear place=london dir=to past
+h008	lme-plants	count	how many things did I buy last month	orders count @lastmonth
+h009	lme-plants	count	how many rides did I take with Swiftcab in july	orders count @jul merchant=swiftcab
+h010	lme-plants	count	number of Gearloft orders in 2025	orders count @2025 merchant=gearloft
+h011	pogue-11	count	how many parcels arrived in july	parcels count @jul
+h012	lme-airbnb	count	how many hotel nights did I book last year	stays count nights @lastyear
+h013	gmail-from	count	how many messages did Hannah send me this year	messages count person=hannah dir=from @thisyear
+h014	gmail-from	count	how many emails have I sent to Diego in 2025	messages count person=diego dir=to @2025
+h015	gmail-from	count	¿cuántos correos me mandó Luis el año pasado?	messages count person=luis dir=from @lastyear
+h016	pogue-65	aggregate	what did Swiftcab rides cost me in august	spending sum @aug merchant=swiftcab
+h017	pogue-65	aggregate	total spent at Dishdash this year	spending sum @thisyear merchant=dishdash
+h018	gws-spend	aggregate	what was my total spending in june	spending sum @jun
+h019	gws-spend	aggregate	how much money went out last month	spending sum @lastmonth
+h020	lme-bike	aggregate	how much have I spent on Beanhouse coffee since june	spending sum @since-jun merchant=beanhouse
+h021	pogue-avg	aggregate	what's the average amount of my Parcelmart orders	orders average money merchant=parcelmart
+h022	pogue-avg	aggregate	average Harbor Mobile bill this year	bills average money @thisyear merchant=harbormobile
+h023	lme-grocery	aggregate	which merchant got the most of my money last month	spending max money by=merchant @lastmonth
+h024	lme-airline	aggregate	what month did I travel the most in 2025	flights max by=month @2025
+h025	lme-airline	aggregate	which month had the most Dishdash orders this year	orders max by=month @thisyear merchant=dishdash
+h026	hn-garbanzo	aggregate	what's the most I've paid for a single order	orders max money
+h027	hn-garbanzo	aggregate	what was my smallest Beanhouse purchase this year	orders min money @thisyear merchant=beanhouse
+h028	hn-garbanzo	aggregate	¿cuál fue mi pedido más caro este año?	orders max money @thisyear
+h029	pogue-avg	aggregate	how much did I spend each month in 2025	spending sum by=month @2025
+h030	gmail-nextflight	temporal	when's my next flight?	flights next
+h031	pogue-18	temporal	when did I last travel to Boston	flights last place=boston dir=to
+h032	pogue-18	temporal	when was the last time I flew to Madrid	flights last place=madrid dir=to
+h033	pogue-18	temporal	what was the date of my first trip to Lisbon	flights first place=lisbon dir=to
+h034	hn-garbanzo	temporal	when did I last order from Parcelmart	orders last merchant=parcelmart
+h035	hn-garbanzo	temporal	when did I first buy something from App Market	orders first merchant=appmarket
+h036	ms-next	temporal	when did Priya last email me	messages last person=priya dir=from
+h037	ms-next	temporal	when did I last write to Carmen	messages last person=carmen dir=to
+h038	pogue-18	temporal	when did I last check in to a hotel	stays last
+h039	hn-conf	lookup	confirmation code for my Lisbon flight	flights next place=lisbon dir=to field=confirmation
+h040	pogue-flightno	lookup	which flight number was my last flight to Toronto	flights last place=toronto dir=to field=flightnumber
+h041	gaio-tracking	lookup	Deskcraft tracking number	parcels last merchant=deskcraft field=tracking
+h042	gws-po	lookup	order number for my most recent Gearloft purchase	orders last merchant=gearloft field=ordernumber
+h043	hn-electric	lookup	how much was the last Pinecrest Water bill	bills last merchant=pinecrest field=amount
+h044	pogue-35	list	show me every flight I took in june	flights list @jun
+h045	sw-receipts	list	list the Dishdash receipts I got last month	orders list @lastmonth merchant=dishdash
+h046	canary	list	show me my Brightwave bills from this year	bills list @thisyear merchant=brightwave
+h047	sh-staying	list	list the hotels I stayed at last year	stays list @lastyear
+h048	locomo-cities	list	what cities did I fly to last year	flights list by=place @lastyear
+h049	hn-autopay	comparison	did I spend more in may or june	spending sum vs=@may|@jun
+h050	hn-autopay	comparison	more Dishdash orders in june or july?	orders count merchant=dishdash vs=@jun|@jul
+h051	hn-autopay	comparison	did I travel more in 2025 than in 2024	flights count vs=@2025|@2024
+h052	hn-autopay	comparison	did I spend more on Gearloft or Dishdash last month	spending sum @lastmonth vs=gearloft|dishdash
+h053	hn-autopay	comparison	was my Brightwave bill higher in july or august	bills sum merchant=brightwave vs=@jul|@aug
+h054	pogue-11	existence	have I ever been to Tokyo	flights exists place=tokyo dir=to
+h055	pogue-11	existence	did I buy anything from Gearloft last month	orders exists @lastmonth merchant=gearloft
+h056	pogue-11	existence	did I stay in a hotel in Madrid last year	stays exists @lastyear place=madrid
+h057	pogue-11	existence	any flights to Denver this year?	flights exists @thisyear place=denver dir=to past
+h058	pogue-reply	existence	did Tom email me last month	messages exists person=tom dir=from @lastmonth
+h059	tg-people	people	who wrote to me the most last month	messages max by=person dir=from @lastmonth
+h060	tg-people	people	who have I emailed most in 2025	messages max by=person dir=to @2025
+h061	sw-landlord	summary	what did Mike say about the parking spot	passage plant=parking
+h062	ms-said	summary	what did Yuki say about the phishing emails	passage plant=phishing

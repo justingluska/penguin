@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024" role="img" aria-labelledby="title desc">
+  <title id="title">Penguin — Flap &amp; dot — optical 16–32px</title>
+  <!-- Enlarged counters / gaps for small display sizes. -->
+  <desc id="desc">A white envelope flap and one warm orange beak-dot on an ink squircle.</desc>
+  <path fill="#182B3A" d="M324 100H700C852 100 924 172 924 324V700C924 852 852 924 700 924H324C172 924 100 852 100 700V324C100 172 172 100 324 100Z"/>
+  <path fill="#FFFFFF" d="M256 352L512 544L768 352V480L512 672L256 480Z"/>
+  <circle fill="#F4AA64" cx="512" cy="384" r="48"/>
+</svg>

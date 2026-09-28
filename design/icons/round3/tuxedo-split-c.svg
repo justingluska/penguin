@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024" role="img" aria-labelledby="title desc">
+  <title id="title">Penguin — Tuxedo split C — Quarter-turn</title>
+  <desc id="desc">A clockwise quarter-turn places the envelope V sideways, with the ink point facing left.</desc>
+  <!-- Two painted paths, two colors. Original round-2 tile and 100px margins. -->
+  <defs><clipPath id="tile-clip"><use href="#tile"/></clipPath></defs>
+  <path id="tile" fill="#182B3A" d="M324 100H700C852 100 924 172 924 324V700C924 852 852 924 700 924H324C172 924 100 852 100 700V324C100 172 172 100 324 100Z"/>
+  <g clip-path="url(#tile-clip)">
+    <path fill="#FFFFFF" transform="rotate(90 512 512)" d="M380 342L592 506L1800 -156V1900H1920L548 924C340 776 282 536 380 342Z"/>
+  </g>
+</svg>

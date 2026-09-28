@@ -1,0 +1,361 @@
+/* Setup guide (rail + one step at a time) and the Add account modal. Built
+   from the design system tokens in styles/penguin.css; works in both themes. */
+
+/* ---------- Shell ---------- */
+.onb { height: 100vh; display: flex; flex-direction: column; background: var(--background); color: var(--text-default); }
+.onb :is(a, button, textarea, input, summary):focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.onb-top { height: 56px; flex: none; padding: 0 24px; display: flex; align-items: center; gap: 12px; border-bottom: 1px solid var(--border-subtle); }
+.onb-brand { display: inline-flex; align-items: center; gap: 10px; font-size: var(--text-base); font-weight: 600; letter-spacing: -.2px; color: var(--text-emphasis); }
+.onb-brand .logo { width: 24px; height: 24px; }
+.onb-brand-sub { color: var(--text-faint); font-weight: 500; padding-left: 10px; border-left: 1px solid var(--border-default); }
+.onb-body { flex: 1; min-height: 0; display: grid; grid-template-columns: 248px 1fr; }
+
+/* ---------- Progress rail ---------- */
+.onb-rail { display: flex; flex-direction: column; padding: 20px 12px 16px; border-right: 1px solid var(--border-subtle); background: var(--bg-subtle); overflow-y: auto; }
+.onb-rail ol { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 2px; }
+.onb-rail-group { margin: 14px 10px 6px; font-size: var(--text-2xs); font-weight: 600; letter-spacing: .6px; text-transform: uppercase; color: var(--text-faint); }
+.onb-rail-step { width: 100%; display: flex; align-items: center; gap: 10px; height: 34px; padding: 0 10px; border-radius: var(--radius-lg);
+  font-size: var(--text-sm); color: var(--text-muted); text-align: left; }
+.onb-rail-step:not(:disabled):hover { background: var(--bg-interactive-hover); color: var(--text-emphasis); }
+.onb-rail-step:disabled { cursor: default; opacity: .55; }
+.onb-rail-step.is-current { background: var(--bg-row-selected); color: var(--text-emphasis); font-weight: 600; }
+.onb-rail-mark { width: 20px; height: 20px; flex: none; display: inline-flex; align-items: center; justify-content: center; border-radius: 50%;
+  border: 1px solid var(--border-interactive); font: 500 10.5px/1 var(--font-mono); color: var(--text-muted); background: var(--background); }
+.onb-rail-step.is-current .onb-rail-mark { border-color: var(--accent); color: var(--accent-text); box-shadow: 0 0 0 3px var(--accent-soft); }
+.onb-rail-step.is-done .onb-rail-mark { border-color: transparent; background: var(--green-a3); color: var(--green-a11); }
+.onb-rail-label { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.onb-rail-time { font-size: var(--text-2xs); color: var(--text-faint); font-weight: 400; white-space: nowrap; }
+.onb-rail-foot { margin-top: auto; padding: 16px 10px 0; display: flex; gap: 7px; align-items: flex-start; font-size: var(--text-xs); line-height: 17px; color: var(--text-faint); }
+.onb-rail-foot .i { margin-top: 2px; }
+
+/* ---------- Step panel ---------- */
+.onb-main { min-height: 0; overflow-y: auto; }
+.onb-panel { max-width: 640px; margin: 0 auto; padding: 40px 40px 56px; animation: onb-in var(--dur) var(--ease-out); }
+/* Room for the four browser sketches on the accounts step. */
+.onb-panel.is-wide { max-width: 780px; }
+@keyframes onb-in { from { opacity: 0; transform: translateY(4px); } }
+@media (prefers-reduced-motion: reduce) { .onb-panel { animation: none; } }
+.onb-eyebrow { font-size: var(--text-xs); color: var(--text-faint); font-variant-numeric: tabular-nums; margin-bottom: 8px; }
+.onb-title { font-size: var(--text-3xl); line-height: 34px; letter-spacing: -.7px; font-weight: 600; color: var(--text-emphasis); outline: none; }
+.onb-lead { margin-top: 10px; font-size: var(--text-base); line-height: 22px; color: var(--text-muted); max-width: 560px; }
+.onb-content { margin-top: 28px; display: flex; flex-direction: column; gap: 16px; }
+.onb-hero { margin-bottom: 20px; }
+.onb-lead-first { margin-top: -18px; }
+.onb-hero-logo { width: 56px; height: 56px; }
+
+/* ---------- Footer ---------- */
+.onb-foot { flex: none; height: 60px; padding: 0 24px; display: flex; align-items: center; gap: 12px; border-top: 1px solid var(--border-subtle); }
+.onb-foot .btn { font-size: var(--text-sm); }
+.onb-foot .btn:disabled { opacity: .45; cursor: default; }
+.onb-foot-hints { display: inline-flex; gap: 16px; margin-left: 8px; font-size: var(--text-xs); color: var(--text-faint); }
+.onb-foot-hints .hint { display: inline-flex; align-items: center; gap: 4px; }
+.onb-foot-hints .hint .kbd:last-of-type { margin-right: 2px; }
+
+/* ---------- Welcome ---------- */
+.onb-shortcut { font-size: var(--text-sm); color: var(--text-muted); }
+.onb-textbtn { display: inline-flex; align-items: center; gap: 3px; color: var(--text-emphasis); text-decoration: underline;
+  text-decoration-color: var(--border-interactive); text-underline-offset: 4px; }
+.onb-textbtn:hover { text-decoration-color: currentColor; }
+
+/* ---------- Numbered instructions ---------- */
+.onb-steps { list-style: none; margin: 0; padding: 0; counter-reset: onb; display: flex; flex-direction: column; }
+.onb-step { counter-increment: onb; position: relative; display: grid; grid-template-columns: 28px 1fr; gap: 14px; padding-bottom: 20px; }
+.onb-step::before { content: counter(onb); width: 28px; height: 28px; display: inline-flex; align-items: center; justify-content: center; border-radius: 50%;
+  background: var(--bg-interactive); border: 1px solid var(--border-interactive); font: 600 12px/1 var(--font-mono); color: var(--text-emphasis); }
+/* Thread linking the numbers. */
+.onb-step:not(:last-child)::after { content: ""; position: absolute; left: 13.5px; top: 32px; bottom: 4px; width: 1px; background: var(--border-subtle); }
+.onb-step-body { min-width: 0; padding-top: 3px; }
+.onb-step-title { display: flex; align-items: center; gap: 12px; min-height: 22px; font-size: var(--text-base); font-weight: 600; color: var(--text-emphasis); line-height: 22px; }
+.onb-step-detail { margin-top: 6px; font-size: var(--text-sm); line-height: 21px; color: var(--text-muted); }
+.onb-step-detail > * + * { margin-top: 8px; }
+.onb-open { flex: none; font-weight: 500; }
+.onb-open-primary { color: var(--text-emphasis); }
+.onb-ui { display: inline-flex; align-items: center; padding: 0 6px; height: 20px; border-radius: var(--radius-md); border: 1px solid var(--border-default);
+  background: var(--bg-subtle); color: var(--text-emphasis); font-size: 12.5px; font-weight: 500; line-height: 18px; white-space: nowrap; vertical-align: 1px; }
+.onb-step-title .onb-ui { font-size: var(--text-sm); height: 22px; }
+.onb-code { font: 500 12px/18px var(--font-mono); padding: 1px 5px; border-radius: var(--radius-sm); background: var(--bg-interactive); color: var(--text-emphasis); overflow-wrap: anywhere; }
+.onb-field { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.onb-field-name { min-width: 128px; color: var(--text-muted); }
+.onb-field-value { color: var(--text-default); }
+
+/* Copy chip */
+.onb-copy { display: inline-flex; align-items: stretch; height: 28px; border: 1px solid var(--border-interactive); border-radius: var(--radius-lg);
+  background: var(--bg-interactive); overflow: hidden; vertical-align: middle; }
+.onb-copy-text { display: inline-flex; align-items: center; padding: 0 10px; font-size: 12.5px; color: var(--text-emphasis); }
+.onb-copy-state { display: inline-flex; align-items: center; gap: 5px; padding: 0 9px; border-left: 1px solid var(--border-interactive);
+  font-size: var(--text-xs); color: var(--text-muted); min-width: 72px; justify-content: center; }
+.onb-copy:hover .onb-copy-state { color: var(--text-emphasis); background: var(--bg-interactive-hover); }
+.onb-copy.is-copied .onb-copy-state { color: var(--green-a11); background: var(--green-a3); }
+
+/* Project ID field */
+.onb-project { display: flex; flex-direction: column; gap: 6px; margin-top: 12px; }
+.onb-input { display: flex; align-items: center; gap: 10px; height: 36px; max-width: 380px; padding: 0 12px; border-radius: var(--radius-xl);
+  background: var(--bg-interactive); border: 1px solid var(--border-interactive); }
+.onb-input:focus-within { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+.onb-input.is-invalid { border-color: var(--red-a11); }
+.onb-input-label { font-size: var(--text-xs); color: var(--text-muted); white-space: nowrap; }
+.onb-input input { flex: 1; min-width: 0; height: 100%; border: 0; background: none; outline: none; font: 500 13px var(--font-mono); color: var(--text-emphasis); }
+.onb .onb-input input:focus-visible { outline: none; }
+.onb-input input::placeholder { color: var(--text-placeholder); }
+.onb-input-ok { color: var(--green-a11); }
+
+/* External vs Internal */
+.onb-choice { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.onb-choice-card { display: flex; flex-direction: column; gap: 3px; padding: 11px 13px; border: 1px solid var(--border-default); border-radius: var(--radius-xl); font-size: var(--text-xs); line-height: 17px; }
+.onb-choice-card b { font-size: var(--text-sm); color: var(--text-emphasis); }
+.onb-choice-card.is-pick { border-color: var(--accent); background: var(--accent-soft); }
+
+/* ---------- Callouts ---------- */
+.onb-callout { display: flex; gap: 12px; align-items: flex-start; padding: 13px 16px; border-radius: var(--radius-xl); border: 1px solid var(--border-default);
+  background: var(--bg-subtle); font-size: var(--text-sm); line-height: 20px; color: var(--text-muted); }
+.onb-callout > .i { margin-top: 2px; color: var(--text-muted); flex: none; }
+.onb-callout > div { min-width: 0; }
+.onb-callout-title { font-weight: 600; color: var(--text-emphasis); margin-bottom: 2px; }
+.onb-callout.is-warn { border-color: var(--amber-a5); background: var(--amber-a3); }
+.onb-callout.is-warn > .i { color: var(--amber-a11); }
+.onb-callout.is-ok { border-color: var(--green-a4); background: var(--green-a3); }
+.onb-callout.is-ok > .i { color: var(--green-a11); }
+.onb-callout .kbd { margin: 0 1px; }
+
+/* ---------- Troubleshooting & other disclosures ---------- */
+.onb-trouble, .onb-walk { border-top: 1px solid var(--border-subtle); padding-top: 4px; }
+.onb-trouble summary, .onb-walk summary { list-style: none; display: inline-flex; align-items: center; gap: 8px; height: 32px; padding: 0 8px 0 4px; margin-left: -4px;
+  border-radius: var(--radius-lg); font-size: var(--text-sm); font-weight: 500; color: var(--text-muted); cursor: pointer; }
+.onb-trouble summary::-webkit-details-marker, .onb-walk summary::-webkit-details-marker { display: none; }
+.onb-trouble summary:hover, .onb-walk summary:hover { color: var(--text-emphasis); background: var(--bg-interactive-hover); }
+.onb-trouble-chev { transition: transform var(--dur-fast) var(--ease-out); }
+details[open] > summary .onb-trouble-chev { transform: rotate(90deg); }
+.onb-trouble-count { font: 500 10.5px/1 var(--font-mono); padding: 3px 6px; border-radius: 99px; background: var(--bg-interactive); color: var(--text-muted); }
+.onb-trouble dl { margin: 8px 0 0; display: flex; flex-direction: column; gap: 2px; }
+.onb-problem { padding: 10px 14px; border-radius: var(--radius-lg); background: var(--bg-subtle); }
+.onb-problem dt { font-size: var(--text-sm); font-weight: 600; color: var(--text-emphasis); }
+.onb-problem dd { margin: 3px 0 0; font-size: var(--text-sm); line-height: 20px; color: var(--text-muted); }
+.onb-problem code { font: 500 12px var(--font-mono); color: var(--text-emphasis); }
+.onb-problem a { color: var(--text-emphasis); text-decoration: underline; text-decoration-color: var(--border-interactive); text-underline-offset: 3px; }
+
+/* Quota tip on the last step */
+.onb-quota-body { margin-top: 8px; padding: 14px 16px; border-radius: var(--radius-xl); background: var(--bg-subtle); font-size: var(--text-sm); line-height: 21px; color: var(--text-muted); }
+.onb-quota-body > * + * { margin-top: 8px; }
+.onb-quota-body ol { padding-left: 20px; display: flex; flex-direction: column; gap: 6px; }
+.onb-quota-body .onb-open { height: 22px; vertical-align: middle; }
+
+/* ---------- Done ---------- */
+.onb-keys { display: grid; grid-template-columns: 1fr 1fr; gap: 2px 20px; padding: 14px 16px; border: 1px solid var(--border-default); border-radius: var(--radius-xl); }
+.onb-key { display: flex; align-items: center; gap: 12px; height: 32px; font-size: var(--text-sm); color: var(--text-default); }
+.onb-key .kbd-group { min-width: 44px; }
+
+/* ---------- Add the client ---------- */
+.oauth-drop { border: 1px dashed var(--border-interactive); border-radius: var(--radius-2xl); padding: 28px 20px; display: flex; flex-direction: column;
+  align-items: center; gap: 8px; background: var(--bg-subtle); transition: border-color var(--dur-fast), background var(--dur-fast); }
+.oauth-drop.dragging { border-color: var(--accent); background: var(--accent-soft); }
+.oauth-drop .s2-action-row { margin-top: 8px; }
+.onb-drop-icon { width: 44px; height: 44px; display: inline-flex; align-items: center; justify-content: center; border-radius: 50%;
+  background: var(--bg-interactive); color: var(--text-muted); margin-bottom: 4px; }
+.oauth-paste { width: 100%; min-height: 120px; margin-top: 8px; padding: 10px 12px; resize: vertical;
+  border: 1px solid var(--border-interactive); border-radius: var(--radius-xl); background: var(--bg-interactive);
+  font: 400 12px/18px var(--font-mono); color: var(--text-emphasis); outline: none; }
+.oauth-paste:focus { border-color: var(--accent); }
+.onb-client-done { display: flex; align-items: center; gap: 14px; padding: 16px 18px; border: 1px solid var(--green-a4); border-radius: var(--radius-2xl); background: var(--green-a3); }
+.onb-client-ok { width: 32px; height: 32px; flex: none; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; background: var(--green-a4); color: var(--green-a11); }
+.onb-client-title { font-size: var(--text-base); font-weight: 600; color: var(--text-emphasis); }
+.onb-client-id { font-size: 12px; color: var(--text-default); margin-top: 2px; }
+.onb-client-path { font-size: 11.5px; color: var(--text-faint); margin-top: 1px; }
+
+/* Optional iOS client (sign-in sheet) */
+.onb-sheet-field { margin-top: 12px; display: flex; flex-direction: column; gap: 8px; }
+.onb-sheet-row { display: flex; align-items: center; gap: 8px; max-width: 540px; }
+.onb-sheet-row .onb-input { max-width: none; }
+.onb-sheet-done { margin-top: 12px; padding: 12px 14px; }
+
+/* ---------- Shared bits ---------- */
+.s2-muted { color: var(--text-muted); font-size: var(--text-xs); line-height: 18px; }
+.s2-text { font-size: var(--text-sm); color: var(--text-default); }
+.s2-action-row { display: flex; align-items: center; gap: 8px; }
+.s2-action-row .btn { font-size: var(--text-sm); }
+.s2-google { width: 16px; height: 16px; fill: currentColor; flex: none; }
+.onb-error { display: flex; align-items: flex-start; gap: 8px; padding: 10px 12px; border-radius: var(--radius-xl);
+  background: var(--red-a3); color: var(--red-a11); font-size: var(--text-sm); line-height: 20px; }
+.onb-error .i { margin-top: 3px; }
+.onb-wait { display: flex; align-items: center; gap: 10px; font-size: var(--text-sm); color: var(--text-default); }
+.onb-spin { width: 14px; height: 14px; flex: none; border-radius: 50%; border: 2px solid var(--border-interactive); border-top-color: var(--accent);
+  animation: onb-spin .9s linear infinite; }
+@keyframes onb-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .onb-spin { animation-duration: 3s; } }
+
+/* ---------- Add accounts ---------- */
+.onb-accounts { display: flex; flex-direction: column; gap: 16px; }
+.onb-signin { display: flex; align-items: center; gap: 12px; min-height: 40px; flex-wrap: wrap; }
+.onb-google-btn { height: 40px; padding: 0 16px; font-size: var(--text-sm); gap: 9px; }
+.onb-cal-check { display: inline-flex; align-items: center; gap: 8px; font-size: var(--text-sm); color: var(--text-default); cursor: pointer; width: fit-content; }
+.onb-cal-check input { margin: 0; accent-color: var(--accent); }
+.onb-synclist { padding: 0; overflow: hidden; }
+.sync-account { padding: 16px 18px; border-bottom: 1px solid var(--border-subtle); display: grid; grid-template-columns: 10px 1fr; gap: 12px; }
+.sync-account:last-child { border-bottom: 0; }
+.sync-account > .dot { margin-top: 7px; background: var(--tm, var(--t11)); }
+.sync-account > div { min-width: 0; }
+.sync-name { display: flex; align-items: center; gap: 10px; font-size: var(--text-sm); min-width: 0; }
+.sync-name strong { font-weight: 600; color: var(--text-emphasis); }
+.sync-email { color: var(--text-muted); }
+.sync-phase { display: flex; align-items: center; gap: 6px; margin-top: 8px; font-size: var(--text-xs); color: var(--text-default); }
+.sync-phase .emph { color: var(--text-emphasis); font-weight: 500; }
+.sync-progress { height: 4px; margin-top: 10px; border-radius: var(--radius-sm); background: var(--bg-interactive-hover); overflow: hidden; }
+.sync-progress span { display: block; height: 100%; background: var(--tm, var(--t11)); border-radius: inherit; transition: width var(--dur) var(--ease-out); }
+
+/* Browser walkthrough: tiny drawn browser windows (not real screenshots). */
+.onb-walk-grid { list-style: none; margin: 10px 0 0; padding: 0; display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; counter-reset: walk; }
+.onb-walk-grid > li { counter-increment: walk; display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+.onb-walk-grid p { font-size: var(--text-xs); line-height: 17px; color: var(--text-muted); }
+.onb-walk-grid p::before { content: counter(walk); display: inline-flex; align-items: center; justify-content: center; width: 16px; height: 16px; margin-right: 6px;
+  border-radius: 50%; background: var(--bg-interactive); border: 1px solid var(--border-interactive); font: 600 9.5px/1 var(--font-mono); color: var(--text-emphasis); vertical-align: 1px; }
+.onb-walk-grid b { color: var(--text-emphasis); font-weight: 600; }
+.mini { border: 1px solid var(--border-default); border-radius: var(--radius-lg); overflow: hidden; background: var(--bg-elevated); box-shadow: var(--shadow-lg); min-height: 156px; display: flex; flex-direction: column; }
+.mini-chrome { flex: none; height: 20px; display: flex; align-items: center; gap: 3px; padding: 0 6px; background: var(--bg-subtle); border-bottom: 1px solid var(--border-subtle); }
+.mini-chrome > i { width: 5px; height: 5px; border-radius: 50%; background: var(--border-interactive); }
+.mini-url { margin-left: 6px; flex: 1; min-width: 0; height: 12px; display: inline-flex; align-items: center; gap: 3px; padding: 0 5px; border-radius: 3px;
+  background: var(--bg-interactive); font: 500 7.5px/1 var(--font-sans); color: var(--text-faint); overflow: hidden; white-space: nowrap; }
+.mini-url .i { width: 7px; height: 7px; }
+.mini-page { flex: 1; padding: 10px 10px 8px; display: flex; flex-direction: column; gap: 6px; font-size: 9px; line-height: 12px; color: var(--text-muted); }
+.mini-title { font-size: 10px; line-height: 13px; font-weight: 600; color: var(--text-emphasis); }
+.mini-title.center, .mini-bar.center { align-self: center; text-align: center; }
+.mini-bar { height: 5px; width: 90%; border-radius: 3px; background: var(--bg-interactive-hover); }
+.mini-bar.short { width: 60%; }
+.mini-bar.center { width: 70%; }
+.mini-acct { display: flex; align-items: center; gap: 6px; padding: 5px 6px; border-radius: 5px; border: 1px solid var(--border-subtle); }
+.mini-acct.is-pick { border-color: var(--accent); background: var(--accent-soft); }
+.mini-avatar { width: 14px; height: 14px; border-radius: 50%; background: var(--border-interactive); flex: none; }
+.mini-acct.is-pick .mini-avatar { background: var(--accent); }
+.mini-lines { flex: 1; display: flex; flex-direction: column; gap: 3px; }
+.mini-lines b, .mini-lines span { display: block; height: 4px; border-radius: 2px; background: var(--border-interactive); }
+.mini-lines b { width: 60%; }
+.mini-lines span { width: 85%; background: var(--bg-interactive-hover); }
+.mini-warn { width: 18px; height: 18px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; font: 700 11px/1 var(--font-sans);
+  background: var(--amber-a3); color: var(--amber-a11); }
+.mini-link { align-self: flex-start; font-size: 9px; font-weight: 600; color: var(--text-link, var(--accent-text)); text-decoration: underline; text-underline-offset: 2px; }
+.is-hot { position: relative; outline: 1.5px solid var(--accent); outline-offset: 2px; border-radius: 3px; }
+.mini-check { display: flex; gap: 6px; align-items: flex-start; padding: 5px 6px; font-size: 8.5px; line-height: 11px; color: var(--text-default); }
+.mini-box { width: 11px; height: 11px; flex: none; border-radius: 2px; background: var(--accent); color: #fff; display: inline-flex; align-items: center; justify-content: center; }
+.mini-box .i { width: 8px; height: 8px; stroke-width: 3; }
+.mini-foot { margin-top: auto; display: flex; justify-content: flex-end; }
+.mini-btn { padding: 3px 8px; border-radius: 99px; background: var(--accent); color: #fff; font-size: 8.5px; font-weight: 600; }
+.mini-ok { align-self: center; margin-top: 10px; width: 26px; height: 26px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center;
+  background: var(--green-a3); color: var(--green-a11); }
+
+/* ---------- Email first ---------- */
+.onb-emailstep { display: flex; flex-direction: column; gap: 18px; }
+.onb-emailform { display: flex; flex-direction: column; gap: 8px; }
+.onb-emailfield { display: flex; align-items: center; gap: 10px; height: 46px; max-width: 480px; padding: 0 14px; border-radius: var(--radius-xl);
+  background: var(--bg-interactive); border: 1px solid var(--border-interactive); color: var(--text-muted); }
+.onb-emailfield:focus-within { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+.onb-emailfield.is-invalid { border-color: var(--red-a11); }
+.onb-emailfield input { flex: 1; min-width: 0; height: 100%; border: 0; background: none; outline: none; font: 500 15px var(--font-sans); color: var(--text-emphasis); }
+.onb-emailfield input::placeholder { color: var(--text-placeholder); }
+:is(.onb, .onb-modal) :is(.onb-emailfield, .onb-input) input:focus-visible { outline: none; }
+.onb-emailfield-status { min-height: 18px; }
+.onb-field-error { display: inline-flex; align-items: center; gap: 6px; font-size: var(--text-xs); line-height: 18px; color: var(--red-a11); }
+.onb-pick { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; max-width: 560px; }
+.onb-pick-btn { display: flex; align-items: center; gap: 10px; height: 52px; padding: 0 12px; border-radius: var(--radius-xl);
+  border: 1px solid var(--border-default); background: var(--background); text-align: left; min-width: 0; }
+.onb-pick-btn:not(:disabled):hover { background: var(--bg-interactive-hover); border-color: var(--border-interactive); }
+.onb-pick-btn:disabled { opacity: .5; cursor: default; }
+.onb-pick-text { display: flex; flex-direction: column; min-width: 0; }
+.onb-pick-text b { font-size: var(--text-sm); font-weight: 600; color: var(--text-emphasis); }
+.onb-pick-text span { font-size: var(--text-xs); color: var(--text-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.onb-pick-group { display: flex; flex-direction: column; gap: 8px; }
+.onb-pick-label { font-size: var(--text-sm); font-weight: 600; color: var(--text-emphasis); }
+/* Neutral provider marks: a letter or a generic icon, never a logo from the web. */
+.onb-mark { width: 28px; height: 28px; flex: none; display: inline-flex; align-items: center; justify-content: center; border-radius: var(--radius-lg);
+  background: var(--bg-interactive); border: 1px solid var(--border-subtle); color: var(--text-emphasis); font: 700 13px/1 var(--font-sans); }
+.onb-mark .s2-google { width: 15px; height: 15px; }
+.onb-google-btn .onb-mark { width: 20px; height: 20px; font-size: 11px; background: transparent; border-color: currentColor; color: inherit; border-radius: var(--radius-md); }
+.onb-inline-email, .onb-hint-email { font-weight: 600; color: var(--text-emphasis); }
+.onb-link { color: var(--text-emphasis); text-decoration: underline; text-decoration-color: var(--border-interactive); text-underline-offset: 3px; }
+
+/* Who is being added, above each provider step. */
+.onb-who { margin-top: 18px; max-width: 560px; display: flex; align-items: center; gap: 12px; padding: 9px 10px 9px 12px; border-radius: var(--radius-xl);
+  border: 1px solid var(--border-default); background: var(--bg-subtle); }
+.onb-who-email { font-size: var(--text-sm); font-weight: 600; color: var(--text-emphasis); }
+
+/* "Coming in the next update": informational, not an error. */
+.onb-soon { display: flex; gap: 14px; padding: 18px; border-radius: var(--radius-2xl); border: 1px solid var(--border-default); background: var(--bg-subtle); }
+.onb-soon-icon { width: 34px; height: 34px; flex: none; display: inline-flex; align-items: center; justify-content: center; border-radius: 50%; background: var(--accent-soft); color: var(--accent-text); }
+.onb-soon-title { font-size: var(--text-base); font-weight: 600; color: var(--text-emphasis); }
+.onb-soon-body p { margin: 4px 0 12px; font-size: var(--text-sm); line-height: 20px; color: var(--text-muted); }
+
+/* Not supported: set it up by hand. */
+.onb-manual { display: flex; flex-direction: column; gap: 10px; padding: 16px 18px; border: 1px solid var(--border-default); border-radius: var(--radius-2xl); }
+.onb-manual-head { display: flex; gap: 12px; align-items: flex-start; }
+.onb-manual-head b { font-size: var(--text-base); color: var(--text-emphasis); }
+.onb-manual-head p { margin-top: 2px; font-size: var(--text-sm); color: var(--text-muted); }
+.onb-needs { margin: 0; padding-left: 58px; font-size: var(--text-sm); line-height: 22px; color: var(--text-default); }
+.onb-manual > .s2-muted, .onb-manual > .s2-action-row { margin-left: 40px; }
+
+/* Connect: app password and server settings. */
+.onb-connect { display: flex; flex-direction: column; gap: 10px; }
+.onb-connect-row { display: grid; grid-template-columns: 150px minmax(0, 1fr); align-items: center; gap: 12px; }
+.onb-connect-label { font-size: var(--text-sm); color: var(--text-muted); }
+.onb-connect-value { font-size: var(--text-sm); font-weight: 500; color: var(--text-emphasis); }
+.onb-disclosure { display: flex; gap: 6px; align-items: flex-start; margin: 0; max-width: 520px; font-size: var(--text-xs); line-height: 17px; }
+.onb-disclosure .i { flex: none; margin-top: 2px; }
+.onb-input-wide { width: 100%; max-width: 380px; }
+.onb-input-port { width: 104px; flex: none; }
+.onb-serverform { display: flex; flex-direction: column; gap: 18px; }
+.onb-server { min-width: 0; margin: 0; padding: 0; border: 0; display: flex; flex-direction: column; gap: 8px; }
+.onb-server legend { padding: 0; margin-bottom: 8px; font-size: var(--text-sm); font-weight: 600; color: var(--text-emphasis); }
+.onb-server-row { display: flex; align-items: center; gap: 8px; max-width: 560px; }
+.onb-server-row .onb-input-wide { flex: 1; max-width: none; }
+.onb-select { height: 36px; padding: 0 8px; border-radius: var(--radius-xl); border: 1px solid var(--border-interactive); background: var(--bg-interactive);
+  color: var(--text-emphasis); font-size: var(--text-sm); }
+.onb-servers { margin: 8px 0 0; padding: 12px 14px; display: flex; flex-direction: column; gap: 8px; border-radius: var(--radius-lg); background: var(--bg-subtle); }
+.onb-servers dt { font-size: var(--text-xs); color: var(--text-muted); }
+.onb-servers dd { margin: 2px 0 0; font-size: 12px; color: var(--text-emphasis); overflow-wrap: anywhere; }
+.onb-perms { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.onb-consent { margin-top: 10px; min-width: 0; }
+.onb-consent .onb-copy { display: flex; max-width: 100%; }
+.onb-consent .onb-copy-state { flex: none; }
+.onb-consent .onb-copy-text { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; display: block; line-height: 26px; }
+
+/* ---------- Add account modal ---------- */
+.onb-modal-scrim { position: fixed; inset: 0; z-index: 900; background: var(--bg-scrim); display: flex; align-items: center; justify-content: center; }
+.onb-modal { width: 720px; max-width: calc(100vw - 32px); max-height: calc(100vh - 64px); padding: 20px 24px 18px;
+  border-radius: var(--radius-2xl); background: var(--bg-panel); border: 1px solid var(--border-default); box-shadow: var(--shadow-panel);
+  display: flex; flex-direction: column; gap: 14px; }
+.onb-modal.is-wide { width: 820px; }
+.onb-modal :is(a, button, summary, select):focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.onb-modal-head { display: flex; align-items: center; }
+.onb-modal-head h2 { font-size: var(--text-lg); font-weight: 600; color: var(--text-emphasis); }
+/* Scrolls on its own; the padding keeps focus rings inside the clip. */
+.onb-modal-body { flex: 1; min-height: 0; overflow-y: auto; margin: 0 -8px; padding: 2px 8px 4px; }
+.onb-modal-title { font-size: var(--text-xl); line-height: 26px; font-weight: 600; letter-spacing: -.3px; color: var(--text-emphasis); outline: none; }
+.onb-modal-lead { margin-top: 6px; font-size: var(--text-sm); line-height: 20px; color: var(--text-muted); }
+.onb-modal-content { margin-top: 20px; }
+.onb-modal .onb-who { margin-top: 14px; }
+.onb-modal-foot { display: flex; align-items: center; gap: 8px; padding-top: 12px; border-top: 1px solid var(--border-subtle); }
+.onb-modal-foot .btn { font-size: var(--text-sm); }
+.onb-modal-foot .btn:disabled { opacity: .45; cursor: default; }
+
+/* Narrow windows: stack the walkthrough 2×2 and slim the rail. */
+@media (max-width: 1100px) {
+  .onb-walk-grid { grid-template-columns: repeat(2, 1fr); }
+  .onb-body { grid-template-columns: 216px 1fr; }
+  .onb-rail-time { display: none; }
+}
+.onb-accounts > .signin-help { margin-top: -8px; }
+
+/* "Continue setting up …": unfinished setups on the Add account start screen. */
+.onb-resume-list { display: flex; flex-direction: column; gap: 8px; max-width: 480px; }
+.onb-resume { display: flex; align-items: center; gap: 10px; min-height: 52px; padding: 8px 12px; border-radius: var(--radius-xl);
+  border: 1px solid var(--border-default); background: var(--background); text-align: left; color: var(--text-muted); }
+.onb-resume:not(:disabled):hover { background: var(--bg-interactive-hover); border-color: var(--border-interactive); }
+.onb-resume:disabled { opacity: .5; cursor: default; }
+.onb-resume-text { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.onb-resume-text b { font-size: var(--text-sm); font-weight: 600; color: var(--text-emphasis); }
+.onb-resume-text span { font-size: var(--text-xs); }
+.onb-resume-error { color: var(--red-a11); }
+
+/* Add account, trimmed: chosen provider, compact who-chip, Done line. */
+.onb-pick-btn.is-chosen { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+.onb-who-tag { flex: none; }
+.onb-added { display: flex; align-items: center; gap: 8px; margin: 0; font-size: var(--text-sm); color: var(--text-default); }
+.onb-added .i { color: var(--green-a11); }
+.onb-help-link { align-self: flex-start; font-size: var(--text-sm); color: var(--text-muted); }
+.onb-emailfield-status:empty { display: none; }

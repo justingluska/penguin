@@ -1,0 +1,21 @@
+[package]
+name = "penguin-eval"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish = false
+description = "Search relevance evaluation: synthetic mailbox, judged queries, metrics, before/after diffs. Dev-only; not part of the app."
+
+# Nothing in the app depends on this crate. See docs/SEARCH-EVAL.md.
+
+[dependencies]
+penguin-core.workspace = true
+# onnx: the real embedders (`--embedder gemma|e5-small`, see retrieve.rs).
+penguin-semantic = { path = "../penguin-semantic", features = ["onnx"] }
+serde.workspace = true
+serde_json.workspace = true
+chrono = { version = "0.4", default-features = false, features = ["clock", "std"] }
+
+[[bin]]
+name = "search-eval"
+path = "src/main.rs"

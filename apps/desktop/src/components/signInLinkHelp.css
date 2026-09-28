@@ -1,0 +1,9 @@
+/* SignInLinkHelp: fallback links under a browser sign-in's waiting state. */
+.signin-help { display: flex; flex-direction: column; gap: 6px; font-size: var(--text-sm); color: var(--text-muted); }
+.signin-help-row { display: inline-flex; align-items: center; flex-wrap: wrap; gap: 6px; }
+.signin-help-btn { color: var(--text-emphasis); text-decoration: underline; text-decoration-color: var(--border-interactive);
+  text-underline-offset: 4px; }
+.signin-help-btn:hover { text-decoration-color: currentColor; }
+.signin-help-btn:disabled { opacity: .6; cursor: default; }
+.signin-help-error { display: flex; align-items: flex-start; gap: 6px; color: var(--red-a11); }
+.signin-help-error .i { margin-top: 3px; flex: none; }

@@ -1,0 +1,137 @@
+/* ==========================================================================
+   Floe mode (features/floe). OWNER: floe.
+   One calm, centered column over the app background: roomy two-line rows,
+   a quiet tint for the cursor. Tokens only, so it follows the light/dark
+   theme and the accent (incl. "Match accent to theme").
+   Floe is a state of the pane shell (.app.is-floe), reached by a slide
+   (.is-morphing, morph.ts), so the Floe tokens live on every .app: rows keep
+   them while they slide back out.
+   ========================================================================== */
+.app {
+  --floe-w: 820px; --floe-read-w: 720px; --floe-morph: 280ms;
+  --floe-sel: color-mix(in srgb, var(--accent) 8%, transparent);
+  /* With the sidebar gone, the surface carries a whisper of the sidebar theme
+     (Graphite mixes to the plain background) so the chosen theme still reads. */
+  --floe-bg: color-mix(in srgb, var(--sb-bg) 40%, var(--background));
+}
+[data-theme="dark"] .app { --floe-sel: color-mix(in srgb, var(--accent) 13%, transparent); }
+.is-floe .main, .is-floe .context { background: var(--floe-bg); }
+
+/* --------------------------------------------------------------------------
+   Morph: the sidebar slides out left, the reading pane out right (frozen at
+   --preview-w so its message doesn't reflow), the status bar drops away, and
+   the list grows into the room. Only margins and opacity animate.
+   -------------------------------------------------------------------------- */
+.is-morphing .sidebar,
+.is-morphing .preview,
+.is-morphing .statusbar {
+  transition: margin var(--floe-morph) var(--ease-in-out), opacity var(--floe-morph) var(--ease-in-out);
+}
+.is-morphing .main { transition: background-color var(--floe-morph) var(--ease-in-out); }
+.is-morphing .main, .is-morphing .main-body { overflow: hidden; }
+.is-morphing .list, .is-floe .list { flex: 1 1 var(--list-w); }
+.is-morphing .preview { flex: none; width: var(--preview-w); min-width: 0; }
+.is-morphing .splitter, .is-floe .splitter { visibility: hidden; }
+.is-floe .sidebar { margin-left: calc(-1 * var(--sb-w)); opacity: 0; pointer-events: none; }
+.is-floe .preview { margin-right: calc(-1 * var(--preview-w)); opacity: 0; pointer-events: none; }
+.is-floe .statusbar { margin-bottom: -34px; opacity: 0; }
+@media (prefers-reduced-motion: reduce) {
+  .is-morphing .sidebar, .is-morphing .preview, .is-morphing .statusbar, .is-morphing .main { transition: none; }
+}
+
+/* --------------------------------------------------------------------------
+   The list header in Floe: the same header, its title lined up with the
+   centered column, the sidebar button folded away, and search / compose /
+   ⌘K and your photo slid in beside the list's own buttons. The padding is in
+   vw, not %, so it is a fixed length for the slide: with the sidebar and the
+   sidebar button moving in step, the title glides straight from its pane
+   position to its Floe one instead of riding the growing list.
+   -------------------------------------------------------------------------- */
+.is-floe .list .list-head {
+  padding-left: max(24px, calc((100vw - var(--floe-w)) / 2 + 22px));
+  padding-right: max(16px, calc((100vw - var(--floe-w)) / 2 + 8px));
+  border-bottom-color: transparent;
+}
+.is-morphing .list .list-head {
+  transition: padding var(--floe-morph) var(--ease-in-out), border-color var(--floe-morph) var(--ease-in-out);
+}
+.list-head .sb-toggle, .floe-tools, .floe-me-slot {
+  transition: width var(--floe-morph) var(--ease-in-out), max-width var(--floe-morph) var(--ease-in-out),
+    margin var(--floe-morph) var(--ease-in-out), opacity var(--floe-morph) var(--ease-in-out);
+}
+.is-floe .list-head .sb-toggle { width: 0; margin-right: -8px; opacity: 0; pointer-events: none; }
+/* Folded: no width, and a negative margin eats the header's gap beside them. */
+.floe-tools, .floe-me-slot { display: flex; align-items: center; gap: 2px; flex: none; max-width: 0; overflow: hidden; opacity: 0; }
+.floe-tools { margin-right: -8px; }
+.floe-me-slot { margin-left: -8px; }
+.is-floe .floe-tools { max-width: 120px; margin-right: 0; opacity: 1; }
+.is-floe .floe-me-slot { max-width: 40px; margin-left: 0; opacity: 1; }
+.floe-tools .btn, .floe-me { color: var(--text-muted); }
+.floe-tools .btn:hover { color: var(--text-emphasis); }
+.floe-sep { width: 1px; height: 16px; margin: 0 6px 0 4px; flex: none; background: var(--border-default); }
+.floe-count { margin-left: 10px; font-size: 15px; line-height: 1; font-weight: 500; letter-spacing: 0; color: var(--text-faint); animation: floe-in var(--floe-morph) var(--ease-out); }
+@keyframes floe-in { from { opacity: 0; } }
+@media (prefers-reduced-motion: reduce) {
+  .is-morphing .list-head, .list-head .sb-toggle, .floe-tools, .floe-me-slot, .floe-count { transition: none; animation: none; }
+}
+
+/* --------------------------------------------------------------------------
+   Rows: sender · meta · time / subject — snippet, in a centered column. The
+   column fills a narrow list (mid-slide) and centers once it is wider.
+   -------------------------------------------------------------------------- */
+.floe-list .group-label { max-width: var(--floe-w); margin: 6px auto 0; padding: 0 16px; }
+.floe-list .list-more { max-width: var(--floe-w); margin: 0 auto; }
+.msg.floe {
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  grid-template-areas: "from meta time" "line line line";
+  grid-template-rows: 20px 20px;
+  align-content: center; column-gap: 10px; row-gap: 3px;
+  max-width: min(var(--floe-w), calc(100% - 16px)); height: 100%; margin: 0 auto; padding: 0 16px 0 calc(16px + var(--sel-gutter, 0px));
+  border-radius: var(--radius-2xl); font-size: var(--text-base);
+}
+.msg.floe .from { grid-area: from; color: var(--text-default); font-weight: 500; }
+.msg.floe .meta { grid-area: meta; justify-content: flex-end; }
+.msg.floe .time { grid-area: time; }
+.msg.floe .line { grid-area: line; }
+.msg.floe .subj { color: var(--text-default); }
+.msg.floe .snip { color: var(--text-faint); }
+.msg.floe.unread .from, .msg.floe.unread .subj { color: var(--text-emphasis); font-weight: 600; }
+.msg.floe .meta .badge { height: 18px; max-width: 120px; }
+
+/* Cursor: a quiet accent tint, no ring. */
+.msg.floe.is-selected { background: var(--floe-sel); box-shadow: none; }
+.msg.floe:hover:not(.is-selected) { background: var(--bg-row-hover); }
+.v-row.is-swiping .msg.floe, .v-row.is-swiping .msg.floe:hover { background: var(--floe-bg); }
+.v-row.is-swiping .msg.floe.is-selected { background: var(--floe-bg); box-shadow: 0 0 0 1px var(--border-subtle); }
+
+/* The account bar stays on the edge (the unread dot is by the time, styles/penguin.css). */
+.msg.floe.has-acct::after { top: 14px; bottom: 14px; opacity: .6; }
+
+/* Hover actions take the meta/time slot on the sender line (icons only). */
+.msg.floe .msg-actions { grid-column: 2 / 4; grid-row: 1; justify-self: end; height: 20px; margin-right: -6px; gap: 0; }
+.msg.floe .msg-actions .act { height: 24px; padding: 0 6px; }
+
+/* --------------------------------------------------------------------------
+   Reading: one centered column; the context panel floats in on demand (i).
+   -------------------------------------------------------------------------- */
+.is-floe .thread-head { border-bottom-color: transparent; }
+.is-floe .thread-col { max-width: calc(var(--floe-read-w) + 64px); padding-top: 22px; }
+.is-floe .context {
+  display: block; position: absolute; z-index: 20; top: 0; right: 0; bottom: 0;
+  box-shadow: var(--shadow-lg);
+}
+.is-floe .thread-head { padding: 0 max(14px, calc((100% - var(--floe-w)) / 2)); }
+
+/* --------------------------------------------------------------------------
+   The fly-through keys under the Floe list (FloeKeys): one quiet line.
+   -------------------------------------------------------------------------- */
+.floe-keys {
+  flex: none; display: flex; justify-content: center; flex-wrap: wrap; gap: 4px 16px;
+  padding: 8px 16px 12px; font-size: var(--text-xs); color: var(--text-faint);
+  animation: floe-in var(--floe-morph) var(--ease-out);
+}
+.floe-key { display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }
+.floe-key .kbd { min-width: 18px; }
+.has-selection .floe-keys { visibility: hidden; }
+html[data-shortcut-hints="off"] .floe-keys { display: none; }
+@media (prefers-reduced-motion: reduce) { .floe-keys { animation: none; } }

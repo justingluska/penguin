@@ -1,0 +1,58 @@
+/* ==========================================================================
+   Split Inbox (features/split): the tabs in the list header, and the splits
+   editor in Settings → Inbox. Tokens only (light/dark, accents).
+   ========================================================================== */
+
+/* Its own row under the list header: the splits, scrolling sideways when
+   they don't fit, then + (Settings → Inbox). The header keeps its title and
+   tools. In Floe the row lines up with the centered column. */
+.split-bar {
+  flex: none; display: flex; align-items: center; gap: 2px; min-width: 0;
+  height: 40px; padding: 0 10px 0 8px; border-bottom: 1px solid var(--border-subtle);
+}
+.list-head.has-splits { border-bottom-color: transparent; }
+.split-tabs {
+  flex: 0 1 auto; min-width: 0; margin-left: 0; overflow-x: auto; overflow-y: hidden; scrollbar-width: none;
+  mask-image: linear-gradient(to right, #000 calc(100% - 16px), transparent 100%);
+}
+.split-tabs::-webkit-scrollbar { display: none; }
+.split-tabs .tab { flex: none; height: 28px; padding: 0 9px; }
+.split-tabs .tab.has-unread:not(.active) { color: var(--text-default); }
+.split-tabs .tab.has-unread .count { color: var(--text-muted); font-weight: 600; }
+.split-add { flex: none; color: var(--text-faint); opacity: 0; transition: opacity var(--dur-quick) var(--ease-out); }
+.split-bar:hover .split-add, .split-add:focus-visible { opacity: 1; }
+.is-floe .split-bar {
+  padding-left: max(16px, calc((100vw - var(--floe-w)) / 2 + 14px));
+  padding-right: max(16px, calc((100vw - var(--floe-w)) / 2 + 8px));
+  border-bottom-color: transparent;
+}
+.is-morphing .split-bar { transition: padding var(--floe-morph) var(--ease-in-out); }
+
+/* --------------------------------------------------------------------------
+   Settings → Inbox → Splits
+   -------------------------------------------------------------------------- */
+.sp-list { display: flex; flex-direction: column; gap: 6px; margin-top: 10px; }
+.sp-row {
+  display: grid; grid-template-columns: 18px minmax(0, 150px) minmax(0, 1fr) auto; align-items: center; gap: 8px;
+  padding: 6px 8px; border-radius: var(--radius-xl); background: var(--bg-interactive);
+  box-shadow: inset 0 0 0 1px var(--border-subtle);
+}
+.sp-row.is-dragging { opacity: .6; }
+.sp-row.is-other { grid-template-columns: 18px minmax(0, 150px) minmax(0, 1fr); background: transparent; }
+.sp-grip { color: var(--text-faint); cursor: grab; display: flex; align-items: center; justify-content: center; }
+.sp-row input {
+  height: 28px; min-width: 0; padding: 0 8px; border-radius: var(--radius-lg);
+  background: var(--background); border: 1px solid var(--border-interactive); color: var(--text-emphasis); font-size: var(--text-sm);
+}
+.sp-row input.sp-query { font-family: var(--font-mono, ui-monospace, monospace); font-size: 12px; color: var(--text-default); }
+.sp-row input:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 20%, transparent); }
+.sp-row .sp-name-static { font-size: var(--text-sm); font-weight: 600; color: var(--text-emphasis); padding-left: 9px; }
+.sp-row .sp-desc { font-size: var(--text-xs); color: var(--text-muted); }
+.sp-acts { display: flex; align-items: center; gap: 2px; }
+.sp-acts .btn { color: var(--text-muted); }
+.sp-acts .btn.is-on { color: var(--accent-text); }
+.sp-error { grid-column: 3 / -1; font-size: var(--text-xs); color: var(--red-a11, #d33); }
+.sp-add { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 12px; }
+.sp-add .btn { gap: 6px; }
+.sp-people { grid-column: 2 / -1; display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.sp-hint { font-size: var(--text-xs); color: var(--text-muted); margin-top: 8px; }

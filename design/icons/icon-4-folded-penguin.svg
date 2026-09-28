@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024" role="img" aria-labelledby="title desc">
+  <title id="title">Penguin — Paper bird</title>
+  <desc id="desc">An angular folded-paper penguin, with white negative-space face and an envelope-shaped belly.</desc>
+  <defs>
+    <linearGradient id="ice" x1="280" y1="100" x2="740" y2="924" gradientUnits="userSpaceOnUse"><stop stop-color="#f5f7fa"/><stop offset="1" stop-color="#d4dfe9"/></linearGradient>
+    <linearGradient id="ink" x1="360" y1="236" x2="674" y2="774" gradientUnits="userSpaceOnUse"><stop stop-color="#2b3a4b"/><stop offset="1" stop-color="#111b28"/></linearGradient>
+    <filter id="tile-shadow" x="0" y="0" width="1024" height="1024" filterUnits="userSpaceOnUse"><feDropShadow dx="0" dy="16" stdDeviation="15" flood-color="#030912" flood-opacity=".19"/></filter>
+    <filter id="lift" x="180" y="170" width="664" height="690" filterUnits="userSpaceOnUse"><feDropShadow dx="0" dy="10" stdDeviation="9" flood-color="#23364b" flood-opacity=".16"/></filter>
+  </defs>
+  <path d="M316 100H708C852 100 924 172 924 316V708C924 852 852 924 708 924H316C172 924 100 852 100 708V316C100 172 172 100 316 100Z" fill="url(#ice)" filter="url(#tile-shadow)"/>
+  <path d="M316 102H708C850 102 922 174 922 316V708C922 850 850 922 708 922H316C174 922 102 850 102 708V316C102 174 174 102 316 102Z" fill="none" stroke="#fff" stroke-opacity=".65" stroke-width="2"/>
+  <g filter="url(#lift)">
+    <path d="M459 252Q512 222 565 252L688 348Q704 360 708 379L781 665Q785 680 771 688L675 752Q662 760 647 760H377Q362 760 349 752L253 688Q239 680 243 665L316 379Q320 360 336 348Z" fill="url(#ink)"/>
+    <path d="M321 391L357 693L250 679Z" fill="#34485b"/>
+    <path d="M703 391L667 693L774 679Z" fill="#1a2a3a"/>
+    <!-- The face and belly share one continuous, folded-paper counterform. -->
+    <path d="M512 389L442 339Q428 330 414 339L360 376Q347 384 352 399L381 475L354 528V670Q354 682 367 688L500 741Q512 746 524 741L657 688Q670 682 670 670V528L643 475L672 399Q677 384 664 376L610 339Q596 330 582 339Z" fill="#fff"/>
+    <path d="M354 532L502 631Q512 638 522 631L670 532" fill="none" stroke="#263747" stroke-width="25" stroke-linejoin="round"/>
+    <circle cx="431" cy="407" r="21" fill="#142130"/><circle cx="593" cy="407" r="21" fill="#142130"/>
+    <path d="M479 455H545L512 496Z" fill="#f5ad4f"/>
+  </g>
+</svg>

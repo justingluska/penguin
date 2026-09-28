@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024" role="img" aria-labelledby="title desc">
+  <title id="title">Penguin — Arctic V</title>
+  <desc id="desc">A crisp white flap and tuxedo V over one restrained navy-to-ice gradient.</desc>
+  <defs>
+    <linearGradient id="arctic" x1="100" y1="100" x2="1340" y2="1420" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#182B3A"/>
+      <stop offset="1" stop-color="#C4DAE8"/>
+    </linearGradient>
+  </defs>
+  <path fill="url(#arctic)" d="M324 100H700C852 100 924 172 924 324V700C924 852 852 924 700 924H324C172 924 100 852 100 700V324C100 172 172 100 324 100Z"/>
+  <path fill="#FFFFFF" d="M262 330H378L512 544L646 330H762L512 730Z"/>
+</svg>

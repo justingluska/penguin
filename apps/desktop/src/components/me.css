@@ -1,0 +1,7 @@
+/* You (lib/me.ts) outside Settings: the sidebar footer and your own person card. */
+.sb-me { display: flex; align-items: center; gap: 8px; min-width: 0; height: 30px; margin: 0 -4px; padding: 0 6px 0 4px; border-radius: var(--radius-lg, 6px); text-align: left; }
+.sb-me:hover { background: var(--bg-row-hover); }
+.sb-me .sb-me-gear { flex: none; color: var(--text-muted); }
+.sb-me:hover .sb-me-gear { color: var(--text-emphasis); }
+
+.pc-you { margin-left: 8px; vertical-align: 2px; font-size: 10px; letter-spacing: 0; }

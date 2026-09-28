@@ -1,0 +1,73 @@
+/* Context menus, MenuButton dropdowns and <Select> listboxes (ContextMenu.tsx).
+   Built on the design system's .panel + .menu + .menu-item; this file only
+   adds what a floating, keyboard-driven menu needs. */
+
+.cm {
+  position: fixed; z-index: 10001; min-width: 208px; max-width: 340px;
+  max-height: calc(100vh - 16px); overflow-y: auto; overscroll-behavior: contain;
+  padding: 4px 0; border-radius: var(--radius-xl);
+  -webkit-user-select: none; user-select: none; cursor: default;
+}
+.cm:focus { outline: none; }
+.cm .menu-item.cm-item {
+  min-height: 28px; gap: 8px; padding: 0 8px; border-radius: var(--radius-lg);
+  font-size: var(--text-sm); color: var(--text-default);
+}
+/* Hover never highlights on its own: the active item (pointer or keys) does. */
+.cm .menu-item.cm-item:hover { background: transparent; color: var(--text-default); }
+.cm .menu-item.cm-item.active { background: var(--bg-interactive-hover); color: var(--text-emphasis); }
+.cm .cm-ico { color: var(--text-muted); }
+.cm .cm-item.active .cm-ico { color: var(--text-emphasis); }
+.cm .cm-lead { display: inline-flex; align-items: center; justify-content: center; width: 16px; flex: none; }
+.cm .cm-check { display: inline-flex; width: 14px; flex: none; color: var(--text-emphasis); margin-right: -2px; }
+.cm .cm-label { display: flex; flex-direction: column; min-width: 0; flex: 1; }
+.cm .cm-reason { font-size: 11px; line-height: 14px; color: var(--text-faint); white-space: normal; }
+.cm .cm-item.has-reason { padding-top: 4px; padding-bottom: 4px; }
+.cm .cm-item .kbd { height: 18px; min-width: 18px; font-size: 10.5px; }
+.cm .cm-end { font-size: var(--text-xs); color: var(--text-faint); padding-left: 12px; }
+.cm .cm-sub-chev { margin-left: auto; color: var(--text-faint); }
+.cm .cm-item.active .cm-sub-chev { color: var(--text-default); }
+.cm .menu-sep { margin: 4px 0; }
+.cm .cm-head { height: 24px; display: flex; align-items: flex-end; padding: 0 12px 4px; font-size: 11px; font-weight: 500; color: var(--text-faint); }
+
+.cm .cm-item.is-disabled { color: var(--text-faint); }
+.cm .cm-item.is-disabled .cm-ico { color: var(--text-faint); opacity: .7; }
+.cm .cm-item.is-disabled .kbd { opacity: .6; }
+
+.cm .cm-item.is-danger, .cm .cm-item.is-danger .cm-ico { color: var(--red-a11); }
+.cm .cm-item.is-danger.active { background: var(--red-a3); color: var(--red-a11); }
+.cm .cm-item.is-danger.is-disabled { color: var(--text-faint); }
+
+/* Swatch leads (label/account colors in menus). */
+.cm-swatch { width: 10px; height: 10px; border-radius: 3px; background: var(--sw, var(--gray-a5)); box-shadow: inset 0 0 0 1px var(--gray-a3); }
+.cm-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--sw, var(--gray-a5)); }
+
+/* Grid submenus (MenuItem.submenuGrid): a color grid (.color-grid in
+   styles/themes.css). The active cell (pointer or arrows) gets the ring. */
+.cm.cm-grid { min-width: 0; max-width: none; padding: 10px; }
+.cm-cell { display: grid; place-items: center; width: 22px; height: 22px; border-radius: 50%; }
+.cm-cell.active .acc-swatch { box-shadow: 0 0 0 2px var(--bg-panel), 0 0 0 3px var(--text-faint); }
+.cm-cell.active .acc-swatch.selected { box-shadow: 0 0 0 2px var(--bg-panel), 0 0 0 4px var(--tm, var(--t11)), 0 0 0 6px var(--accent-soft); }
+
+/* Select listbox: options a little roomier, no icons column unless given. */
+.cm.cm-select { min-width: 160px; }
+
+/* ------------------------------------------------------------------------
+   <Select> trigger: a 28px control like the other settings inputs.
+   ------------------------------------------------------------------------ */
+.select {
+  display: inline-flex; align-items: center; gap: 6px; height: 28px; min-width: 120px; max-width: 100%;
+  padding: 0 8px 0 10px; border: 1px solid var(--border-default); border-radius: var(--radius-lg);
+  background: var(--bg-interactive); color: var(--text-default);
+  font: inherit; font-size: var(--text-sm); text-align: left; cursor: default;
+}
+.select:hover:not(:disabled), .select.is-open { border-color: var(--border-interactive); color: var(--text-emphasis); background: var(--bg-interactive-hover); }
+.select:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.select:disabled { opacity: .55; }
+.select .select-value { flex: 1; min-width: 0; }
+.select .select-value.is-placeholder { color: var(--text-placeholder); }
+.select .select-chev { color: var(--text-faint); flex: none; }
+.select .select-lead { display: inline-flex; align-items: center; }
+
+/* The row or item a context menu was opened on (showTargetMenu). */
+.is-menu-target { box-shadow: inset 0 0 0 1.5px var(--accent) !important; border-radius: var(--radius-xl); }

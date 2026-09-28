@@ -1,0 +1,95 @@
+{
+ "id": "18f0a1",
+ "threadId": "18f0a0",
+ "labelIds": [
+  "INBOX",
+  "UNREAD",
+  "IMPORTANT"
+ ],
+ "snippet": "Hi team, here&#39;s the plan for Thursday &amp; Friday",
+ "historyId": "5001",
+ "internalDate": "1758600000000",
+ "sizeEstimate": 4321,
+ "payload": {
+  "partId": "",
+  "mimeType": "multipart/alternative",
+  "filename": "",
+  "headers": [
+   {
+    "name": "From",
+    "value": "\"Doe, Jane\" <jane@acme.example>"
+   },
+   {
+    "name": "To",
+    "value": "Bob Stone <bob@acme.example>, carol@acme.example"
+   },
+   {
+    "name": "Cc",
+    "value": "=?UTF-8?Q?Zo=C3=AB_=C5=81ukasiewicz?= <zoe@acme.example>"
+   },
+   {
+    "name": "Reply-To",
+    "value": "Planning <plans@acme.example>"
+   },
+   {
+    "name": "Subject",
+    "value": "=?UTF-8?B?Q2Fmw6kg4piVIHBsYW5z?="
+   },
+   {
+    "name": "Message-ID",
+    "value": "<abc123@mail.acme.example>"
+   },
+   {
+    "name": "In-Reply-To",
+    "value": "<parent@mail.acme.example>"
+   },
+   {
+    "name": "References",
+    "value": "<root@mail.acme.example> <parent@mail.acme.example>"
+   },
+   {
+    "name": "List-Unsubscribe",
+    "value": "<mailto:unsub@acme.example>, <https://acme.example/u/1>"
+   },
+   {
+    "name": "Content-Type",
+    "value": "multipart/alternative; boundary=\"b1\""
+   }
+  ],
+  "body": {
+   "size": 0
+  },
+  "parts": [
+   {
+    "partId": "0",
+    "mimeType": "text/plain",
+    "filename": "",
+    "headers": [
+     {
+      "name": "Content-Type",
+      "value": "text/plain; charset=\"UTF-8\""
+     }
+    ],
+    "body": {
+     "size": 40,
+     "data": "SGkgdGVhbSwKSGVyZSdzIHRoZSBwbGFuIOKAlCBUaHVyc2RheSAmIEZyaWRheS4K"
+    }
+   },
+   {
+    "partId": "1",
+    "mimeType": "text/html",
+    "filename": "",
+    "headers": [
+     {
+      "name": "Content-Type",
+      "value": "text/html; charset=UTF-8"
+     }
+    ],
+    "body": {
+     "size": 80,
+     "data": "PHA-SGkgdGVhbSw8L3A-PHA-SGVyZSdzIHRoZSBwbGFuICZtZGFzaDsgPGI-VGh1cnNkYXk8L2I-ICZhbXA7IEZyaWRheS48L3A-"
+    }
+   }
+  ]
+ }
+}

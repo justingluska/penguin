@@ -1,0 +1,7 @@
+/* Self-hosted fonts (the CSP blocks Google Fonts). Latin subsets only:
+   Inter 400/500/600 and Geist Mono 400/500, as in the design. */
+@import "@fontsource/inter/latin-400.css";
+@import "@fontsource/inter/latin-500.css";
+@import "@fontsource/inter/latin-600.css";
+@import "@fontsource/geist-mono/latin-400.css";
+@import "@fontsource/geist-mono/latin-500.css";

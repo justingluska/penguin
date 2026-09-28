@@ -1,0 +1,288 @@
+# Build, sign, notarize and publish Penguin for the in-app updater.
+#
+# Every push to main that touches the app, a version tag, or a manual run builds
+# Penguin.app on an Apple silicon runner as version 0.1.<run number>,
+# signs it with the Developer ID certificate, notarizes it with the App
+# Store Connect API key, signs the update bundle with the updater key, and
+# uploads it plus latest.json to an S3-compatible bucket (R2) served at
+# PENGUIN_UPDATE_URL. The update channel (endpoint + public key) is passed
+# to the build here with --config; tauri.conf.json carries none, so source
+# builds never check for updates (src-tauri/src/updater.rs).
+#
+# Repository variables (Settings → Secrets and variables → Actions → Variables):
+#   PENGUIN_UPDATE_URL      public base URL of the bucket, no trailing slash (serves latest.json)
+#   PENGUIN_UPDATER_PUBKEY  public half of the updater key (`tauri signer generate` prints it)
+#   PENGUIN_UPDATE_BUCKET   bucket name the upload key can write to
+# Secrets:
+#   APPLE_CERTIFICATE, APPLE_CERTIFICATE_PASSWORD  Developer ID Application .p12 (base64) + its password
+#   APPLE_API_ISSUER, APPLE_API_KEY, APPLE_API_KEY_P8  App Store Connect API key (notarization)
+#   TAURI_SIGNING_PRIVATE_KEY, TAURI_SIGNING_PRIVATE_KEY_PASSWORD  updater key (private half)
+#   R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY, R2_ENDPOINT  bucket-scoped upload key
+name: release
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "apps/desktop/**"
+      - "crates/**"
+      - "Cargo.toml"
+      - "Cargo.lock"
+      - ".github/workflows/release.yml"
+    # A version tag (v1.0, v1.2.3) is a real release: full optimization.
+    tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      optimize:
+        description: "fast (thin LTO, a few minutes) or full (fat LTO, the smallest and fastest binary)"
+        type: choice
+        options: [fast, full]
+        default: fast
+
+# A newer push supersedes a build that hasn't published yet.
+concurrency:
+  group: release
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  # Cheap Linux job: skip the macOS build (quietly, no failure) until every
+  # secret and variable exists, so pushes before signing is set up (and
+  # forks without a release channel) don't go red.
+  gate:
+    runs-on: ubuntu-latest
+    outputs:
+      ready: ${{ steps.check.outputs.ready }}
+    steps:
+      - id: check
+        env:
+          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          APPLE_API_KEY_P8: ${{ secrets.APPLE_API_KEY_P8 }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          PENGUIN_UPDATE_URL: ${{ vars.PENGUIN_UPDATE_URL }}
+          PENGUIN_UPDATER_PUBKEY: ${{ vars.PENGUIN_UPDATER_PUBKEY }}
+          PENGUIN_UPDATE_BUCKET: ${{ vars.PENGUIN_UPDATE_BUCKET }}
+        run: |
+          missing=""
+          for v in APPLE_CERTIFICATE APPLE_CERTIFICATE_PASSWORD APPLE_API_KEY_P8 TAURI_SIGNING_PRIVATE_KEY R2_ACCESS_KEY_ID PENGUIN_UPDATE_URL PENGUIN_UPDATER_PUBKEY PENGUIN_UPDATE_BUCKET; do
+            [ -n "${!v}" ] || missing="$missing $v"
+          done
+          if [ -n "$missing" ]; then
+            echo "::warning::Skipping the macOS release build; missing repo secrets or variables:$missing (see the top of this file)"
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "ready=true" >> "$GITHUB_OUTPUT"
+          fi
+
+  macos:
+    needs: gate
+    if: needs.gate.outputs.ready == 'true'
+    runs-on: macos-latest
+    timeout-minutes: 60
+    env:
+      VERSION: 0.1.${{ github.run_number }}
+      # scripts/changelog.mjs (run by the build) names this release in What's new.
+      PENGUIN_VERSION: 0.1.${{ github.run_number }}
+      BASE_URL: ${{ vars.PENGUIN_UPDATE_URL }}
+      # What's new reads the published releases from here (scripts/changelog.mjs).
+      RELEASES_URL: ${{ vars.PENGUIN_UPDATE_URL }}/releases.json
+      UPDATER_PUBKEY: ${{ vars.PENGUIN_UPDATER_PUBKEY }}
+      BUCKET: ${{ vars.PENGUIN_UPDATE_BUCKET }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # Full history: What's new lists every change since the last release.
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: apps/desktop/package-lock.json
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: ". -> target"
+
+      - name: Install JS dependencies
+        working-directory: apps/desktop
+        run: npm ci
+
+      # The UI's tests on the Mac's case-insensitive file system, before
+      # signing anything (tests/fileCase.test.ts guards file-name clashes
+      # that Linux builds don't notice).
+      - name: UI tests
+        working-directory: apps/desktop
+        run: npm test
+
+      # A throwaway keychain holding only the Developer ID identity
+      # (GitHub's documented pattern for signing on hosted macOS runners).
+      - name: Changelog
+        working-directory: apps/desktop
+        run: node scripts/changelog.mjs --releases-out "$RUNNER_TEMP/releases.json" --notes-out "$RUNNER_TEMP/notes.txt"
+
+      - name: Import the Developer ID certificate
+        env:
+          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+        run: |
+          kc="$RUNNER_TEMP/signing.keychain-db"
+          kcpw="$(openssl rand -hex 24)"
+          echo "$APPLE_CERTIFICATE" | base64 --decode > "$RUNNER_TEMP/cert.p12"
+          security create-keychain -p "$kcpw" "$kc"
+          security set-keychain-settings -lut 21600 "$kc"
+          security unlock-keychain -p "$kcpw" "$kc"
+          security import "$RUNNER_TEMP/cert.p12" -P "$APPLE_CERTIFICATE_PASSWORD" -A -t cert -f pkcs12 -k "$kc"
+          security set-key-partition-list -S apple-tool:,apple: -k "$kcpw" "$kc" >/dev/null
+          security list-keychain -d user -s "$kc" $(security list-keychains -d user | tr -d '"')
+          rm "$RUNNER_TEMP/cert.p12"
+          identity="$(security find-identity -v -p codesigning "$kc" | awk -F'"' '/Developer ID Application/ { print $2; exit }')"
+          if [ -z "$identity" ]; then
+            echo "::error::No 'Developer ID Application' identity in APPLE_CERTIFICATE"
+            exit 1
+          fi
+          echo "Signing as: $identity"
+          echo "APPLE_SIGNING_IDENTITY=$identity" >> "$GITHUB_ENV"
+
+      - name: Write the notarization key
+        env:
+          APPLE_API_KEY_P8: ${{ secrets.APPLE_API_KEY_P8 }}
+        run: |
+          printf '%s\n' "$APPLE_API_KEY_P8" > "$RUNNER_TEMP/AuthKey.p8"
+          echo "APPLE_API_KEY_PATH=$RUNNER_TEMP/AuthKey.p8" >> "$GITHUB_ENV"
+
+      # Everyday builds (pushes to main, manual "fast") override Cargo.toml's
+      # release profile with thin LTO over 16 codegen units, so the final
+      # optimization runs in parallel instead of as one single-threaded job
+      # (~12 of the build's ~15 minutes). Version tags and manual "full" runs
+      # keep the profile as written (fat LTO, one unit): the smallest, fastest
+      # binary.
+      - name: Optimization level
+        run: |
+          if [[ "$GITHUB_REF" == refs/tags/v* || "${{ inputs.optimize }}" == "full" ]]; then
+            echo "Full optimization (fat LTO, 1 codegen unit)"
+          else
+            echo "Fast build (thin LTO, 16 codegen units)"
+            echo "CARGO_PROFILE_RELEASE_LTO=thin" >> "$GITHUB_ENV"
+            echo "CARGO_PROFILE_RELEASE_CODEGEN_UNITS=16" >> "$GITHUB_ENV"
+          fi
+
+      - name: Build, sign and notarize
+        working-directory: apps/desktop
+        env:
+          APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
+          APPLE_API_KEY: ${{ secrets.APPLE_API_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        run: |
+          # The update channel lives only in this build's config.
+          conf="$(node -e '
+            const e = process.env;
+            process.stdout.write(JSON.stringify({
+              version: e.VERSION,
+              bundle: { createUpdaterArtifacts: true },
+              plugins: { updater: { pubkey: e.UPDATER_PUBKEY, endpoints: [`${e.BASE_URL}/latest.json`] } },
+            }));
+          ')"
+          npm run tauri build -- --bundles app --config "$conf"
+
+      - name: Check the signature and notarization
+        run: |
+          app="$(find target/release/bundle/macos apps/desktop/src-tauri/target/release/bundle/macos -maxdepth 1 -name Penguin.app 2>/dev/null | head -1)"
+          codesign --verify --deep --strict --verbose=2 "$app"
+          spctl --assess --type execute --verbose=2 "$app"
+          xcrun stapler validate "$app"
+
+      - name: Write latest.json
+        run: |
+          dir="$(dirname "$(find target/release/bundle/macos apps/desktop/src-tauri/target/release/bundle/macos -maxdepth 1 -name 'Penguin.app.tar.gz' 2>/dev/null | head -1)")"
+          [ -f "$dir/Penguin.app.tar.gz.sig" ] || { echo "::error::no updater bundle or signature in $dir"; exit 1; }
+          mkdir -p out
+          cp "$dir/Penguin.app.tar.gz" "out/Penguin_${VERSION}_aarch64.app.tar.gz"
+          NOTES="$(cat "$RUNNER_TEMP/notes.txt")" SIG="$(cat "$dir/Penguin.app.tar.gz.sig")" \
+          URL="$BASE_URL/releases/$VERSION/Penguin_${VERSION}_aarch64.app.tar.gz" \
+          node -e '
+            const e = process.env;
+            const out = {
+              version: e.VERSION,
+              notes: e.NOTES,
+              pub_date: new Date().toISOString(),
+              platforms: { "darwin-aarch64": { signature: e.SIG, url: e.URL } },
+            };
+            require("fs").writeFileSync("out/latest.json", JSON.stringify(out, null, 2) + "\n");
+          '
+          cat out/latest.json
+
+      # What people download: the notarized app in a disk image with an
+      # Applications link, itself signed, notarized and stapled so Gatekeeper
+      # opens it offline.
+      - name: Build the disk image
+        env:
+          APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
+          APPLE_API_KEY: ${{ secrets.APPLE_API_KEY }}
+        run: |
+          app="$(find target/release/bundle/macos apps/desktop/src-tauri/target/release/bundle/macos -maxdepth 1 -name Penguin.app 2>/dev/null | head -1)"
+          stage="$RUNNER_TEMP/dmg"
+          mkdir -p "$stage" out
+          ditto "$app" "$stage/Penguin.app"
+          ln -s /Applications "$stage/Applications"
+          dmg="out/Penguin_${VERSION}_aarch64.dmg"
+          hdiutil create -volname Penguin -srcfolder "$stage" -fs HFS+ -format UDZO -ov "$dmg"
+          codesign --sign "$APPLE_SIGNING_IDENTITY" --timestamp "$dmg"
+          xcrun notarytool submit "$dmg" --key "$APPLE_API_KEY_PATH" --key-id "$APPLE_API_KEY" --issuer "$APPLE_API_ISSUER" --wait
+          xcrun stapler staple "$dmg"
+          spctl --assess --type open --context context:primary-signature --verbose=2 "$dmg"
+
+      # The bundle first, latest.json last: a client never sees a manifest
+      # pointing at a file that isn't there yet.
+      - name: Publish to R2
+        env:
+          R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          R2_ENDPOINT: ${{ secrets.R2_ENDPOINT }}
+        run: |
+          put() { # file key content-type cache-control
+            curl --fail-with-body -sS --aws-sigv4 "aws:amz:auto:s3" \
+              --user "$R2_ACCESS_KEY_ID:$R2_SECRET_ACCESS_KEY" \
+              -H "Content-Type: $3" -H "Cache-Control: $4" \
+              -T "$1" "$R2_ENDPOINT/$BUCKET/$2"
+          }
+          put "out/Penguin_${VERSION}_aarch64.app.tar.gz" "releases/$VERSION/Penguin_${VERSION}_aarch64.app.tar.gz" application/gzip "public, max-age=31536000, immutable"
+          put "out/Penguin_${VERSION}_aarch64.dmg" "releases/$VERSION/Penguin_${VERSION}_aarch64.dmg" application/x-apple-diskimage "public, max-age=31536000, immutable"
+          put "out/Penguin_${VERSION}_aarch64.dmg" Penguin.dmg application/x-apple-diskimage "public, max-age=300"
+          put out/latest.json latest.json application/json "no-cache"
+          put "$RUNNER_TEMP/releases.json" releases.json application/json "no-cache"
+          curl -fsS "$BASE_URL/latest.json" | grep -q "\"$VERSION\"" && echo "Published $VERSION"
+
+      # Version tags also publish the disk image as a GitHub release of the
+      # public repo, as Penguin.dmg (the README's
+      # releases/latest/download/Penguin.dmg link). Needs the repo variable
+      # PENGUIN_PUBLIC_REPO (owner/name) and a PUBLIC_RELEASE_TOKEN secret with
+      # contents:write on it; skipped without them. Everyday builds reach
+      # existing installs through the updater instead.
+      - name: Publish the disk image on the public repo
+        if: startsWith(github.ref, 'refs/tags/v')
+        env:
+          GH_TOKEN: ${{ secrets.PUBLIC_RELEASE_TOKEN }}
+          PUBLIC_REPO: ${{ vars.PENGUIN_PUBLIC_REPO }}
+        run: |
+          if [ -z "$GH_TOKEN" ] || [ -z "$PUBLIC_REPO" ]; then
+            echo "::warning::No PUBLIC_RELEASE_TOKEN or PENGUIN_PUBLIC_REPO; the disk image is only on $BASE_URL/Penguin.dmg"
+            exit 0
+          fi
+          cp "out/Penguin_${VERSION}_aarch64.dmg" out/Penguin.dmg
+          gh release create "v$VERSION" out/Penguin.dmg --repo "$PUBLIC_REPO" --target main \
+            --title "Penguin $VERSION" \
+            --notes "Download **Penguin.dmg** below, open it and drag Penguin to Applications. Apple silicon Macs. Penguin keeps itself up to date after that."
+
+      - name: Clean up the keychain
+        if: always()
+        run: |
+          security delete-keychain "$RUNNER_TEMP/signing.keychain-db" 2>/dev/null || true
+          rm -f "$RUNNER_TEMP/AuthKey.p8"

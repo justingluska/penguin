@@ -1,0 +1,162 @@
+{
+ "id": "19a7c0first",
+ "threadId": "19a7c0thread",
+ "labelIds": [
+  "UNREAD",
+  "IMPORTANT",
+  "CATEGORY_PERSONAL",
+  "INBOX"
+ ],
+ "snippet": "Sam &lt;&gt; Alex / Lunch Monday Sep 28, 2026 ⋅ 12pm – 1pm (Eastern Time - New York)",
+ "historyId": "123456",
+ "internalDate": "1790000553000",
+ "sizeEstimate": 18000,
+ "payload": {
+  "partId": "",
+  "mimeType": "multipart/mixed",
+  "filename": "",
+  "headers": [
+   {
+    "name": "Delivered-To",
+    "value": "alex.morgan@gmail.example"
+   },
+   {
+    "name": "MIME-Version",
+    "value": "1.0"
+   },
+   {
+    "name": "Reply-To",
+    "value": "Sam Rivera <sam@northwind.example>"
+   },
+   {
+    "name": "Sender",
+    "value": "Google Calendar <calendar-notification@google.example>"
+   },
+   {
+    "name": "Auto-Submitted",
+    "value": "auto-generated"
+   },
+   {
+    "name": "Message-ID",
+    "value": "<calendar-19a7c0first@google.example>"
+   },
+   {
+    "name": "Subject",
+    "value": "Invitation: Sam <> Alex / Lunch @ Mon Sep 28, 2026 12pm - 1pm (EDT) (alex.morgan@gmail.example)"
+   },
+   {
+    "name": "From",
+    "value": "Sam Rivera <sam@northwind.example>"
+   },
+   {
+    "name": "To",
+    "value": "alex.morgan@gmail.example"
+   },
+   {
+    "name": "Content-Type",
+    "value": "multipart/mixed; boundary=\"000000000000d1b2c30624f0a1b2\""
+   }
+  ],
+  "body": {
+   "size": 0
+  },
+  "parts": [
+   {
+    "partId": "0",
+    "mimeType": "multipart/alternative",
+    "filename": "",
+    "headers": [
+     {
+      "name": "Content-Type",
+      "value": "multipart/alternative; boundary=\"000000000000d1b2bf0624f0a1b0\""
+     }
+    ],
+    "body": {
+     "size": 0
+    },
+    "parts": [
+     {
+      "partId": "0.0",
+      "mimeType": "text/plain",
+      "filename": "",
+      "headers": [
+       {
+        "name": "Content-Type",
+        "value": "text/plain; charset=\"UTF-8\"; format=flowed; delsp=yes"
+       },
+       {
+        "name": "Content-Transfer-Encoding",
+        "value": "base64"
+       }
+      ],
+      "body": {
+       "size": 414,
+       "data": "U2FtIDw-IEFsZXggLyBMdW5jaApNb25kYXkgU2VwIDI4LCAyMDI2IOKLhSAxMnBtIOKAkyAxcG0gKEVhc3Rlcm4gVGltZSAtIE5ldyBZb3JrKQoKT3JnYW5pemVyClNhbSBSaXZlcmEKc2FtQG5vcnRod2luZC5leGFtcGxlCgpSZXBseSBmb3IgYWxleC5tb3JnYW5AZ21haWwuZXhhbXBsZQpZZXMKaHR0cHM6Ly9jYWxlbmRhci5nb29nbGUuZXhhbXBsZS9jYWxlbmRhci9ldmVudD9hY3Rpb249UkVTUE9ORCZyc3Q9MQpObwpodHRwczovL2NhbGVuZGFyLmdvb2dsZS5leGFtcGxlL2NhbGVuZGFyL2V2ZW50P2FjdGlvbj1SRVNQT05EJnJzdD0yCk1heWJlCmh0dHBzOi8vY2FsZW5kYXIuZ29vZ2xlLmV4YW1wbGUvY2FsZW5kYXIvZXZlbnQ_YWN0aW9uPVJFU1BPTkQmcnN0PTMKCkludml0YXRpb24gZnJvbSBHb29nbGUgQ2FsZW5kYXIK"
+      }
+     },
+     {
+      "partId": "0.1",
+      "mimeType": "text/html",
+      "filename": "",
+      "headers": [
+       {
+        "name": "Content-Type",
+        "value": "text/html; charset=\"UTF-8\""
+       },
+       {
+        "name": "Content-Transfer-Encoding",
+        "value": "quoted-printable"
+       }
+      ],
+      "body": {
+       "size": 487,
+       "data": "PCFkb2N0eXBlIGh0bWw-PGh0bWw-PGJvZHk-PHRhYmxlPjx0cj48dGQ-PGgyPlNhbSAmbHQ7Jmd0OyBBbGV4IC8gTHVuY2g8L2gyPjxkaXY-TW9uZGF5IFNlcCAyOCwgMjAyNiDii4UgMTJwbSDigJMgMXBtIChFYXN0ZXJuIFRpbWUgLSBOZXcgWW9yayk8L2Rpdj48YSBocmVmPSJodHRwczovL2NhbGVuZGFyLmdvb2dsZS5leGFtcGxlL2NhbGVuZGFyL2V2ZW50P2FjdGlvbj1SRVNQT05EJmFtcDtyc3Q9MSI-WWVzPC9hPjxhIGhyZWY9Imh0dHBzOi8vY2FsZW5kYXIuZ29vZ2xlLmV4YW1wbGUvY2FsZW5kYXIvZXZlbnQ_YWN0aW9uPVJFU1BPTkQmYW1wO3JzdD0yIj5ObzwvYT48YSBocmVmPSJodHRwczovL2NhbGVuZGFyLmdvb2dsZS5leGFtcGxlL2NhbGVuZGFyL2V2ZW50P2FjdGlvbj1SRVNQT05EJmFtcDtyc3Q9MyI-TWF5YmU8L2E-PHA-SW52aXRhdGlvbiBmcm9tIEdvb2dsZSBDYWxlbmRhcjwvcD48L3RkPjwvdHI-PC90YWJsZT48L2JvZHk-PC9odG1sPg=="
+      }
+     },
+     {
+      "partId": "0.2",
+      "mimeType": "text/calendar",
+      "filename": "",
+      "headers": [
+       {
+        "name": "Content-Type",
+        "value": "text/calendar; charset=\"UTF-8\"; method=REQUEST"
+       },
+       {
+        "name": "Content-Transfer-Encoding",
+        "value": "7bit"
+       }
+      ],
+      "body": {
+       "size": 1710,
+       "data": "QkVHSU46VkNBTEVOREFSDQpQUk9ESUQ6LS8vR29vZ2xlIEluYy8vR29vZ2xlIENhbGVuZGFyIDcwLjkwNTQvL0VODQpWRVJTSU9OOjIuMA0KQ0FMU0NBTEU6R1JFR09SSUFODQpNRVRIT0Q6UkVRVUVTVA0KQkVHSU46VlRJTUVaT05FDQpUWklEOkFtZXJpY2EvTmV3X1lvcmsNClgtTElDLUxPQ0FUSU9OOkFtZXJpY2EvTmV3X1lvcmsNCkJFR0lOOkRBWUxJR0hUDQpUWk9GRlNFVEZST006LTA1MDANClRaT0ZGU0VUVE86LTA0MDANClRaTkFNRTpFRFQNCkRUU1RBUlQ6MTk3MDAzMDhUMDIwMDAwDQpSUlVMRTpGUkVRPVlFQVJMWTtCWU1PTlRIPTM7QllEQVk9MlNVDQpFTkQ6REFZTElHSFQNCkJFR0lOOlNUQU5EQVJEDQpUWk9GRlNFVEZST006LTA0MDANClRaT0ZGU0VUVE86LTA1MDANClRaTkFNRTpFU1QNCkRUU1RBUlQ6MTk3MDExMDFUMDIwMDAwDQpSUlVMRTpGUkVRPVlFQVJMWTtCWU1PTlRIPTExO0JZREFZPTFTVQ0KRU5EOlNUQU5EQVJEDQpFTkQ6VlRJTUVaT05FDQpCRUdJTjpWRVZFTlQNCkRUU1RBUlQ7VFpJRD1BbWVyaWNhL05ld19Zb3JrOjIwMjYwOTI4VDEyMDAwMA0KRFRFTkQ7VFpJRD1BbWVyaWNhL05ld19Zb3JrOjIwMjYwOTI4VDEzMDAwMA0KRFRTVEFNUDoyMDI2MDkyMVQxNDIyMzNaDQpPUkdBTklaRVI7Q049U2FtIFJpdmVyYTptYWlsdG86c2FtQG5vcnRod2luZC5leGFtcGxlDQpVSUQ6N2txMm05YzR2MW44cDN4NnI1dDB3Mnk0ejZAZ29vZ2xlLmNvbQ0KQVRURU5ERUU7Q1VUWVBFPUlORElWSURVQUw7Uk9MRT1SRVEtUEFSVElDSVBBTlQ7UEFSVFNUQVQ9QUNDRVBURUQ7UlNWUD1UUlVFDQogO0NOPVNhbSBSaXZlcmE7WC1OVU0tR1VFU1RTPTA6bWFpbHRvOnNhbUBub3J0aHdpbmQuZXhhbXBsZQ0KQVRURU5ERUU7Q1VUWVBFPUlORElWSURVQUw7Uk9MRT1SRVEtUEFSVElDSVBBTlQ7UEFSVFNUQVQ9TkVFRFMtQUNUSU9OO1JTVlA9DQogVFJVRTtDTj1hbGV4Lm1vcmdhbkBnbWFpbC5leGFtcGxlO1gtTlVNLUdVRVNUUz0wOm1haWx0bzphbGV4Lm1vcmdhbkBnbWFpbC4NCiBleGFtcGxlDQpYLU1JQ1JPU09GVC1DRE8tT1dORVJBUFBUSUQ6LTE4OTM0MjY4MTENCkNSRUFURUQ6MjAyNjA5MjFUMTQyMjMzWg0KREVTQ1JJUFRJT046THVuY2ggYXQgdGhlIHVzdWFsIHBsYWNlLlxuXG4tOjp-On46On46fjp-On46fjp-On46fjp-On46fjp-On46DQogfjp-On46fjp-On46fjp-On46fjp-On46fjp-On46fjp-On46fjp-On46fjp-Ojp-On46Oi1cbkpvaW4gd2l0aCBHb29nbGUgTWUNCiBldDogaHR0cHM6Ly9tZWV0Lmdvb2dsZS5leGFtcGxlL2FiYy1kZWZnLWhpalxuXG5QbGVhc2UgZG8gbm90IGVkaXQgdGhpcyBzZQ0KIGN0aW9uLlxuLTo6fjp-Ojp-On46fjp-On46fjp-On46fjp-On46fjp-On46fjp-On46fjp-On46fjp-On46fjp-On46fjp-On46DQogfjp-On46fjp-On46fjo6fjp-OjotDQpMQVNULU1PRElGSUVEOjIwMjYwOTIxVDE0MjIzMloNCkxPQ0FUSU9OOkNhZsOpIE9sw6lcLCAxMiBIYXJib3IgU3RcLCBTcHJpbmdmaWVsZA0KU0VRVUVOQ0U6MA0KU1RBVFVTOkNPTkZJUk1FRA0KU1VNTUFSWTpTYW0gPD4gQWxleCAvIEx1bmNoDQpUUkFOU1A6T1BBUVVFDQpCRUdJTjpWQUxBUk0NCkFDVElPTjpESVNQTEFZDQpERVNDUklQVElPTjpUaGlzIGlzIGFuIGV2ZW50IHJlbWluZGVyDQpUUklHR0VSOi1QMERUMEgzME0wUw0KRU5EOlZBTEFSTQ0KRU5EOlZFVkVOVA0KRU5EOlZDQUxFTkRBUg0K"
+      }
+     }
+    ]
+   },
+   {
+    "partId": "1",
+    "mimeType": "application/ics",
+    "filename": "invite.ics",
+    "headers": [
+     {
+      "name": "Content-Type",
+      "value": "application/ics; name=\"invite.ics\""
+     },
+     {
+      "name": "Content-Disposition",
+      "value": "attachment; filename=\"invite.ics\""
+     },
+     {
+      "name": "Content-Transfer-Encoding",
+      "value": "base64"
+     }
+    ],
+    "body": {
+     "attachmentId": "ANGjdJ8first-invite-ics",
+     "size": 1710
+    }
+   }
+  ]
+ }
+}

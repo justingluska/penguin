@@ -1,0 +1,15 @@
+/* Command palette additions on top of penguin.css section 13 (.palette…). */
+.cx-host { align-items: flex-start; }
+.cx-host .palette { margin: 52px 0 0 236px; max-height: calc(100vh - 80px); }
+@media (max-width: 1100px) { .cx-host .palette { margin-left: 0; } }
+.cx-input { flex: 1; min-width: 0; height: 32px; padding: 0; border: 0; outline: none; background: transparent;
+  font: 400 17px/32px var(--font-sans); letter-spacing: -.2px; color: var(--text-emphasis); caret-color: var(--accent);
+  font-feature-settings: "cv11", "ss01"; }
+.cx-input::placeholder { color: var(--text-placeholder); }
+.pal-list { overflow-y: auto; scrollbar-width: none; }
+.pal-list::-webkit-scrollbar { display: none; }
+.pal-list .menu-item { cursor: default; }
+.pal-list .menu-item .kbd-group { margin-left: auto; }
+.cx-label { white-space: nowrap; }
+.cx-hl { font-weight: 600; color: var(--text-emphasis); }
+.cx-none { padding: 20px 18px; font-size: var(--text-sm); color: var(--text-faint); }

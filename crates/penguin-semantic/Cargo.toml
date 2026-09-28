@@ -1,0 +1,54 @@
+[package]
+name = "penguin-semantic"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish = false
+
+# Search by meaning: on-device text embeddings and the vector index.
+# No networking, no Tauri. See src/lib.rs for the contract other crates use
+# and docs/SEMANTIC.md for the design.
+
+[features]
+# The real embedder (ONNX Runtime + tokenizers). Off by default so crates
+# that only need the contract and stand-ins don't build ONNX Runtime.
+onnx = ["dep:ort", "dep:tokenizers"]
+# The WebGPU accelerator (`Accel::WebGpu`, macOS): ort's WebGPU build of ONNX
+# Runtime, which loads Dawn's dylib (libwebgpu_dawn.dylib) at run time. Not
+# on in the app: docs/SEMANTIC.md, "Accelerators".
+webgpu = ["onnx", "ort/webgpu"]
+
+[dependencies]
+thiserror.workspace = true
+tracing.workspace = true
+# semantic.db: same version and features as penguin-core, so one SQLite is linked.
+rusqlite = { version = "0.37", features = ["bundled"] }
+# Model file checksums (already in the tree via the app).
+sha2 = "0.10"
+# ONNX Runtime, statically linked (the prebuilt static library for the
+# target is fetched by ort-sys's build script from pyke's CDN, pinned by
+# sha256 in ort-sys). CPU execution provider only; no dylib to sign.
+# Exact version: ort 2 is still a release candidate.
+ort = { version = "=2.0.0-rc.13", default-features = false, features = ["std", "download-binaries", "tls-rustls", "api-24"], optional = true }
+# Hugging Face tokenizers without C code (fancy-regex instead of Oniguruma).
+tokenizers = { version = "0.23", default-features = false, features = ["fancy-regex"], optional = true }
+
+[dev-dependencies]
+# tests/real_model.rs and examples/bench.rs read the eval fixture.
+serde.workspace = true
+serde_json.workspace = true
+# examples/embed_perf.rs: CPU time and peak RSS (getrusage) on Linux and macOS.
+libc = "0.2"
+
+[[example]]
+name = "embed_perf"
+required-features = ["onnx"]
+
+# QoS classes for the embedding threads (pthread_set_qos_class_self_np);
+# malloc_zone_pressure_relief is declared in src/mem.rs.
+[target.'cfg(target_os = "macos")'.dependencies]
+libc = "0.2"
+
+# malloc_trim (src/mem.rs): return the tokenizer's freed parse memory.
+[target.'cfg(all(target_os = "linux", target_env = "gnu"))'.dependencies]
+libc = "0.2"

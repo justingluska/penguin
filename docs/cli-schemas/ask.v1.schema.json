@@ -1,0 +1,69 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Envelope",
+  "description": "Every payload: `{\"schemaVersion\": 1, \"kind\": \"...\", \"data\": {...}}`.",
+  "type": "object",
+  "properties": {
+    "data": {
+      "$ref": "#/$defs/AskOut"
+    },
+    "kind": {
+      "description": "\"search\" | \"thread\" | \"threads\" | \"labels\" | \"people\" | \"accounts\" | \"attachmentText\" | \"ask\" | \"ruleMatch\" | \"error\"",
+      "type": "string"
+    },
+    "schemaVersion": {
+      "type": "integer",
+      "format": "uint32",
+      "minimum": 0
+    }
+  },
+  "required": [
+    "schemaVersion",
+    "kind",
+    "data"
+  ],
+  "$defs": {
+    "AskOut": {
+      "description": "`ask`: a deterministic answer from the local index (no model). `answer`\nis penguin-core's AskAnswer as-is (camelCase: intent, headline, detail,\nfacts, timeline, items citing accountId/threadId/messageId, person,\ncandidates, confidence, steps, searchQuery, followups, tookMs). Its inner\nshape follows the app's Ask feature and may gain fields within v1.",
+      "type": "object",
+      "properties": {
+        "answer": true,
+        "scope": {
+          "$ref": "#/$defs/ScopeOut"
+        }
+      },
+      "required": [
+        "scope",
+        "answer"
+      ]
+    },
+    "ScopeOut": {
+      "description": "What a request was limited to.",
+      "type": "object",
+      "properties": {
+        "account": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "accountIds": {
+          "description": "The profile's member accounts, when a profile was given.",
+          "type": [
+            "array",
+            "null"
+          ],
+          "items": {
+            "type": "string"
+          }
+        },
+        "profile": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      }
+    }
+  }
+}

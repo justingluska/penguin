@@ -1,0 +1,22 @@
+/* Reply Later and Follow up (features/triage). */
+
+/* Item counts (conversations waiting, not unread): the unread capsule's
+   shape and size, outlined instead of filled, so the two never read alike.
+   Same text mix as .badge-unread (AA in every sidebar theme). */
+.nav-item .count.badge-items {
+  flex: none; min-width: 26px; height: 18px; padding: 0 6px; border-radius: 999px;
+  display: inline-grid; place-items: center; line-height: 1;
+  font-size: 11px; font-weight: 600;
+  color: color-mix(in srgb, var(--th-accent-text) 70%, var(--sb-text-1));
+  background: transparent;
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--th-accent-text) 55%, transparent);
+}
+
+/* Follow up rows: how long it's been, in place of the snippet. */
+.msg .fu-wait { color: var(--amber-a11); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.msg.stacked .fu-wait { grid-area: 3 / 1 / 4 / 3; min-width: 0; }
+.msg.stacked.has-avatar .fu-wait { grid-area: 3 / 2 / 4 / 4; }
+.msg .line .fu-wait { font-size: var(--text-sm); }
+
+/* "Reply to all" in the Reply Later header. */
+.list-tools .reply-all { gap: 6px; }

@@ -1,0 +1,125 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Penguin Design Gallery</title>
+<script>(function(){var t=new URLSearchParams(location.search).get('theme');document.documentElement.dataset.theme=t==='light'?'light':'dark';})();</script>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="penguin.css">
+</head>
+<body class="gallery">
+<div class="g-wrap">
+  <header class="g-head">
+    <div class="row-flex" style="gap:12px">
+      <svg class="logo" viewBox="0 0 26 26" aria-label="Penguin"><rect x=".5" y=".5" width="25" height="25" rx="8" fill="var(--logo-tile)" stroke="var(--logo-ring)"/><path d="M13 8.6c-1.1-1.9-5.3-1.9-5.6 1.7-.2 2.4.5 4.6 1.2 6.4.8 2.2 2.3 3.9 4.4 3.9s3.6-1.7 4.4-3.9c.7-1.8 1.4-4 1.2-6.4-.3-3.6-4.5-3.6-5.6-1.7Z" fill="#f5f5f4"/><circle cx="10.9" cy="11.6" r="1.05" fill="#0b0c0e"/><circle cx="15.1" cy="11.6" r="1.05" fill="#0b0c0e"/><path d="M11.8 13.5h2.4L13 15.4Z" fill="#ff9d4d"/></svg>
+      <span class="g-brand">Penguin</span>
+      <span class="badge t-gray">Design proof of concept · v0.2</span>
+      <span class="grow"></span>
+      <div class="tabs g-theme">
+        <a class="tab" id="t-dark" href="?theme=dark"><svg class="i i-xs"><use href="#i-moon"/></svg>Dark</a>
+        <a class="tab" id="t-light" href="?theme=light"><svg class="i i-xs"><use href="#i-sun"/></svg>Light</a>
+      </div>
+    </div>
+    <h1 class="g-title">A fast, calm email client you drive from the keyboard.</h1>
+    <p class="g-lede">Ten screens for an open-source desktop client for Google Workspace, with several accounts in one inbox. Search is the main screen. Every action shows its shortcut, and every screen has a light and dark theme. Press <span class="kbd">T</span> on any screen to switch themes.</p>
+  </header>
+
+  <div class="g-grid">
+    <a class="g-card g-hero" href="03-search.html">
+      <div class="g-shot"><img data-shot="03-search" alt="Search screen"></div>
+      <div class="g-meta">
+        <div class="row-flex"><span class="g-num">03</span><span class="g-name">Search</span><span class="badge t-green">Main screen</span><span class="grow"></span><span class="kbd">/</span></div>
+        <p>You can mix search operators and plain words in one query. The filters it understood appear as chips. Results come back grouped: the best match, then attachments (including text inside PDFs), threads and people. The AI answer is optional and cites the emails it used. The whole index is on your machine: 38 ms across 142,318 messages.</p>
+      </div>
+    </a>
+    <a class="g-card" href="01-inbox.html">
+      <div class="g-shot"><img data-shot="01-inbox" alt="Inbox screen"></div>
+      <div class="g-meta">
+        <div class="row-flex"><span class="g-num">01</span><span class="g-name">Unified inbox</span><span class="grow"></span><span class="kbd-group"><span class="kbd">G</span><span class="kbd">I</span></span></div>
+        <p>Three accounts in one list, each with its own color dot, split into tabs. A screener holds new senders until you approve them. Unread mail is bold and has a thin accent bar. Hovering a row shows its actions and their keys.</p>
+      </div>
+    </a>
+    <a class="g-card" href="02-thread.html">
+      <div class="g-shot"><img data-shot="02-thread" alt="Thread screen"></div>
+      <div class="g-meta">
+        <div class="row-flex"><span class="g-num">02</span><span class="g-name">Thread</span><span class="grow"></span><span class="kbd">↵</span></div>
+        <p>Older messages are collapsed and the latest is open. Attachments appear as cards and the reply box stays pinned at the bottom. A side panel shows the sender's local time, your recent threads with them, shared files and upcoming meetings.</p>
+      </div>
+    </a>
+    <a class="g-card" href="04-compose.html">
+      <div class="g-shot"><img data-shot="04-compose" alt="Compose screen"></div>
+      <div class="g-meta">
+        <div class="row-flex"><span class="g-num">04</span><span class="g-name">Compose</span><span class="grow"></span><span class="kbd">C</span></div>
+        <p>You choose which account to send from, and recipients show as chips. Type <span class="mono">;</span> to insert a saved snippet. Send later suggests a time that fits the recipient's time zone. Undo send lasts 10 seconds, and AI drafting is available but kept low-key.</p>
+      </div>
+    </a>
+    <a class="g-card" href="05-command.html">
+      <div class="g-shot"><img data-shot="05-command" alt="Command palette"></div>
+      <div class="g-meta">
+        <div class="row-flex"><span class="g-num">05</span><span class="g-name">Command palette</span><span class="grow"></span><span class="kbd">⌘K</span></div>
+        <p>⌘K opens a list of every action, with its shortcut beside it, so you pick up the keys as you go. It opens and closes instantly. Behind it is the empty-inbox screen you see when all mail is handled.</p>
+      </div>
+    </a>
+    <a class="g-card g-hero" href="06-welcome.html">
+      <div class="g-shot"><img data-shot="06-welcome" alt="Welcome screen"></div>
+      <div class="g-meta">
+        <div class="row-flex"><span class="g-num">06</span><span class="g-name">Welcome</span><span class="grow"></span><span class="kbd">1 → 2</span></div>
+        <p>One-time OAuth setup, then Google sign-in. Your client JSON stays on this Mac and account tokens stay in Keychain. A quiet first launch, with privacy explained where it matters.</p>
+      </div>
+    </a>
+    <a class="g-card" href="07-accounts-sync.html">
+      <div class="g-shot"><img data-shot="07-accounts-sync" alt="Accounts &amp; sync screen"></div>
+      <div class="g-meta">
+        <div class="row-flex"><span class="g-num">07</span><span class="g-name">Accounts &amp; sync</span><span class="grow"></span><span class="kbd">↵</span></div>
+        <p>Three accounts, three clear states: backfilling, incremental sync, and sign-in required. Recent mail is already usable, search coverage grows as history arrives, and you can continue straight to your inbox.</p>
+      </div>
+    </a>
+    <a class="g-card" href="08-settings.html">
+      <div class="g-shot"><img data-shot="08-settings" alt="Settings screen"></div>
+      <div class="g-meta">
+        <div class="row-flex"><span class="g-num">08</span><span class="g-name">Settings</span><span class="grow"></span><span class="kbd">⌘,</span></div>
+        <p>A calm, two-column home for accounts, appearance, privacy, the local search index, and keyboard help. AI is off by default, with a separate toggle for every feature and an explicit choice of provider.</p>
+      </div>
+    </a>
+    <a class="g-card" href="09-states.html">
+      <div class="g-shot"><img data-shot="09-states" alt="States &amp; feedback screen"></div>
+      <div class="g-meta">
+        <div class="row-flex"><span class="g-num">09</span><span class="g-name">States &amp; feedback</span><span class="grow"></span><span class="kbd">Z</span></div>
+        <p>Inbox zero, no search results, offline access, reauthentication, blocked remote images, and send or archive feedback. Every state tells you what happened and offers a useful next step.</p>
+      </div>
+    </a>
+    <a class="g-card" href="10-shortcuts.html">
+      <div class="g-shot"><img data-shot="10-shortcuts" alt="Keyboard shortcuts screen"></div>
+      <div class="g-meta">
+        <div class="row-flex"><span class="g-num">10</span><span class="g-name">Keyboard shortcuts</span><span class="grow"></span><span class="kbd">?</span></div>
+        <p>A familiar cheat sheet over the inbox: move, open, archive, reply, search, and navigate without leaving the keyboard. Key sequences and modifiers are spelled out, with undo close at hand.</p>
+      </div>
+    </a>
+  </div>
+
+  <footer class="g-foot">
+    <span>Design system: <a href="penguin.css">penguin.css</a> (tokens and components) + <a href="penguin-screens-2.css">penguin-screens-2.css</a> · notes in README.md</span>
+    <span class="grow"></span>
+    <span class="faint">All people, companies and addresses are fictional.</span>
+  </footer>
+</div>
+<script>
+(function(){
+  function reflectTheme(){
+    var t = document.documentElement.dataset.theme;
+    document.querySelectorAll('.g-theme .tab').forEach(function(tab){ tab.classList.toggle('active', tab.id === 't-' + t); });
+    document.querySelectorAll('img[data-shot]').forEach(function(img){ img.src = 'screenshots/' + img.dataset.shot + '-' + t + '.png'; });
+    document.querySelectorAll('.g-card').forEach(function(a){
+      var url = new URL(a.getAttribute('href'), location.href);
+      url.searchParams.set('theme', t);
+      a.href = url.href;
+    });
+  }
+  reflectTheme();
+  new MutationObserver(reflectTheme).observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
+})();
+</script>
+<script src="penguin.js"></script>
+</body>
+</html>

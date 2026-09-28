@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024" role="img" aria-labelledby="title desc">
+  <title id="title">Penguin — Ice floe — optical 16–32px</title>
+  <!-- Enlarged counters / gaps for small display sizes. -->
+  <desc id="desc">One white envelope-shaped ice floe on navy water; a small dark notch suggests its penguin. Round 3 raises the floe 24px for optical centering.</desc>
+  <path fill="#182B3A" d="M324 100H700C852 100 924 172 924 324V700C924 852 852 924 700 924H324C172 924 100 852 100 700V324C100 172 172 100 324 100Z"/>
+  <path transform="translate(0 -24)" fill="#FFFFFF" d="M216 504L448 439V488C448 540 576 540 576 488V403L618 392L808 500L450 692Z"/>
+</svg>

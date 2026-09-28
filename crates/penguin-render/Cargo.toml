@@ -1,0 +1,17 @@
+[package]
+name = "penguin-render"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish = false
+
+[dependencies]
+serde.workspace = true
+ammonia = "4"
+# The HTML5 parser ammonia uses (same version, nothing new to build): the
+# composer profiles re-tokenize ammonia's output to make it parser-stable
+# (compose.rs), and tests re-parse output with it the way a browser would.
+html5ever = "0.40"
+
+[dev-dependencies]
+serde_json.workspace = true
