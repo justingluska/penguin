@@ -122,7 +122,7 @@ Precedence for (c): `PENGUIN_GOOGLE_CLIENT_JSON`, then the user's config-dir JSO
 
 **Publisher verification** ([overview](https://learn.microsoft.com/en-us/entra/identity-platform/publisher-verification-overview)):
 - **Free**, and done "in minutes" once the prerequisites exist. It needs:
-  - a verified **Microsoft AI Cloud Partner Program** account at the partner-global level (enrolled as Digital Mundo LLC, a business);
+  - a verified **Microsoft AI Cloud Partner Program** account at the partner-global level (enrolled as a business);
   - the app registered with a **work account in an Entra tenant**, not a personal MSA;
   - a publisher domain that isn't `*.onmicrosoft.com` and matches the Partner Program email domain or a DNS-verified domain;
   - MFA, and the App Admin + Partner Admin roles.
@@ -131,7 +131,7 @@ Precedence for (c): `PENGUIN_GOOGLE_CLIENT_JSON`, then the user's config-dir JSO
 **Redirect:** use the "Mobile and desktop applications" platform with `http://localhost`. The port is ignored for localhost matching ([redirect rules](https://learn.microsoft.com/en-us/entra/identity-platform/reply-url)). Microsoft prefers `127.0.0.1`, but the portal text box rejects `http://127.0.0.1`, so that form needs a manifest edit. No query strings are allowed when personal accounts are in the audience. Use the `/common` authority, PKCE, and no secret. The client ID can live in the repo, as Thunderbird's `9e5f94bc-…` does, since it's a public client with nothing secret.
 
 **the maintainer's click-steps (about 30 minutes, plus Partner Center vetting, which is typically days):**
-1. Sign in at <https://entra.microsoft.com> with a **work account in a tenant Digital Mundo owns**. Registering apps outside a directory is deprecated. If there is no tenant, a free Azure account creates one.
+1. Sign in at <https://entra.microsoft.com> with a **work account in a tenant the publisher owns**. Registering apps outside a directory is deprecated. If there is no tenant, a free Azure account creates one.
 2. **Entra ID → App registrations → New registration.** Name: `Penguin`. Supported account types: the option covering **any organizational directory (multitenant) and personal Microsoft accounts**. The portal wording changes between versions. Redirect URI: platform **Public client/native (mobile & desktop)**, `http://localhost`. Click **Register**.
 3. **Authentication:** confirm the mobile/desktop platform is listed. Leave **Allow public client flows = No**; auth code + PKCE doesn't need it.
 4. **API permissions → Add a permission → Microsoft Graph → Delegated:** `openid`, `profile`, `email`, `offline_access`, `User.Read`, `Mail.ReadWrite`, `Mail.Send`, `MailboxSettings.Read`. Do **not** click "Grant admin consent". That only covers his own tenant.

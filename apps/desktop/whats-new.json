@@ -1,0 +1,15 @@
+{
+  "_about": "What's new lines for commits whose subject isn't written for people using Penguin: commit hash prefix → the line to show, or null to hide it (scripts/changelog.mjs).",
+  "commits": {
+    "b29e5f2": "Attachments that some mail apps send as \"inline\", often PDFs from Apple Mail, show in the conversation again, including in mail you already have.",
+    "e046839": null,
+    "e11e241": null,
+    "bc63c02": "The first public release. Penguin is free to download, and it keeps itself up to date.",
+    "e387138": null,
+    "6345962": null,
+    "d418c57": null,
+    "649a8f2": null,
+    "ded8962": "IMAP accounts reconnect quietly when the server drops an idle connection, so new mail keeps arriving.",
+    "ce63628": "Holiday and birthday calendars sync once a day instead of every few minutes."
+  }
+}

@@ -6,6 +6,9 @@
 // Each release lists the first-parent commits on main since the one before
 // it, as user-facing lines: merge summaries and topic commits, minus
 // internal scopes (docs, ci, …), with the "scope: " prefix dropped.
+// whats-new.json can replace a commit's line with plain words, or hide it
+// (null), keyed by a commit hash prefix; the next build shows the result for
+// every release, old ones included.
 //
 //   PENGUIN_VERSION   this build's version (CI: 0.1.<run>); default: tauri.conf.json's
 //   RELEASES_URL      default: releases.json next to the first updater endpoint in
@@ -34,7 +37,24 @@ export function releasesUrlFor(endpoint) {
 }
 /** Commits shown for the first release (the history before it is the whole project). */
 const FIRST_RELEASE_MAX = 25;
-const INTERNAL = new Set(["docs", "ci", "box", "design", "scripts", "mock", "research", "icons", "chore", "test", "tests"]);
+const INTERNAL = new Set(["docs", "ci", "box", "design", "scripts", "mock", "research", "icons", "chore", "test", "tests", "release", "publish"]);
+/** Commit hash prefix → the line to show instead, or null to hide it. */
+const OVERRIDES = loadOverrides(join(here, "../whats-new.json"));
+
+export function loadOverrides(path) {
+  try {
+    const commits = JSON.parse(readFileSync(path, "utf8")).commits ?? {};
+    return Object.entries(commits).filter(([k]) => /^[0-9a-f]{7,40}$/.test(k));
+  } catch {
+    return [];
+  }
+}
+
+/** The override for a full commit hash: undefined = none, null = hide, string = the line. */
+export function overrideFor(hash, overrides = OVERRIDES) {
+  const hit = overrides.find(([prefix]) => hash.startsWith(prefix));
+  return hit ? hit[1] : undefined;
+}
 
 const arg = (name) => {
   const i = process.argv.indexOf(name);
@@ -65,7 +85,7 @@ function changes(from, to, max) {
   let out;
   try {
     const range = from ? `${from}..${to}` : to;
-    const args = ["log", "--first-parent", "--format=%h%x09%s", range];
+    const args = ["log", "--first-parent", "--format=%H%x09%s", range];
     if (max) args.splice(1, 0, `-${max}`);
     out = git(...args);
   } catch {
@@ -75,8 +95,9 @@ function changes(from, to, max) {
     .split("\n")
     .filter(Boolean)
     .map((l) => {
-      const [hash, subject] = l.split("\t");
-      return { hash, text: userLine(subject ?? "") };
+      const [full, subject] = l.split("\t");
+      const o = overrideFor(full);
+      return { hash: full.slice(0, 7), text: o === undefined ? userLine(subject ?? "") : o };
     })
     .filter((c) => c.text);
 }
