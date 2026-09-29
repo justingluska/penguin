@@ -4,8 +4,16 @@
 import { useSyncExternalStore } from "react";
 import { registerShortcuts } from "../../lib/keyboard";
 import { getUi, setUi } from "../../lib/ui";
+import { busSend, isMainWindow } from "../../lib/windowBus";
+import { MAIN_LABEL } from "../../lib/windowRoute";
 
-export type SettingsSection = "you" | "accounts" | "profiles" | "general" | "inbox" | "sync" | "calendar" | "compose" | "signatures" | "privacy" | "search" | "ai" | "views" | "rules" | "keyboard" | "diagnostics" | "whatsnew" | "about";
+export const SETTINGS_SECTIONS = ["you", "accounts", "profiles", "general", "inbox", "sync", "calendar", "compose", "signatures", "privacy", "search", "ai", "views", "rules", "keyboard", "diagnostics", "whatsnew", "about"] as const;
+export type SettingsSection = (typeof SETTINGS_SECTIONS)[number];
+
+/** A section named by another window (app/handoffs.ts), or null. */
+export function asSettingsSection(x: unknown): SettingsSection | null {
+  return (SETTINGS_SECTIONS as readonly unknown[]).includes(x) ? (x as SettingsSection) : null;
+}
 
 let open = false;
 let focusSection: SettingsSection | null = null;
@@ -16,6 +24,11 @@ const notify = () => subs.forEach((f) => f());
 
 /** Open Settings at `section`'s page (null: the first page), or switch to it when Settings is already open. */
 export function openSettings(section: SettingsSection | null = null) {
+  // Settings lives in the main window (app/handoffs.ts opens it there).
+  if (!isMainWindow) {
+    void busSend(MAIN_LABEL, "open-settings", { section });
+    return;
+  }
   focusSection = section;
   open = true;
   requests++;

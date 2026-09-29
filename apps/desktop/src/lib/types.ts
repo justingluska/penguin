@@ -1509,6 +1509,37 @@ export interface MenuContext {
   floe: boolean;
   /** The list's Unread filter is on (View → Show Only Unread). */
   unreadOnly: boolean;
+  /** This window shows one conversation or one composer (open_window), not the mail shell. */
+  detached: boolean;
+}
+
+/**
+ * open_window (src-tauri/src/windows.rs WindowRequest): a conversation or a
+ * composer in a window of its own. Ids ≤512 chars, no control characters.
+ */
+export type WindowRequest =
+  | {
+      kind: "thread";
+      accountId: string;
+      threadId: string;
+      /** The subject, the window's title until the thread has loaded. */
+      title?: string | null;
+    }
+  | {
+      kind: "compose";
+      /** A saved draft to open (both; a draft needs its account), or with no draft the account a new message is from. */
+      accountId?: string | null;
+      draftId?: string | null;
+      /** The editor state handed over by another window (features/compose/handoff.ts ComposeSeed), taken once by the new window. ≤64 MB of JSON. */
+      seed?: unknown;
+      title?: string | null;
+    };
+
+/** open_window's answer. */
+export interface OpenedWindow {
+  label: string;
+  /** The conversation already had a window; it was brought to the front. */
+  existing: boolean;
 }
 
 /** Payload of `penguin://menu`: a menu bar item to run (a shortcut-registry id or a menu-only id). */

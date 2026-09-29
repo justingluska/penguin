@@ -65,6 +65,10 @@ import {
 } from "./app/store";
 import { lazyScreen, prefetchScreens } from "./lib/lazy";
 import { coalesce } from "./app/coalesce";
+import { useTheme } from "./app/theme";
+import { installWindowHandoffs } from "./app/handoffs";
+import { ComposeWindowApp, ThreadWindowApp } from "./app/windowShell";
+import { windowRoute } from "./lib/windowBus";
 import "./App.css";
 
 // Rarely shown, so not in the launch bundle (lib/lazy.ts): first-run setup
@@ -74,7 +78,17 @@ const CalendarView = lazyScreen(() => import("./features/calendar/CalendarView")
 
 type Phase = "loading" | "onboarding" | "ready";
 
+/**
+ * Which window this page is (lib/windowRoute.ts): the main window, or a
+ * conversation or compose window with its small shell (app/windowShell.tsx).
+ */
 export default function App() {
+  if (windowRoute.kind === "thread") return <ThreadWindowApp thread={windowRoute.thread} />;
+  if (windowRoute.kind === "compose") return <ComposeWindowApp route={windowRoute} />;
+  return <MainApp />;
+}
+
+function MainApp() {
   const [phase, setPhase] = useState<Phase>("loading");
   useTheme();
 
@@ -151,6 +165,9 @@ export default function App() {
     const offRules = registerRuleShortcuts();
     const offRuleToasts = installRuleToasts();
     const offOtp = registerOtpShortcuts();
+    // What conversation and compose windows hand over as they close: a send
+    // to count down, an Undo to offer, a draft that couldn't be saved.
+    const offHandoffs = installWindowHandoffs();
     // Keyboard-first: a clicked button shouldn't keep focus, or the next
     // Enter/Space would press it again instead of reaching the shortcuts.
     const onPointerUp = () => {
@@ -170,6 +187,7 @@ export default function App() {
       offMenus();
       offRules();
       offRuleToasts();
+      offHandoffs();
       window.removeEventListener("pointerup", onPointerUp);
     };
   }, []);
@@ -303,23 +321,6 @@ function PaneShell() {
       </main>
     </div>
   );
-}
-
-/** Theme: follow the system until the user presses T; mirror onto <html>. */
-function useTheme() {
-  const theme = useUi((s) => s.theme);
-  useEffect(() => {
-    document.documentElement.dataset.theme = theme;
-  }, [theme]);
-  useEffect(() => {
-    const mq = window.matchMedia?.("(prefers-color-scheme: dark)");
-    if (!mq) return;
-    const onChange = () => {
-      if (getUi().themeSource === "system") setUi({ theme: mq.matches ? "dark" : "light" });
-    };
-    mq.addEventListener("change", onChange);
-    return () => mq.removeEventListener("change", onChange);
-  }, []);
 }
 
 function useBackendEvents(active: boolean) {

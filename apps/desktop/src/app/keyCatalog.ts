@@ -44,6 +44,7 @@ export const MENU_KEYS: Record<string, string> = {
   "view.zoom.in": "mod+=",
   "view.zoom.out": "mod+-",
   "app.sync": "mod+shift+n",
+  "compose.newWindow": "mod+alt+n",
 };
 
 /** Menu items that aren't registry shortcuts, as sheet rows. */
@@ -173,7 +174,8 @@ export function menuAccelToKeys(accel: string): string {
 /** Every `("id", "Title", Some("Accel"))` in app_menu.rs, as id → registry keys. */
 export function menuKeysFromSource(rust: string): Record<string, string> {
   const out: Record<string, string> = {};
-  const re = /\(\s*"([a-zA-Z0-9_.]+)",\s*"(?:[^"\\]|\\.)*",\s*Some\("([^"]+)"\)\s*\)/g;
+  // rustfmt splits a long spec over lines, with a trailing comma.
+  const re = /\(\s*"([a-zA-Z0-9_.]+)",\s*"(?:[^"\\]|\\.)*",\s*Some\("([^"]+)"\),?\s*\)/g;
   // Rust string escapes ("CmdOrCtrl+\\" is ⌘\).
   for (const m of rust.matchAll(re)) out[m[1]] = menuAccelToKeys(m[2].replace(/\\(.)/g, "$1"));
   return out;

@@ -1,6 +1,7 @@
-// Settings → You: your photo, the same across every account. Shown in the
-// sidebar footer, the Floe bar, your own person card and wherever your address
-// appears with an avatar. Your name is each account's Google profile name
+// Settings → You: your photo. Shown in the sidebar footer and the Floe bar,
+// and beside your own addresses when that account has no Google profile photo
+// of its own (each account's own photo comes first, so a second identity
+// looks like itself). Your name is each account's Google profile name
 // (lib/me.ts meName). Display-only: mail you send keeps each Google account's
 // own name. OWNER: native.
 import { useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
@@ -126,7 +127,8 @@ export function YouSection() {
       )}
 
       <p className="st-muted settings-note">
-        <Icon name="info" size="xs" /> Your photo is shown to you only, on this Mac. Your name is your Google profile name, and mail
+        <Icon name="info" size="xs" /> Your photo is shown to you only, on this Mac. Messages from an account with its own
+        Google profile photo show that account's photo instead. Your name is your Google profile name, and mail
         you send uses each account's own name: change it in your Google Account.
       </p>
       {crop && <PhotoCropper src={crop} onClose={() => setCrop(null)} />}

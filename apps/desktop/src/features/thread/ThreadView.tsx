@@ -46,12 +46,12 @@ import { attachmentMenu, messageMenu } from "./threadMenus";
 import { attachmentDragSource, canDragFiles, dragOut } from "../image-viewer/fileDrag";
 import { COPY_CONVERSATION_KEYS, copyConversation } from "./copy";
 import { OtpBanner } from "../otp/OtpBanner";
-import { openSnooze } from "../snooze/SnoozePicker";
 import { inReplyLater, toggleReplyLater } from "../triage/actions";
-import { fmtUntil, fmtWake } from "../snooze/presets";
 import { useUnsubscribeSlot } from "../unsubscribe/UnsubscribeButton";
 import { SummarizeButton, SummaryCard } from "../summary/SummaryCard";
 import { useSummaryShortcut } from "../summary/state";
+import { openThreadWindow } from "../../app/windows";
+import { isMainWindow } from "../../lib/windowBus";
 
 type Variant = "preview" | "full";
 
@@ -88,12 +88,17 @@ export const ThreadPane = memo(function ThreadPane({ variant }: { variant: Varia
     <>
       <section className="thread">
         <header className="pane-head thread-head" data-tauri-drag-region>
-          <button className="btn btn-ghost btn-sm" onClick={goBack}>
-            <Icon name="left" size="xs" />
-            Back
-            <Kbd>Esc</Kbd>
-          </button>
-          <span className="head-sep" />
+          {/* A conversation window has nowhere to go back to: Esc (or ⌘W) closes it. */}
+          {isMainWindow && (
+            <>
+              <button className="btn btn-ghost btn-sm" onClick={goBack}>
+                <Icon name="left" size="xs" />
+                Back
+                <Kbd>Esc</Kbd>
+              </button>
+              <span className="head-sep" />
+            </>
+          )}
           <PaneActions variant="full" thread={thread} />
         </header>
         {ref && thread ? (
@@ -208,8 +213,8 @@ function PaneActions({ variant, thread }: { variant: Variant; thread: Thread | n
   const hasMore = list.use((l) => l.hasMore);
   useUi((s) => s.selected); // position text follows the cursor
   const i = indexOfSelected();
-  const starred = i >= 0 ? items[i].starred : false;
-  const snoozed = i >= 0 ? items[i].snoozedUntil : null;
+  // Not in the list (a conversation window, a search result): the thread says.
+  const starred = i >= 0 ? items[i].starred : !!thread && thread.messages.some((m) => m.starred);
   const view = useUi((s) => s.view.kind);
   // Labels load with meta; re-render when they do so the button reads right.
   useLabelLook();
@@ -257,16 +262,18 @@ function PaneActions({ variant, thread }: { variant: Variant; thread: Thread | n
         <span className="btn-label">{laterNow ? "Back to inbox" : "Reply later"}</span>
         <Kbd>Y</Kbd>
       </button>
+      {/* Snooze (H) lives in the right-click menu and ⌘K: Reply later is the
+          toolbar's "not now", and Forward had no one-click home in the split view. */}
       <button
         className="btn btn-ghost btn-sm pane-act"
         disabled={!has}
-        data-shortcut="triage.snooze"
-        title={snoozed != null ? `Snoozed ${fmtUntil(snoozed)}` : tip("Snooze", "H")}
-        onClick={() => openSnooze()}
+        data-shortcut="compose.forward"
+        title={tip("Forward", "F")}
+        onClick={() => openCompose("forward")}
       >
-        <Icon name="snooze" size="xs" />
-        <span className="btn-label">{snoozed != null ? fmtWake(snoozed) : "Snooze"}</span>
-        <Kbd>H</Kbd>
+        <Icon name="forward" size="xs" />
+        <span className="btn-label">Forward</span>
+        <Kbd>F</Kbd>
       </button>
       {/* Label where the account has labels; Move to on folder accounts (IMAP), where L moves too. */}
       {(!caps || caps.labels) && (
@@ -323,20 +330,35 @@ function PaneActions({ variant, thread }: { variant: Variant; thread: Thread | n
       {/* Apple Intelligence summary (features/summary); hidden where it can't run. Icon-only in the narrow preview pane. */}
       <SummarizeButton compact={variant === "preview"} />
       <span className="grow" />
-      {i >= 0 && (
-        <span className="faint tnum pos">
-          {i + 1} of {items.length}
-          {hasMore ? "+" : ""}
-        </span>
+      {/* A conversation window shows one conversation: no list to step through or open from. */}
+      {isMainWindow && (
+        <>
+          <button
+            className="btn btn-ghost btn-sm btn-icon"
+            disabled={!has}
+            data-shortcut="thread.openWindow"
+            title={tip("Open in new window", "⇧O")}
+            aria-label="Open in new window"
+            onClick={() => cur && void openThreadWindow(cur)}
+          >
+            <Icon name="window" size="xs" />
+          </button>
+          {i >= 0 && (
+            <span className="faint tnum pos">
+              {i + 1} of {items.length}
+              {hasMore ? "+" : ""}
+            </span>
+          )}
+          <button className="btn btn-ghost btn-sm" data-shortcut="nav.up" title={tip("Previous", "K")} onClick={() => moveSelection(-1)}>
+            <Icon name="up" size="xs" />
+            {variant === "full" && <Kbd>K</Kbd>}
+          </button>
+          <button className="btn btn-ghost btn-sm" data-shortcut="nav.down" title={tip("Next", "J")} onClick={() => moveSelection(1)}>
+            <Icon name="down" size="xs" />
+            {variant === "full" && <Kbd>J</Kbd>}
+          </button>
+        </>
       )}
-      <button className="btn btn-ghost btn-sm" data-shortcut="nav.up" title={tip("Previous", "K")} onClick={() => moveSelection(-1)}>
-        <Icon name="up" size="xs" />
-        {variant === "full" && <Kbd>K</Kbd>}
-      </button>
-      <button className="btn btn-ghost btn-sm" data-shortcut="nav.down" title={tip("Next", "J")} onClick={() => moveSelection(1)}>
-        <Icon name="down" size="xs" />
-        {variant === "full" && <Kbd>J</Kbd>}
-      </button>
     </>
   );
 }
@@ -613,10 +635,16 @@ function ThreadBody({ thread, variant }: { thread: Thread; variant: Variant }) {
           </div>
         </div>
         <div className="quick-reply">
-          <button className="qr-box" onClick={() => openCompose("reply")}>
-            <span className="placeholder">Reply to {replyTo ? firstName(replyTo) : "sender"}…</span>
-            <Kbd>R</Kbd>
-          </button>
+          <div className="qr-row">
+            <button className="qr-box" onClick={() => openCompose("reply")}>
+              <span className="placeholder">Reply to {replyTo ? firstName(replyTo) : "sender"}…</span>
+              <Kbd>R</Kbd>
+            </button>
+            <button className="qr-box qr-fwd" title="Forward (F)" onClick={() => openCompose("forward")}>
+              <Icon name="forward" size="xs" />
+              <span>Forward</span>
+            </button>
+          </div>
         </div>
       </>
     );

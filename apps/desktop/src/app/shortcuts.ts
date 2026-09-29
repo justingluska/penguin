@@ -23,6 +23,7 @@ import { getProfiles, switchProfile } from "./profiles";
 import { openSnooze } from "../features/snooze/SnoozePicker";
 import { toggleReplyLater } from "../features/triage/actions";
 import { COPY_CONVERSATION_KEYS, copyConversation } from "../features/thread/copy";
+import { openComposeWindow, openThreadWindow } from "./windows";
 
 // The ⌘K palette evaluates when() to list context-valid commands while it's
 // open, so "command" counts as no overlay. Keys can't fire meanwhile: the
@@ -86,8 +87,50 @@ export const threadNav = {
   expandAll: () => {},
 };
 
-export function registerAppShortcuts(): () => void {
-  const list_: Shortcut[] = [
+/**
+ * The keys a conversation window answers to (app/windowShell.tsx): its own
+ * conversation's triage, replies, message navigation, Undo, ⌘K and the sheet.
+ * Nothing that switches mailbox, account or list: that's the main window's.
+ */
+export const THREAD_WINDOW_KEYS = new Set([
+  "nav.back",
+  "msg.next",
+  "msg.prev",
+  "msg.expand",
+  "ctx.toggle",
+  "triage.done",
+  "triage.trash",
+  "triage.star",
+  "triage.read",
+  "triage.unread",
+  "triage.label",
+  "triage.move",
+  "triage.move.l",
+  "triage.unsubscribe",
+  "triage.snooze",
+  "triage.replyLater",
+  "thread.copy",
+  "triage.undo",
+  "triage.undo.mod",
+  "compose.reply",
+  "compose.replyAll",
+  "compose.forward",
+  "compose.newWindow",
+  "command.open",
+  "app.shortcuts",
+  "app.theme",
+]);
+
+/** ⇧O: the cursor's conversation in a window of its own (one row, not a multi-selection). */
+const canOpenWindow = () =>
+  noOverlay() && (getUi().surface === "mail" || getUi().threadOpen) && getUi().selected !== null && !hasMultiSelection();
+
+/**
+ * Register the app's keys: all of them in the main window, THREAD_WINDOW_KEYS
+ * in a conversation window.
+ */
+export function registerAppShortcuts(scope: "main" | "thread" = "main"): () => void {
+  const all: Shortcut[] = [
     // ---- Navigate
     { id: "nav.down", keys: "j", label: "Next conversation", group: "Navigate", when: onMail, run: () => moveSelection(1) },
     { id: "nav.up", keys: "k", label: "Previous conversation", group: "Navigate", when: onMail, run: () => moveSelection(-1) },
@@ -95,6 +138,7 @@ export function registerAppShortcuts(): () => void {
     { id: "nav.up.arrow", keys: "arrowup", label: "Previous conversation", group: "Navigate", hidden: true, when: inList, run: () => moveSelection(-1) },
     { id: "nav.open", keys: "o", label: "Open conversation", group: "Navigate", when: () => inList() && getUi().selected !== null, run: openSelected },
     { id: "nav.open.enter", keys: "enter", label: "Open conversation", group: "Navigate", hidden: true, when: () => inList() && getUi().selected !== null, run: openSelected },
+    { id: "thread.openWindow", keys: "shift+o", label: "Open in new window", group: "Navigate", when: canOpenWindow, run: () => void openThreadWindow(getUi().selected!) },
     { id: "nav.back", keys: "escape", label: "Back", group: "Navigate", when: () => noOverlay() && getUi().threadOpen, run: goBack },
     // ---- Multi-select (list and Floe)
     { id: "select.toggle", keys: "x", label: "Select conversation", group: "Select", when: () => inList() && getUi().selected !== null, run: () => toggleSelect(getUi().selected!) },
@@ -164,6 +208,8 @@ export function registerAppShortcuts(): () => void {
 
     // ---- Compose
     { id: "compose.new", keys: "c", label: "New message", group: "Compose", when: noOverlay, run: () => openCompose("new") },
+    // ⌥⌘N like File → New Message in New Window (⇧⌘N is Check for New Mail).
+    { id: "compose.newWindow", keys: "mod+alt+n", label: "New message in new window", group: "Compose", when: noOverlay, run: () => void openComposeWindow() },
     { id: "compose.reply", keys: "r", label: "Reply", group: "Compose", when: hasSelection, run: () => openCompose("reply") },
     { id: "compose.replyAll", keys: "a", label: "Reply all", group: "Compose", when: hasSelection, run: () => openCompose("replyAll") },
     { id: "compose.forward", keys: "f", label: "Forward", group: "Compose", when: hasSelection, run: () => openCompose("forward") },
@@ -191,7 +237,8 @@ export function registerAppShortcuts(): () => void {
     { id: "app.sync", keys: "shift+r", label: "Sync now", group: "App", when: noOverlay, run: startRefresh },
     { id: "acct.all", keys: "alt+0", label: "All accounts", group: "App", when: noOverlay, run: () => switchProfile(null) },
   ];
-  const unregStatic = registerShortcuts(list_);
+  if (scope === "thread") return registerShortcuts(all.filter((s) => THREAD_WINDOW_KEYS.has(s.id)));
+  const unregStatic = registerShortcuts(all);
 
   // ⌥1–⌥9 switch account; re-registered when accounts change.
   let unregAccounts = () => {};

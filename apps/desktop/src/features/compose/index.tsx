@@ -58,6 +58,9 @@ import { useKeyTip } from "../../lib/shortcutHints";
 import { useBodyHandle } from "./editor/handle";
 import { autoInserts, defaultSignature, lockedAccount } from "./editor/pick";
 import { useDismiss } from "../../lib/dismiss";
+import { isMainWindow, windowRoute } from "../../lib/windowBus";
+import { setThisWindowTitle } from "../../lib/windowChrome";
+import { composeTitle, type ComposeSeed } from "./seed";
 
 // The editor (TipTap) is its own chunk: App fetches it in the background once
 // the first mail rows have painted (lib/lazy.ts prefetchScreens), so the first
@@ -71,7 +74,8 @@ export function Compose() {
   const ctx = useUi((s) => s.composeContext);
   useEffect(applyDevParams, []);
   useEffect(registerComposeShortcuts, []);
-  useOutboxToasts({ draft: (accountId, draftId) => void openDraftById(accountId, draftId) });
+  // Scheduled-send and reminder toasts: once, in the main window.
+  useOutboxToasts({ draft: (accountId, draftId) => void openDraftById(accountId, draftId) }, isMainWindow);
   // With native drag-drop off (so the composer gets File objects), a file
   // dropped anywhere else would make WebKit try to open it as the page. Swallow
   // those drops; the composer's own handlers take drops over it.
@@ -544,6 +548,66 @@ function Composer({ ctx }: { ctx: ComposeContext }) {
     setUi({ overlay: null });
   }
 
+  // In a compose window the composer is the window (app/windowShell.tsx
+  // closes it when the composer closes); elsewhere it's an overlay with Pop out.
+  const windowed = windowRoute.kind === "compose";
+  const [popping, setPopping] = useState(false);
+
+  // A compose window is titled with the subject (the tab and Window menu show it).
+  const subjectForTitle = st ? composeTitle(st) : null;
+  useEffect(() => {
+    if (windowed && subjectForTitle) setThisWindowTitle(subjectForTitle);
+  }, [windowed, subjectForTitle]);
+
+  /**
+   * Pop out: move this message into a window of its own, as it is. The draft
+   * is saved first (so the new window continues it rather than making a
+   * second one), then the whole editor state goes along as the window's
+   * seed: recipients, body, files, From, the reply it answers, reminders.
+   * This composer lets go of it only once the window exists.
+   */
+  async function popOut() {
+    const cur = stRef.current;
+    if (!cur || popping) return;
+    // Addresses still being typed go along too.
+    const next = { ...cur };
+    for (const field of ["to", "cc", "bcc"] as const) {
+      const a = parseAddress(pendingText.current[field] ?? "");
+      if (a && !next[field].some((x) => x.email.toLowerCase() === a.email.toLowerCase())) next[field] = [...next[field], a];
+    }
+    const sv = saver ?? saverFor(next);
+    setPopping(true);
+    if (next.touched) sv.update(next);
+    await sv.flush();
+    const state = next.touched ? sv.current() : next;
+    const seed: ComposeSeed = {
+      v: 1,
+      state: { ...state, draftId: sv.draftId, draftAccountId: sv.state.draftAccountId },
+      unsaved: next.touched && !sv.isSaved(),
+    };
+    const { draftId, draftAccountId } = seed.state;
+    try {
+      await api.openWindow({
+        kind: "compose",
+        accountId: draftId ? (draftAccountId ?? seed.state.accountId) : null,
+        draftId,
+        seed,
+        title: composeTitle(seed.state),
+      });
+    } catch (e) {
+      setPopping(false);
+      setError(`Couldn't open a window for this message: ${asCommandError(e).message}`);
+      return;
+    }
+    // The window has it now: stop saving here without touching the draft.
+    sv.stop();
+    forgetSaver(sv);
+    drafts.delete(cur.key);
+    stRef.current = null;
+    saverRef.current = null;
+    setUi({ overlay: null });
+  }
+
   // What the editor starts from, fixed at its first render (it owns the
   // document after that), and whether a fresh message gets a signature.
   const initialBody = useRef<{ doc: EditorState["bodyDoc"]; html: string | null; text: string; hasQuote: boolean } | null>(null);
@@ -851,376 +915,396 @@ function Composer({ ctx }: { ctx: ComposeContext }) {
   }
 
   const title = ctx.draftId && ctx.mode === "new" ? "Draft" : TITLES[ctx.mode];
+  const composer = (
+    <section
+      className={`composer panel cmp${windowed ? " cmp-windowed" : ""}${dropping ? " cmp-dropping" : ""}`}
+      role={windowed ? "region" : "dialog"}
+      aria-label={title}
+      // Nothing changes while the message moves to its own window.
+      inert={popping}
+      aria-busy={popping}
+      onKeyDown={onKey}
+      onDragOver={(e) => {
+        if (!e.dataTransfer.types.includes("Files")) return;
+        e.preventDefault();
+        setDropping(true);
+      }}
+      onDragLeave={(e) => {
+        if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setDropping(false);
+      }}
+      onDrop={(e) => {
+        setDropping(false);
+        // The text took it (images go where they were dropped).
+        if (!e.dataTransfer.files.length || e.defaultPrevented) return;
+        e.preventDefault();
+        void attach([...e.dataTransfer.files], { inline: true, at: null });
+      }}
+    >
+      {dropping && (
+        <div className="cmp-drop" aria-hidden="true">
+          <Icon name="clip" size="sm" />
+          Drop to add: images go in the message, other files attach
+        </div>
+      )}
+      <header className="cmp-head" data-tauri-drag-region={windowed ? "" : undefined}>
+        <span className="cmp-title">{title}</span>
+        <span className="grow" />
+        {!windowed && (
+          <button
+            className="btn btn-ghost btn-sm"
+            onClick={() => void popOut()}
+            disabled={!st || popping}
+            title="Pop out: move this message to a window of its own"
+            aria-label="Pop out into a new window"
+          >
+            <Icon name="popout" size="xs" />
+            {popping ? "Opening…" : "Pop out"}
+          </button>
+        )}
+        <button className="btn btn-ghost btn-sm" onClick={close} title={windowed ? "Close the window and keep the draft" : "Close and keep the draft"}>
+          <Icon name="x" size="xs" />
+          <span className="kbd">Esc</span>
+        </button>
+      </header>
+
+      {!st ? (
+        <div className="cmp-loading">Loading…</div>
+      ) : (
+        <>
+          <div className="field">
+            <span className="f-label">From</span>
+            <div className="cmp-from">
+              <button
+                ref={fromRef}
+                className={`from-select t-${accountTone(account?.color)}`}
+                onClick={() => {
+                  setFromIdx(Math.max(0, accounts.findIndex((a) => a.id === st.accountId)));
+                  setFromOpen((o) => !o);
+                }}
+                title={tip("From", "⌘⇧O")}
+                aria-haspopup="listbox"
+                aria-expanded={fromOpen}
+              >
+                {account && <AccountAvatar account={account} accounts={accounts} />}
+                <i className="dot" />
+                <span className="emph">{account ? account.nickname || account.displayName || account.email : "No account"}</span>
+                {(account?.nickname || account?.displayName) && <span className="faint">{account.email}</span>}
+                <Icon name="down" size="xs" className="faint" />
+              </button>
+              {fromOpen && (
+                <div className="panel menu cmp-from-menu" role="listbox">
+                  {accounts.map((a, i) => (
+                    <div
+                      key={a.id}
+                      role="option"
+                      aria-selected={a.id === st.accountId}
+                      className={`menu-item${i === fromIdx ? " active" : ""}`}
+                      onMouseMove={() => setFromIdx(i)}
+                      onMouseDown={(e) => e.preventDefault()}
+                      aria-disabled={lockedTo !== null && a.id !== lockedTo}
+                      title={lockedTo && a.id !== lockedTo ? `Locked: replies go from ${lockedName()}` : undefined}
+                      onClick={() => {
+                        pickFrom(a.id);
+                        setFromOpen(false);
+                      }}
+                    >
+                      <AccountAvatar account={a} accounts={accounts} />
+                      <i className={`dot t-${accountTone(a.color)}`} />
+                      <span className="emph">{accountName(a, accounts)}</span>
+                      <span className="faint truncate">{a.email}</span>
+                      {a.id === st.accountId && <Icon name="check" size="xs" className="accent-ico" />}
+                      {lockedTo && a.id !== lockedTo ? <Icon name="lock" size="xs" className="faint" /> : i < 9 && <span className="kbd">⌥{i + 1}</span>}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+            <span className="grow" />
+            {lockedTo ? (
+              <span className="f-hint cmp-from-lock" title="Replies and forwards go from the account the mail came to. Change it in Settings → Compose.">
+                <Icon name="lock" size="xs" />
+                Replying as {lockedName()}
+              </span>
+            ) : accounts.length > 1 && (
+              <span className="f-hint">
+                Switch
+                <span className="kbd-group">
+                  {accounts.slice(0, 9).map((_, i) => (
+                    <span key={i} className="kbd">
+                      ⌥{i + 1}
+                    </span>
+                  ))}
+                </span>
+              </span>
+            )}
+          </div>
+
+          <RecipientField
+            label="To"
+            all={allRecipients}
+            list={st.to}
+            onChange={(to) => update({ to })}
+            inputRef={toRef}
+            onText={(t) => {
+              pendingText.current.to = t;
+            }}
+            right={
+              <span className="f-links">
+                {!st.showCc && (
+                  <a onClick={() => (update({ showCc: true }), focusSoon(ccRef))} title={tip("Cc", "⌘⇧C")}>
+                    Cc
+                  </a>
+                )}
+                {!st.showBcc && (
+                  <a onClick={() => (update({ showBcc: true }), focusSoon(bccRef))} title={tip("Bcc", "⌘⇧B")}>
+                    Bcc
+                  </a>
+                )}
+              </span>
+            }
+          />
+          {st.showCc && <RecipientField label="Cc" all={allRecipients} inputRef={ccRef} list={st.cc} onChange={(cc) => update({ cc })} onText={(t) => {
+                pendingText.current.cc = t;
+              }} />}
+          {st.showBcc && <RecipientField label="Bcc" all={allRecipients} inputRef={bccRef} list={st.bcc} onChange={(bcc) => update({ bcc })} onText={(t) => {
+                pendingText.current.bcc = t;
+              }} />}
+
+          <div className="field">
+            <span className="f-label">Subject</span>
+            <input
+              ref={subjectRef}
+              className="subject-input cmp-input"
+              value={st.subject}
+              onChange={(e) => update({ subject: e.target.value })}
+              placeholder="Subject"
+              aria-label="Subject"
+            />
+          </div>
+
+          {scheduled && (
+            <div className="cmp-scheduled" role="status">
+              <Icon name="clock" size="xs" />
+              <span className="cmp-scheduled-text truncate" title={`${RUNNING_NOTE}. Edits you make now are included.`}>
+                Scheduled for <span className="emph">{fmtWhen(scheduled.sendAt)}</span>
+                <span className="faint">
+                  {scheduled.lastError ? ` · last try failed: ${scheduled.lastError}, retrying` : ` · ${RUNNING_NOTE}`}
+                </span>
+              </span>
+              <span className="grow" />
+              <button className="btn btn-ghost btn-sm" onClick={() => setMenu("later")}>
+                Reschedule
+              </button>
+              <button className="btn btn-ghost btn-sm" onClick={() => void unschedule()}>
+                Don't send later
+              </button>
+            </div>
+          )}
+
+          {choices.length > 0 || (suggesting && isReply && !writing.trim() && !writeOpen) ? (
+            <InstantRow choices={choices} suggesting={suggesting && isReply && !writing.trim() && !writeOpen} onPick={pickInstant} />
+          ) : null}
+
+          {pickerOpen && (
+            <div className="cmp-picker-anchor">
+              <SnippetPicker
+                snippets={snippets}
+                context={snippetContext()}
+                onPick={pickSnippet}
+                onClose={() => {
+                  setPickerOpen(false);
+                  body.focus();
+                }}
+              />
+            </div>
+          )}
+
+          <Suspense fallback={<div className="cmp-body cmp-body-live"><div className="cmp-rich-loading">Write your message…</div></div>}>
+          <RichBody
+            handle={body}
+            initial={initialBody.current ?? { doc: st.bodyDoc, html: st.bodyHtml, text: st.body, hasQuote: !!st.quote }}
+            signatureOnCreate={signatureOnCreate.current}
+            onChange={(bodyDoc, text, byUser) => {
+              if (byUser) update({ bodyDoc, body: text });
+              else setSt((s) => (s ? { ...s, bodyDoc, body: text } : s));
+            }}
+            quote={st.quote}
+            quoteOpen={quoteOpen}
+            setQuoteOpen={setQuoteOpen}
+            snippets={snippets}
+            snippetContext={snippetContext}
+            onSnippetUsed={snippetUsed}
+            onPasteFiles={(files, at) => void attach(files, { inline: true, at })}
+            onImageAsFile={imageAsFile}
+          />
+          </Suspense>
+
+          {writeOpen && writerReady && (
+            <WriteBar
+              body={body}
+              context={() => ({
+                // The conversation's own account: its messages are read from there.
+                accountId: (isReply || ctx.mode === "forward" ? ctx.thread?.accountId : null) ?? stRef.current?.accountId ?? st.accountId,
+                threadId: isReply || ctx.mode === "forward" ? (ctx.thread?.threadId ?? null) : null,
+                reply: isReply,
+                subject: stRef.current?.subject ?? "",
+                recipients: (stRef.current?.to ?? []).map((a) => displayName(a)),
+                myName,
+              })}
+              onBusy={setAiBusy}
+              onClose={() => {
+                setWriteOpen(false);
+                body.focus();
+              }}
+            />
+          )}
+
+          <AttachmentList list={st.attachments} onRemove={(i) => update({ attachments: st.attachments.filter((_, j) => j !== i) })} />
+          <OriginalFiles
+            status={origStatus}
+            forward={ctx.mode === "forward"}
+            earlier={st.earlier}
+            earlierOn={earlierOn}
+            onEarlier={setEarlier}
+            onRetry={() => setOrigTry((n) => n + 1)}
+            onSkip={skipOriginal}
+          />
+
+          {error && (
+            <div className="cmp-error" role="alert">
+              <Icon name="info" size="xs" />
+              {error}
+              <button className="btn btn-ghost btn-sm btn-icon" onClick={() => setError(null)} aria-label="Dismiss">
+                <Icon name="x" size="2xs" />
+              </button>
+            </div>
+          )}
+
+          <div className="cmp-tools">
+            <button className="btn btn-primary btn-sm" onClick={send} disabled={!account}>
+              Send<span className="kbd">⌘↵</span>
+            </button>
+            <span className="cmp-menu-anchor">
+              <button
+                className={`btn btn-secondary btn-sm${menu === "later" ? " is-open" : ""}`}
+                onClick={() => setMenu((m) => (m === "later" ? null : "later"))}
+                disabled={!account || scheduling}
+                title={`${tip("Send later", "⌘⇧↵")} · ${RUNNING_NOTE}`}
+              >
+                <Icon name="clock" size="xs" />
+                {scheduling ? "Scheduling…" : "Send later"}
+                <span className="kbd">⌘⇧↵</span>
+              </button>
+              {menu === "later" && (
+                <SendLaterMenu scheduled={scheduled} onPick={(ms) => void scheduleAt(ms)} onClose={() => setMenu(null)} />
+              )}
+            </span>
+            <span className="cmp-menu-anchor">
+              <button
+                className={`btn btn-ghost btn-sm${st.remindAfterMs ? " cmp-remind-on" : ""}${menu === "remind" ? " is-open" : ""}`}
+                onClick={() => setMenu((m) => (m === "remind" ? null : "remind"))}
+                title="Remind me if nobody replies"
+              >
+                <Icon name={st.remindAfterMs ? "bell" : "belloff"} size="xs" />
+                {st.remindAfterMs ? `Remind · ${remindLabel(st.remindAfterMs)}` : "Remind"}
+              </button>
+              {menu === "remind" && (
+                <RemindMenu
+                  value={st.remindAfterMs}
+                  onPick={(ms) => {
+                    update({ remindAfterMs: ms });
+                    setMenu(null);
+                    body.focus();
+                  }}
+                  onClose={() => setMenu(null)}
+                />
+              )}
+            </span>
+            <span className="tool-sep" />
+            <button
+              className={`btn btn-ghost btn-sm${pickerOpen ? " is-open" : ""}`}
+              onMouseDown={(e) => e.preventDefault()}
+              onClick={() => setPickerOpen((o) => !o)}
+              title={`${tip("Insert snippet", "⌘;")} — or type ; and a trigger`}
+            >
+              <Icon name="zap" size="xs" />
+              Snippets<span className="kbd">⌘;</span>
+            </button>
+            {writerReady && (
+              <button
+                className={`btn btn-ghost btn-sm${writeOpen ? " is-open" : ""}`}
+                onMouseDown={(e) => e.preventDefault()}
+                onClick={() => busRef.current.write()}
+                title={`${tip("Write with AI", "⌘⇧J")} · Apple Intelligence, on this Mac`}
+              >
+                <Icon name="sparkles" size="xs" />
+                Write<span className="kbd">⌘⇧J</span>
+              </button>
+            )}
+            <button className="btn btn-ghost btn-sm" onClick={() => fileRef.current?.click()} title={`${tip("Attach files", "⌘⇧A")} — or drop or paste them`}>
+              <Icon name="clip" size="xs" />
+              Attach<span className="kbd">⌘⇧A</span>
+            </button>
+            <input
+              ref={fileRef}
+              type="file"
+              multiple
+              hidden
+              onChange={(e) => {
+                const files = [...(e.target.files ?? [])];
+                e.target.value = "";
+                void attach(files);
+              }}
+            />
+            <span className="grow" />
+            {discardArmed ? (
+              <span className="cmp-discard" role="alert">
+                Discard this draft{st.draftId ? " and remove it from Gmail" : ""}?
+                <button className="btn btn-sm cmp-discard-yes" onClick={() => void discard()}>
+                  Discard <span className="kbd">⌘⇧⌫</span>
+                </button>
+                <button className="btn btn-ghost btn-sm" onClick={() => setDiscardArmed(false)}>
+                  Keep <span className="kbd">Esc</span>
+                </button>
+              </span>
+            ) : (
+              <button className="btn btn-ghost btn-sm btn-icon" onClick={() => setDiscardArmed(true)} title={tip("Discard draft", "⌘⇧⌫")}>
+                <Icon name="trash" size="xs" />
+              </button>
+            )}
+          </div>
+          <div className="cmp-foot">
+            {undoSeconds > 0 ? (
+              <span title="Change it in Settings → Compose">
+                <Icon name="undo" size="2xs" />
+                Undo send for {undoSeconds} seconds <span className="kbd">Z</span>
+              </span>
+            ) : (
+              <span title="Turn it on in Settings → Compose">
+                <Icon name="undo" size="2xs" />
+                Undo send is off
+              </span>
+            )}
+            <span className="grow" />
+            <SaveBadge status={status} />
+            {account && (
+              <span className={`t-${accountTone(account.color)}`}>
+                <i className="dot dot-sm" />
+                Sending as <span className="emph">{accountName(account, accounts)}</span>
+              </span>
+            )}
+          </div>
+        </>
+      )}
+    </section>
+  );
+  // A compose window: the composer fills it (no scrim; closing it closes the window).
+  if (windowed) return <div className="cmp-window">{composer}</div>;
   return (
     <>
       <div className="scrim" onMouseDown={close} />
       <div className="overlay-host center cmp-host" onMouseDown={(e) => e.target === e.currentTarget && close()}>
-        <section
-          className={`composer panel cmp${dropping ? " cmp-dropping" : ""}`}
-          role="dialog"
-          aria-label={title}
-          onKeyDown={onKey}
-          onDragOver={(e) => {
-            if (!e.dataTransfer.types.includes("Files")) return;
-            e.preventDefault();
-            setDropping(true);
-          }}
-          onDragLeave={(e) => {
-            if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setDropping(false);
-          }}
-          onDrop={(e) => {
-            setDropping(false);
-            // The text took it (images go where they were dropped).
-            if (!e.dataTransfer.files.length || e.defaultPrevented) return;
-            e.preventDefault();
-            void attach([...e.dataTransfer.files], { inline: true, at: null });
-          }}
-        >
-          {dropping && (
-            <div className="cmp-drop" aria-hidden="true">
-              <Icon name="clip" size="sm" />
-              Drop to add: images go in the message, other files attach
-            </div>
-          )}
-          <header className="cmp-head">
-            <span className="cmp-title">{title}</span>
-            <span className="grow" />
-            <button className="btn btn-ghost btn-sm" onClick={close} title="Close and keep the draft">
-              <Icon name="x" size="xs" />
-              <span className="kbd">Esc</span>
-            </button>
-          </header>
-
-          {!st ? (
-            <div className="cmp-loading">Loading…</div>
-          ) : (
-            <>
-              <div className="field">
-                <span className="f-label">From</span>
-                <div className="cmp-from">
-                  <button
-                    ref={fromRef}
-                    className={`from-select t-${accountTone(account?.color)}`}
-                    onClick={() => {
-                      setFromIdx(Math.max(0, accounts.findIndex((a) => a.id === st.accountId)));
-                      setFromOpen((o) => !o);
-                    }}
-                    title={tip("From", "⌘⇧O")}
-                    aria-haspopup="listbox"
-                    aria-expanded={fromOpen}
-                  >
-                    {account && <AccountAvatar account={account} accounts={accounts} />}
-                    <i className="dot" />
-                    <span className="emph">{account ? account.nickname || account.displayName || account.email : "No account"}</span>
-                    {(account?.nickname || account?.displayName) && <span className="faint">{account.email}</span>}
-                    <Icon name="down" size="xs" className="faint" />
-                  </button>
-                  {fromOpen && (
-                    <div className="panel menu cmp-from-menu" role="listbox">
-                      {accounts.map((a, i) => (
-                        <div
-                          key={a.id}
-                          role="option"
-                          aria-selected={a.id === st.accountId}
-                          className={`menu-item${i === fromIdx ? " active" : ""}`}
-                          onMouseMove={() => setFromIdx(i)}
-                          onMouseDown={(e) => e.preventDefault()}
-                          aria-disabled={lockedTo !== null && a.id !== lockedTo}
-                          title={lockedTo && a.id !== lockedTo ? `Locked: replies go from ${lockedName()}` : undefined}
-                          onClick={() => {
-                            pickFrom(a.id);
-                            setFromOpen(false);
-                          }}
-                        >
-                          <AccountAvatar account={a} accounts={accounts} />
-                          <i className={`dot t-${accountTone(a.color)}`} />
-                          <span className="emph">{accountName(a, accounts)}</span>
-                          <span className="faint truncate">{a.email}</span>
-                          {a.id === st.accountId && <Icon name="check" size="xs" className="accent-ico" />}
-                          {lockedTo && a.id !== lockedTo ? <Icon name="lock" size="xs" className="faint" /> : i < 9 && <span className="kbd">⌥{i + 1}</span>}
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-                <span className="grow" />
-                {lockedTo ? (
-                  <span className="f-hint cmp-from-lock" title="Replies and forwards go from the account the mail came to. Change it in Settings → Compose.">
-                    <Icon name="lock" size="xs" />
-                    Replying as {lockedName()}
-                  </span>
-                ) : accounts.length > 1 && (
-                  <span className="f-hint">
-                    Switch
-                    <span className="kbd-group">
-                      {accounts.slice(0, 9).map((_, i) => (
-                        <span key={i} className="kbd">
-                          ⌥{i + 1}
-                        </span>
-                      ))}
-                    </span>
-                  </span>
-                )}
-              </div>
-
-              <RecipientField
-                label="To"
-                all={allRecipients}
-                list={st.to}
-                onChange={(to) => update({ to })}
-                inputRef={toRef}
-                onText={(t) => {
-                  pendingText.current.to = t;
-                }}
-                right={
-                  <span className="f-links">
-                    {!st.showCc && (
-                      <a onClick={() => (update({ showCc: true }), focusSoon(ccRef))} title={tip("Cc", "⌘⇧C")}>
-                        Cc
-                      </a>
-                    )}
-                    {!st.showBcc && (
-                      <a onClick={() => (update({ showBcc: true }), focusSoon(bccRef))} title={tip("Bcc", "⌘⇧B")}>
-                        Bcc
-                      </a>
-                    )}
-                  </span>
-                }
-              />
-              {st.showCc && <RecipientField label="Cc" all={allRecipients} inputRef={ccRef} list={st.cc} onChange={(cc) => update({ cc })} onText={(t) => {
-                    pendingText.current.cc = t;
-                  }} />}
-              {st.showBcc && <RecipientField label="Bcc" all={allRecipients} inputRef={bccRef} list={st.bcc} onChange={(bcc) => update({ bcc })} onText={(t) => {
-                    pendingText.current.bcc = t;
-                  }} />}
-
-              <div className="field">
-                <span className="f-label">Subject</span>
-                <input
-                  ref={subjectRef}
-                  className="subject-input cmp-input"
-                  value={st.subject}
-                  onChange={(e) => update({ subject: e.target.value })}
-                  placeholder="Subject"
-                  aria-label="Subject"
-                />
-              </div>
-
-              {scheduled && (
-                <div className="cmp-scheduled" role="status">
-                  <Icon name="clock" size="xs" />
-                  <span className="cmp-scheduled-text truncate" title={`${RUNNING_NOTE}. Edits you make now are included.`}>
-                    Scheduled for <span className="emph">{fmtWhen(scheduled.sendAt)}</span>
-                    <span className="faint">
-                      {scheduled.lastError ? ` · last try failed: ${scheduled.lastError}, retrying` : ` · ${RUNNING_NOTE}`}
-                    </span>
-                  </span>
-                  <span className="grow" />
-                  <button className="btn btn-ghost btn-sm" onClick={() => setMenu("later")}>
-                    Reschedule
-                  </button>
-                  <button className="btn btn-ghost btn-sm" onClick={() => void unschedule()}>
-                    Don't send later
-                  </button>
-                </div>
-              )}
-
-              {choices.length > 0 || (suggesting && isReply && !writing.trim() && !writeOpen) ? (
-                <InstantRow choices={choices} suggesting={suggesting && isReply && !writing.trim() && !writeOpen} onPick={pickInstant} />
-              ) : null}
-
-              {pickerOpen && (
-                <div className="cmp-picker-anchor">
-                  <SnippetPicker
-                    snippets={snippets}
-                    context={snippetContext()}
-                    onPick={pickSnippet}
-                    onClose={() => {
-                      setPickerOpen(false);
-                      body.focus();
-                    }}
-                  />
-                </div>
-              )}
-
-              <Suspense fallback={<div className="cmp-body cmp-body-live"><div className="cmp-rich-loading">Write your message…</div></div>}>
-              <RichBody
-                handle={body}
-                initial={initialBody.current ?? { doc: st.bodyDoc, html: st.bodyHtml, text: st.body, hasQuote: !!st.quote }}
-                signatureOnCreate={signatureOnCreate.current}
-                onChange={(bodyDoc, text, byUser) => {
-                  if (byUser) update({ bodyDoc, body: text });
-                  else setSt((s) => (s ? { ...s, bodyDoc, body: text } : s));
-                }}
-                quote={st.quote}
-                quoteOpen={quoteOpen}
-                setQuoteOpen={setQuoteOpen}
-                snippets={snippets}
-                snippetContext={snippetContext}
-                onSnippetUsed={snippetUsed}
-                onPasteFiles={(files, at) => void attach(files, { inline: true, at })}
-                onImageAsFile={imageAsFile}
-              />
-              </Suspense>
-
-              {writeOpen && writerReady && (
-                <WriteBar
-                  body={body}
-                  context={() => ({
-                    // The conversation's own account: its messages are read from there.
-                    accountId: (isReply || ctx.mode === "forward" ? ctx.thread?.accountId : null) ?? stRef.current?.accountId ?? st.accountId,
-                    threadId: isReply || ctx.mode === "forward" ? (ctx.thread?.threadId ?? null) : null,
-                    reply: isReply,
-                    subject: stRef.current?.subject ?? "",
-                    recipients: (stRef.current?.to ?? []).map((a) => displayName(a)),
-                    myName,
-                  })}
-                  onBusy={setAiBusy}
-                  onClose={() => {
-                    setWriteOpen(false);
-                    body.focus();
-                  }}
-                />
-              )}
-
-              <AttachmentList list={st.attachments} onRemove={(i) => update({ attachments: st.attachments.filter((_, j) => j !== i) })} />
-              <OriginalFiles
-                status={origStatus}
-                forward={ctx.mode === "forward"}
-                earlier={st.earlier}
-                earlierOn={earlierOn}
-                onEarlier={setEarlier}
-                onRetry={() => setOrigTry((n) => n + 1)}
-                onSkip={skipOriginal}
-              />
-
-              {error && (
-                <div className="cmp-error" role="alert">
-                  <Icon name="info" size="xs" />
-                  {error}
-                  <button className="btn btn-ghost btn-sm btn-icon" onClick={() => setError(null)} aria-label="Dismiss">
-                    <Icon name="x" size="2xs" />
-                  </button>
-                </div>
-              )}
-
-              <div className="cmp-tools">
-                <button className="btn btn-primary btn-sm" onClick={send} disabled={!account}>
-                  Send<span className="kbd">⌘↵</span>
-                </button>
-                <span className="cmp-menu-anchor">
-                  <button
-                    className={`btn btn-secondary btn-sm${menu === "later" ? " is-open" : ""}`}
-                    onClick={() => setMenu((m) => (m === "later" ? null : "later"))}
-                    disabled={!account || scheduling}
-                    title={`${tip("Send later", "⌘⇧↵")} · ${RUNNING_NOTE}`}
-                  >
-                    <Icon name="clock" size="xs" />
-                    {scheduling ? "Scheduling…" : "Send later"}
-                    <span className="kbd">⌘⇧↵</span>
-                  </button>
-                  {menu === "later" && (
-                    <SendLaterMenu scheduled={scheduled} onPick={(ms) => void scheduleAt(ms)} onClose={() => setMenu(null)} />
-                  )}
-                </span>
-                <span className="cmp-menu-anchor">
-                  <button
-                    className={`btn btn-ghost btn-sm${st.remindAfterMs ? " cmp-remind-on" : ""}${menu === "remind" ? " is-open" : ""}`}
-                    onClick={() => setMenu((m) => (m === "remind" ? null : "remind"))}
-                    title="Remind me if nobody replies"
-                  >
-                    <Icon name={st.remindAfterMs ? "bell" : "belloff"} size="xs" />
-                    {st.remindAfterMs ? `Remind · ${remindLabel(st.remindAfterMs)}` : "Remind"}
-                  </button>
-                  {menu === "remind" && (
-                    <RemindMenu
-                      value={st.remindAfterMs}
-                      onPick={(ms) => {
-                        update({ remindAfterMs: ms });
-                        setMenu(null);
-                        body.focus();
-                      }}
-                      onClose={() => setMenu(null)}
-                    />
-                  )}
-                </span>
-                <span className="tool-sep" />
-                <button
-                  className={`btn btn-ghost btn-sm${pickerOpen ? " is-open" : ""}`}
-                  onMouseDown={(e) => e.preventDefault()}
-                  onClick={() => setPickerOpen((o) => !o)}
-                  title={`${tip("Insert snippet", "⌘;")} — or type ; and a trigger`}
-                >
-                  <Icon name="zap" size="xs" />
-                  Snippets<span className="kbd">⌘;</span>
-                </button>
-                {writerReady && (
-                  <button
-                    className={`btn btn-ghost btn-sm${writeOpen ? " is-open" : ""}`}
-                    onMouseDown={(e) => e.preventDefault()}
-                    onClick={() => busRef.current.write()}
-                    title={`${tip("Write with AI", "⌘⇧J")} · Apple Intelligence, on this Mac`}
-                  >
-                    <Icon name="sparkles" size="xs" />
-                    Write<span className="kbd">⌘⇧J</span>
-                  </button>
-                )}
-                <button className="btn btn-ghost btn-sm" onClick={() => fileRef.current?.click()} title={`${tip("Attach files", "⌘⇧A")} — or drop or paste them`}>
-                  <Icon name="clip" size="xs" />
-                  Attach<span className="kbd">⌘⇧A</span>
-                </button>
-                <input
-                  ref={fileRef}
-                  type="file"
-                  multiple
-                  hidden
-                  onChange={(e) => {
-                    const files = [...(e.target.files ?? [])];
-                    e.target.value = "";
-                    void attach(files);
-                  }}
-                />
-                <span className="grow" />
-                {discardArmed ? (
-                  <span className="cmp-discard" role="alert">
-                    Discard this draft{st.draftId ? " and remove it from Gmail" : ""}?
-                    <button className="btn btn-sm cmp-discard-yes" onClick={() => void discard()}>
-                      Discard <span className="kbd">⌘⇧⌫</span>
-                    </button>
-                    <button className="btn btn-ghost btn-sm" onClick={() => setDiscardArmed(false)}>
-                      Keep <span className="kbd">Esc</span>
-                    </button>
-                  </span>
-                ) : (
-                  <button className="btn btn-ghost btn-sm btn-icon" onClick={() => setDiscardArmed(true)} title={tip("Discard draft", "⌘⇧⌫")}>
-                    <Icon name="trash" size="xs" />
-                  </button>
-                )}
-              </div>
-              <div className="cmp-foot">
-                {undoSeconds > 0 ? (
-                  <span title="Change it in Settings → Compose">
-                    <Icon name="undo" size="2xs" />
-                    Undo send for {undoSeconds} seconds <span className="kbd">Z</span>
-                  </span>
-                ) : (
-                  <span title="Turn it on in Settings → Compose">
-                    <Icon name="undo" size="2xs" />
-                    Undo send is off
-                  </span>
-                )}
-                <span className="grow" />
-                <SaveBadge status={status} />
-                {account && (
-                  <span className={`t-${accountTone(account.color)}`}>
-                    <i className="dot dot-sm" />
-                    Sending as <span className="emph">{accountName(account, accounts)}</span>
-                  </span>
-                )}
-              </div>
-            </>
-          )}
-        </section>
+        {composer}
       </div>
     </>
   );

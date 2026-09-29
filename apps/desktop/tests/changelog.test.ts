@@ -8,6 +8,7 @@ test("internal scopes are hidden and a scope prefix is dropped", () => {
   assert.equal(userLine("docs: neutral voice"), null);
   assert.equal(userLine("release: a signed disk image"), null);
   assert.equal(userLine("publish-public: refuse shared history"), null);
+  assert.equal(userLine("whats-new: plain words for 0.1.38"), null);
   assert.equal(userLine("compose: lock replies to the account"), "Lock replies to the account");
   assert.equal(userLine("Release builds: thin LTO"), "Release builds: thin LTO");
 });

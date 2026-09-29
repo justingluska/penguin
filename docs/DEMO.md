@@ -17,7 +17,7 @@ Nothing on screen marks demo mode, so screenshots stay clean. To check which mod
 
 - **Every command and event goes to the mock.** `src/lib/api.ts` routes all calls to the mock backend, as `npm run dev:mock` does. Penguin doesn't ask the Rust side for mail, accounts, settings or the log, and nothing you do is sent, archived, labeled or saved to your accounts. Sending, snoozing, rules, unsubscribing, RSVPs and settings changes all happen in the mock's memory and are gone after a reload.
 - **The page's local storage is swapped for an empty in-memory copy.** Your recent and saved searches, snippets, sidebar layout, calendar view and active profile never appear in demo mode, and anything you change there doesn't overwrite them.
-- **The only real calls are window chrome.** The native menu bar still works (it reports which items are enabled and forwards menu clicks), and the window still hides with ⌘W.
+- **The only real calls are window chrome.** The native menu bar still works (it reports which items are enabled and forwards menu clicks), the window still hides with ⌘W, and conversation and compose windows still open. Those windows run on the same demo mailbox: the main window holds the mock, and the others reach it through app events between windows.
 
 The Rust side keeps running in the background while you're in demo mode: your accounts keep syncing, scheduled sends go out on time and rules keep running. Its macOS notifications (for example a snooze waking while the window is in the background) can still appear, so avoid screenshotting the notification area. Nothing real is shown inside the window.
 

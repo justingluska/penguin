@@ -28,6 +28,7 @@ import { sidebarSmartItems, smartDef } from "../smart/catalog";
 import { composeCommands } from "../compose/commands";
 import { useWriterReady } from "../compose/ai";
 import { splitPaletteCommands } from "../split/palette";
+import { isMainWindow } from "../../lib/windowBus";
 import "./command.css";
 
 export function CommandPalette() {
@@ -79,7 +80,7 @@ function iconFor(s: Shortcut): IconName {
     "triage.read": "unread", "triage.unread": "unread", "triage.unsubscribe": "belloff", "triage.label": "tag", "triage.move": "folder", "triage.snooze": "snooze", "triage.undo": "undo", "thread.copy": "copy",
     "compose.new": "compose", "compose.reply": "reply", "compose.replyAll": "replyall", "compose.forward": "forward",
     "search.open": "search", "app.shortcuts": "keyboard", "app.theme": getUi().theme === "dark" ? "sun" : "moon",
-    "app.sync": "refresh", "acct.all": "users", "ctx.toggle": "columns",
+    "app.sync": "refresh", "acct.all": "users", "ctx.toggle": "columns", "thread.openWindow": "window", "compose.newWindow": "window",
   };
   return byId[s.id] ?? GROUP_ICON[s.group ?? ""] ?? "command";
 }
@@ -150,6 +151,9 @@ function Palette() {
       add({ id: `k:${s.id}`, group, label: s.label, keys: s.keys, icon: iconFor(s), run: s.run });
     }
     for (const c of composeCommands(writerReady)) add(c);
+    // A conversation window lists what it can do to its conversation; views,
+    // labels, accounts and Settings belong to the main window.
+    if (!isMainWindow) return out;
     for (const [kind, label, icon, alias] of VIEWS) {
       add({ id: `v:${kind}`, group: "Go to", label, icon, alias, run: () => goTo({ kind } as MailboxView) });
     }
@@ -295,6 +299,8 @@ function Palette() {
         .sort((a, b) => b.s - a.s)
         .slice(0, 8)
         .map((x) => ({ ...x.c, group: "Best matches" }));
+      // Search opens in the main window's search overlay.
+      if (!isMainWindow) return base;
       for (const a of matchPeople(people, text, new Set(), 3)) {
         base.push({
           id: `p:${a.email}`,
@@ -333,7 +339,7 @@ function Palette() {
       setSel((selIdx + d + list.length) % list.length);
     } else if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
       e.preventDefault();
-      if (q.trim()) {
+      if (q.trim() && isMainWindow) {
         setUi({ overlay: null });
         openSearch(q.trim());
       }

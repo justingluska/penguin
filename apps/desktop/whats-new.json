@@ -10,6 +10,8 @@
     "d418c57": null,
     "649a8f2": null,
     "ded8962": "IMAP accounts reconnect quietly when the server drops an idle connection, so new mail keeps arriving.",
-    "ce63628": "Holiday and birthday calendars sync once a day instead of every few minutes."
+    "ce63628": "Holiday and birthday calendars sync once a day instead of every few minutes.",
+    "3621297": null,
+    "e3fa14c": "Each of your accounts shows its own Google profile photo beside your messages, so a second identity looks like itself. Your Settings → You photo fills in for accounts without one."
   }
 }

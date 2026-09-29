@@ -19,6 +19,7 @@ import { isSettingsOpen, openSettings, subscribeSettingsOpen } from "../features
 import { isStarred, isUnread } from "./actions";
 import { list, meta } from "./store";
 import { debugInfo } from "../lib/debugInfo";
+import { isMainWindow } from "../lib/windowBus";
 
 /**
  * Penguin → Copy Debug Info. A native menu choice isn't a click in the page,
@@ -42,12 +43,16 @@ const noModal = () => {
   return !isSettingsOpen() && (o === null || o === "command");
 };
 
-/** Something ⌘W should close before the window: an overlay, Settings, a dialog, an open thread. */
+/**
+ * Something ⌘W should close before the window: an overlay (a compose
+ * window's composer too: closing it closes the window), Settings, a dialog,
+ * an open thread (in the main window; a conversation window is its thread).
+ */
 function somethingOpen(): boolean {
   return (
     getUi().overlay !== null ||
     isSettingsOpen() ||
-    getUi().threadOpen ||
+    (isMainWindow && getUi().threadOpen) ||
     document.querySelector('[aria-modal="true"], [role="menu"]') !== null
   );
 }
@@ -72,6 +77,12 @@ function closeFrontmost() {
     target.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", code: "Escape", bubbles: true, cancelable: true }));
     return;
   }
+  // A conversation or compose window closes for real (windowShell.tsx
+  // finishes its work first); the main window only hides.
+  if (!isMainWindow) {
+    closeThisWindow();
+    return;
+  }
   if (!("__TAURI_INTERNALS__" in window)) return;
   void import("@tauri-apps/api/window").then(({ getCurrentWindow }) =>
     getCurrentWindow()
@@ -79,6 +90,26 @@ function closeFrontmost() {
       .catch((e) => console.warn("penguin: could not hide the window", e)),
   );
 }
+
+/**
+ * Close this (conversation or compose) window the way its red button does:
+ * the close is requested, and windowShell.tsx's close handler saves and hands
+ * over what's left before the window goes.
+ */
+export function closeThisWindow() {
+  if (!("__TAURI_INTERNALS__" in window)) {
+    window.dispatchEvent(new Event(CLOSE_REQUEST));
+    return;
+  }
+  void import("@tauri-apps/api/window").then(({ getCurrentWindow }) =>
+    getCurrentWindow()
+      .close()
+      .catch((e) => console.warn("penguin: could not close the window", e)),
+  );
+}
+
+/** In a browser there is no close request to intercept: windowShell.tsx listens for this instead. */
+export const CLOSE_REQUEST = "penguin:close-request";
 
 const MENU_ONLY: Record<string, () => void> = {
   "window.close": closeFrontmost,
@@ -117,6 +148,7 @@ export function menuContext(): MenuContext {
     sidebarVisible: !getLayout().sidebarCollapsed,
     floe: currentSettings().floeMode,
     unreadOnly: ui.unreadOnly,
+    detached: !isMainWindow,
   };
 }
 

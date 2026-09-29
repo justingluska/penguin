@@ -27,6 +27,16 @@
 //! Enabled state comes from the UI (`set_menu_context`: is there a selected
 //! thread, is a modal open…); check marks for theme, density, Floe and key
 //! hints follow `Settings` on every settings-changed.
+//!
+//! Several windows (src/windows.rs). Each window reports its own context,
+//! and an item goes to the window it acts on: the Message items, Open in New
+//! Window and ⌘W to the focused window (a conversation window replies to and
+//! archives its own conversation; ⌘W closes the window in front), zoom to the
+//! focused window's page, New Message in New Window straight to a new window,
+//! and everything else (mailboxes, New Message, Search, Settings, Keyboard
+//! Shortcuts…) to the main window, which is brought up for it. Enabled state
+//! follows the same split: the focused window's context for its items, the
+//! main window's for the rest.
 
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
@@ -75,6 +85,14 @@ const GO_ITEMS: &[Spec] = &[
     ("go.snoozed", "Snoozed", Some("CmdOrCtrl+8")),
 ];
 
+/// Items that act on the focused window rather than the main one (besides
+/// the Message items).
+const LOCAL_ITEMS: &[&str] = &["window.close", "thread.openWindow"];
+
+fn is_local(id: &str) -> bool {
+    LOCAL_ITEMS.contains(&id) || MESSAGE_ITEMS.iter().any(|(m, ..)| *m == id)
+}
+
 /// Ids the UI handles only while the mail UI is up and no modal is open.
 const MAIL_ITEMS: &[&str] = &[
     "compose.new",
@@ -101,6 +119,9 @@ pub struct MenuContext {
     pub floe: bool,
     /// The list's Unread filter is on.
     pub unread_only: bool,
+    /// A window that shows one conversation or one composer (src/windows.rs),
+    /// not the mail shell.
+    pub detached: bool,
 }
 
 #[derive(Serialize, Clone)]
@@ -112,7 +133,27 @@ struct MenuPayload {
 pub struct AppMenu<R: Runtime> {
     items: HashMap<&'static str, MenuItem<R>>,
     checks: HashMap<&'static str, CheckMenuItem<R>>,
-    zoom: Mutex<f64>,
+    windows: Mutex<Windows>,
+}
+
+/// What each window reported, which one is in front, and each page's zoom.
+#[derive(Default)]
+struct Windows {
+    contexts: HashMap<String, MenuContext>,
+    focused: Option<String>,
+    zoom: HashMap<String, f64>,
+}
+
+impl Windows {
+    /// The window local items go to: the focused one, else the main window.
+    fn target(&self) -> String {
+        self.focused
+            .clone()
+            .unwrap_or_else(|| crate::windows::MAIN.to_string())
+    }
+    fn context(&self, label: &str) -> MenuContext {
+        self.contexts.get(label).cloned().unwrap_or_default()
+    }
 }
 
 fn item<R: Runtime>(
@@ -199,6 +240,15 @@ pub fn install<R: Runtime>(app: &AppHandle<R>, settings: &Settings) -> tauri::Re
             app,
             &mut items,
             ("compose.new", "New Message", Some("CmdOrCtrl+N")),
+        )?)
+        .item(&item(
+            app,
+            &mut items,
+            (
+                "compose.newWindow",
+                "New Message in New Window",
+                Some("CmdOrCtrl+Alt+N"),
+            ),
         )?)
         .separator()
         .item(&item(
@@ -306,7 +356,13 @@ pub fn install<R: Runtime>(app: &AppHandle<R>, settings: &Settings) -> tauri::Re
     }
     let mailbox = mailbox.build()?;
 
-    let mut message = SubmenuBuilder::new(app, "Message");
+    let mut message = SubmenuBuilder::new(app, "Message")
+        .item(&item(
+            app,
+            &mut items,
+            ("thread.openWindow", "Open in New Window", None),
+        )?)
+        .separator();
     for (i, spec) in MESSAGE_ITEMS.iter().enumerate() {
         // Reply · Reply All · Forward | Archive · Trash | Read · Star · Label
         if i == 3 || i == 5 {
@@ -316,6 +372,10 @@ pub fn install<R: Runtime>(app: &AppHandle<R>, settings: &Settings) -> tauri::Re
     }
     let message = message.build()?;
 
+    // AppKit adds the tab items itself (Show Previous/Next Tab, Move Tab to
+    // New Window, Merge All Windows) to this menu, and Show Tab Bar / Show
+    // All Tabs to View (next to Enter Full Screen): every window shares one
+    // tabbing identifier (src/windows.rs). Nothing to add here.
     let window = SubmenuBuilder::new(app, "Window")
         .item(&PredefinedMenuItem::minimize(app, None)?)
         .item(&PredefinedMenuItem::maximize(app, Some("Zoom"))?)
@@ -349,9 +409,9 @@ pub fn install<R: Runtime>(app: &AppHandle<R>, settings: &Settings) -> tauri::Re
     let state = Arc::new(AppMenu {
         items,
         checks,
-        zoom: Mutex::new(1.0),
+        windows: Mutex::new(Windows::default()),
     });
-    state.apply_context(&MenuContext::default());
+    state.apply();
     state.apply_settings(settings);
     app.manage(state);
     Ok(())
@@ -397,23 +457,39 @@ impl<R: Runtime> AppMenu<R> {
         }
     }
 
-    pub fn apply_context(&self, ctx: &MenuContext) {
-        let mail = ctx.mail && !ctx.blocked;
+    fn lock(&self) -> std::sync::MutexGuard<'_, Windows> {
+        self.windows.lock().unwrap_or_else(|p| p.into_inner())
+    }
+
+    /// Enable and name items from the main window's context and, for the
+    /// items that act on it, the focused window's.
+    fn apply(&self) {
+        let (main, local) = {
+            let w = self.lock();
+            (w.context(crate::windows::MAIN), w.context(&w.target()))
+        };
+        self.apply_contexts(&main, &local);
+    }
+
+    fn apply_contexts(&self, main: &MenuContext, local: &MenuContext) {
+        let mail = main.mail && !main.blocked;
         for id in MAIL_ITEMS {
             self.enable(id, mail);
         }
         for (id, ..) in GO_ITEMS {
             self.enable(id, mail);
         }
-        let acts = mail && ctx.selection;
+        self.enable("compose.newWindow", main.mail);
+        let acts = local.mail && !local.blocked && local.selection;
         for (id, ..) in MESSAGE_ITEMS {
             self.enable(id, acts);
         }
-        self.enable("app.sidebar", mail && !ctx.floe);
-        self.checked("list.unread", ctx.unread_only);
+        self.enable("thread.openWindow", acts && !local.detached);
+        self.enable("app.sidebar", mail && !main.floe);
+        self.checked("list.unread", main.unread_only);
         self.text(
             "app.sidebar",
-            if ctx.sidebar_visible {
+            if main.sidebar_visible {
                 "Hide Sidebar"
             } else {
                 "Show Sidebar"
@@ -421,7 +497,7 @@ impl<R: Runtime> AppMenu<R> {
         );
         self.text(
             "triage.read",
-            if ctx.selection_unread {
+            if local.selection_unread {
                 "Mark as Read"
             } else {
                 "Mark as Unread"
@@ -429,13 +505,43 @@ impl<R: Runtime> AppMenu<R> {
         );
         self.text(
             "triage.star",
-            if ctx.selection_starred {
+            if local.selection_starred {
                 "Unstar"
             } else {
                 "Star"
             },
         );
-        self.enable("app.accounts", ctx.mail);
+        self.enable("app.accounts", main.mail);
+    }
+
+    /// A window reported its context (`set_menu_context`).
+    fn set_context(&self, label: &str, ctx: MenuContext) {
+        self.lock().contexts.insert(label.to_string(), ctx);
+        self.apply();
+    }
+
+    /// A window came to the front: its context drives the local items.
+    fn focused(&self, label: &str) {
+        let zoom = {
+            let mut w = self.lock();
+            w.focused = Some(label.to_string());
+            w.zoom.get(label).copied().unwrap_or(1.0)
+        };
+        self.apply();
+        self.zoom_items(zoom);
+    }
+
+    /// A window closed for good.
+    fn gone(&self, label: &str) {
+        {
+            let mut w = self.lock();
+            w.contexts.remove(label);
+            w.zoom.remove(label);
+            if w.focused.as_deref() == Some(label) {
+                w.focused = None;
+            }
+        }
+        self.apply();
     }
 
     pub fn apply_settings(&self, s: &Settings) {
@@ -451,26 +557,40 @@ impl<R: Runtime> AppMenu<R> {
         );
     }
 
+    /// Zoom the focused window's page; each window keeps its own level.
     fn zoom(&self, app: &AppHandle<R>, dir: i8) {
-        let mut z = self.zoom.lock().unwrap_or_else(|p| p.into_inner());
+        let (label, cur) = {
+            let w = self.lock();
+            let label = w.target();
+            let cur = w.zoom.get(&label).copied().unwrap_or(1.0);
+            (label, cur)
+        };
         let i = ZOOM_STEPS
             .iter()
-            .position(|s| (s - *z).abs() < 1e-6)
+            .position(|s| (s - cur).abs() < 1e-6)
             .unwrap_or(5);
         let next = match dir {
             0 => 1.0,
             d if d > 0 => ZOOM_STEPS[(i + 1).min(ZOOM_STEPS.len() - 1)],
             _ => ZOOM_STEPS[i.saturating_sub(1)],
         };
-        if let Some(w) = app.get_webview_window("main") {
+        let mut now = cur;
+        if let Some(w) = app.get_webview_window(&label) {
             match w.set_zoom(next) {
-                Ok(()) => *z = next,
+                Ok(()) => {
+                    self.lock().zoom.insert(label, next);
+                    now = next;
+                }
                 Err(e) => tracing::warn!(error = %e, "zoom failed"),
             }
         }
-        self.enable("view.zoom.reset", (*z - 1.0).abs() > 1e-6);
-        self.enable("view.zoom.in", *z < ZOOM_STEPS[ZOOM_STEPS.len() - 1]);
-        self.enable("view.zoom.out", *z > ZOOM_STEPS[0]);
+        self.zoom_items(now);
+    }
+
+    fn zoom_items(&self, z: f64) {
+        self.enable("view.zoom.reset", (z - 1.0).abs() > 1e-6);
+        self.enable("view.zoom.in", z < ZOOM_STEPS[ZOOM_STEPS.len() - 1]);
+        self.enable("view.zoom.out", z > ZOOM_STEPS[0]);
     }
 }
 
@@ -524,6 +644,29 @@ fn activate_app<R: Runtime>(app: &AppHandle<R>) {
 #[cfg(not(target_os = "macos"))]
 fn activate_app<R: Runtime>(_app: &AppHandle<R>) {}
 
+/// The window a menu item goes to (see the module comment): the focused
+/// window for local items, the main window for everything else.
+fn route(focused: Option<&str>, id: &str) -> String {
+    match focused {
+        Some(label) if is_local(id) => label.to_string(),
+        _ => crate::windows::MAIN.to_string(),
+    }
+}
+
+/// A window came to the front (lib.rs, `WindowEvent::Focused`).
+pub fn window_focused<R: Runtime>(app: &AppHandle<R>, label: &str) {
+    if let Some(m) = app.try_state::<Arc<AppMenu<R>>>() {
+        m.focused(label);
+    }
+}
+
+/// A window was closed for good (lib.rs, `WindowEvent::Destroyed`).
+pub fn window_gone<R: Runtime>(app: &AppHandle<R>, label: &str) {
+    if let Some(m) = app.try_state::<Arc<AppMenu<R>>>() {
+        m.gone(label);
+    }
+}
+
 pub fn on_menu_event<R: Runtime>(app: &AppHandle<R>, event: MenuEvent) {
     let id = event.id().as_ref();
     let Some(menu) = app.try_state::<Arc<AppMenu<R>>>() else {
@@ -545,6 +688,19 @@ pub fn on_menu_event<R: Runtime>(app: &AppHandle<R>, event: MenuEvent) {
                 tracing::warn!(error = %e, "could not open GitHub");
             }
         }
+        // A composer of its own: nothing to ask the main window (the new
+        // window picks its From account the way the main composer does).
+        "compose.newWindow" => {
+            let req = crate::windows::WindowRequest::Compose {
+                account_id: None,
+                draft_id: None,
+                seed: None,
+                title: None,
+            };
+            if let Err(e) = crate::windows::open(app, req) {
+                tracing::warn!(error = %e.message, "could not open a compose window");
+            }
+        }
         // AppKit toggles a check item's mark on click; settings decide it.
         _ => {
             if menu.checks.contains_key(id) {
@@ -552,23 +708,38 @@ pub fn on_menu_event<R: Runtime>(app: &AppHandle<R>, event: MenuEvent) {
                     menu.apply_settings(&state.settings.get());
                 }
             }
+            // The focused window may have closed since it last reported.
+            let focused = menu
+                .lock()
+                .focused
+                .clone()
+                .filter(|l| app.get_webview_window(l).is_some());
+            let target = route(focused.as_deref(), id);
             // ⌘W on a hidden window has nothing to show; anything else
             // (⌘N, Settings…) is for a window the user can see.
-            if id != "window.close" {
+            if target == crate::windows::MAIN && id != "window.close" {
                 show_main(app);
             }
-            if let Err(e) = app.emit_to("main", EVENT_MENU, MenuPayload { id: id.to_string() }) {
+            if let Err(e) = app.emit_to(
+                target.as_str(),
+                EVENT_MENU,
+                MenuPayload { id: id.to_string() },
+            ) {
                 tracing::warn!(error = %e, "could not send a menu action to the UI");
             }
         }
     }
 }
 
-/// The UI's state for enabling items (see [`MenuContext`]).
+/// The calling window's state for enabling items (see [`MenuContext`]).
 #[tauri::command]
-pub fn set_menu_context(app: AppHandle, context: MenuContext) -> CmdResult<()> {
+pub fn set_menu_context(
+    app: AppHandle,
+    window: tauri::WebviewWindow,
+    context: MenuContext,
+) -> CmdResult<()> {
     if let Some(m) = app.try_state::<Arc<AppMenu<tauri::Wry>>>() {
-        m.apply_context(&context);
+        m.set_context(window.label(), context);
     }
     Ok(())
 }
@@ -591,6 +762,8 @@ mod tests {
             "app.sidebar",
             "app.shortcuts",
             "list.unread",
+            "compose.newWindow",
+            "thread.openWindow",
         ] {
             assert!(shortcuts.contains(&format!("id: \"{id}\"")), "{id}");
         }
@@ -600,10 +773,25 @@ mod tests {
     fn menu_context_wire_format() {
         let ctx: MenuContext = serde_json::from_value(serde_json::json!({
             "mail": true, "selection": true, "selectionUnread": true, "sidebarVisible": true,
-            "unreadOnly": true
+            "unreadOnly": true, "detached": true
         }))
         .unwrap();
         assert!(ctx.mail && ctx.selection && ctx.selection_unread && !ctx.blocked);
-        assert!(ctx.unread_only && !ctx.floe);
+        assert!(ctx.unread_only && !ctx.floe && ctx.detached);
+    }
+
+    #[test]
+    fn items_go_to_the_window_they_act_on() {
+        // The Message items, Open in New Window and ⌘W: the focused window.
+        assert_eq!(route(Some("thread-01"), "triage.done"), "thread-01");
+        assert_eq!(route(Some("thread-01"), "compose.reply"), "thread-01");
+        assert_eq!(route(Some("compose-2"), "window.close"), "compose-2");
+        assert_eq!(route(Some("thread-01"), "thread.openWindow"), "thread-01");
+        // Mailboxes, New Message, Settings: always the main window.
+        assert_eq!(route(Some("thread-01"), "go.inbox"), "main");
+        assert_eq!(route(Some("compose-2"), "compose.new"), "main");
+        assert_eq!(route(Some("thread-01"), "app.settings"), "main");
+        // Nothing focused (yet): the main window.
+        assert_eq!(route(None, "triage.done"), "main");
     }
 }

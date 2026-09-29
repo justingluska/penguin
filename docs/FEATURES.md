@@ -99,6 +99,7 @@ The screenshots show the demo mode's stand-in for the model, which rearranges th
 - **Undo send:** 5, 10, 20 or 30 seconds (10 by default), or off. `z` takes it back.
 - **Remind me** if nobody replies in 1, 2 or 3 days or a week.
 - Rich text, per-account signatures, emoji, attachments, and a From picker that keeps replies on the account they came to.
+- **Windows and tabs.** **Pop out** moves the message you're writing (new, reply or forward) into a window of its own, exactly as it is; ⌥⌘N or a right-click on New starts one there. ⇧O (or Open in new window in the right-click menu) opens a conversation in its own window, where you read, reply and triage it; archiving it closes the window, with Undo in the main window. Sending from a compose window counts down in the main window, so Undo send is always there. All of Penguin's windows join macOS tabs: Window → Merge All Windows, or "Prefer tabs" in System Settings.
 
 ## Smart views
 

@@ -9,8 +9,8 @@ import { accountLabel, initials, personTone, toneForColor } from "../lib/format"
 import { accountTone } from "../lib/accountColor";
 import { loadedUrls, useAvatar } from "../lib/avatars";
 import { useMePhoto } from "../lib/me";
-import { useAccountPhoto } from "../lib/accountPhotos";
-import { isMe } from "../app/store";
+import { useAccountPhoto, useAccountPhotoAnswer } from "../lib/accountPhotos";
+import { accountIdForEmail, isMe } from "../app/store";
 
 export const AccountDot = memo(function AccountDot({
   color,
@@ -73,7 +73,9 @@ export function LabelSwatch({ color }: { color: string | null }) {
  * (white rounded tile) faded in over it once known. The slot never changes
  * size, so nothing shifts. `photo={false}` skips the sender lookup (e.g.
  * yourself); `authenticated` is the message's senderAuthenticated when known.
- * Your own addresses show your Settings → You photo when there is one.
+ * Your own addresses show that account's own Google profile photo, so each
+ * account (say a work persona) looks like itself; an account without one
+ * shows your Settings → You photo when there is one.
  */
 export const Avatar = memo(function Avatar({
   person,
@@ -93,9 +95,12 @@ export const Avatar = memo(function Avatar({
 }) {
   const t = tone ?? personTone(person.email);
   const mePhoto = useMePhoto();
-  const mine = mePhoto !== null && isMe(person.email);
+  const own = useAccountPhotoAnswer(isMe(person.email) ? accountIdForEmail(person.email) : null);
+  // Yours: the account's photo; once it has none, the You photo; while the
+  // account's answer is pending, the monogram (no flash of the other photo).
+  const mine = isMe(person.email) && (own !== null || mePhoto !== null);
   const info = useAvatar(photo && !mine ? person.email : null, authenticated);
-  const url = mine ? mePhoto : (info?.url ?? null);
+  const url = mine ? (own === undefined ? null : (own ?? mePhoto)) : (info?.url ?? null);
   const fade = useFadeIn(url);
   let cls = `avatar${size ? " avatar-" + size : ""} t-${t}${fade.cls}`;
   if (fade.shown && info?.kind === "logo") cls += " is-logo";

@@ -3,6 +3,17 @@
 .composer.cmp { max-height: 100%; }
 @media (max-width: 1100px) { .composer.cmp { margin-left: 0; } }
 
+/* A compose window (app/windowShell.tsx): the composer is the whole window,
+   under the title bar strip, and the message body takes the height left. */
+.cmp-window { position: fixed; inset: 0; display: flex; background: var(--background); }
+.overlay-titlebar .cmp-window { padding-top: var(--titlebar-h); }
+.composer.cmp.cmp-windowed { flex: 1; width: auto; min-width: 0; margin: 0; max-height: none;
+  border: 0; border-radius: 0; box-shadow: none; }
+.cmp-windowed .cmp-head { border-top: 1px solid var(--border-subtle); }
+.cmp-windowed .cmp-body.cmp-body-live { flex: 1; min-height: 200px; }
+.cmp-windowed .cmp-text { max-height: none; }
+.cmp-windowed .cmp-foot { border-radius: 0; }
+
 .cmp-loading { padding: 40px 18px; color: var(--text-faint); font-size: var(--text-sm); }
 .cmp-input { flex: 1; min-width: 60px; height: 28px; padding: 0; border: 0; outline: none; background: transparent;
   font: inherit; color: var(--text-emphasis); caret-color: var(--accent); }

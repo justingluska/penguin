@@ -8,6 +8,7 @@ import type { Snooze, SnoozeWokeBatch } from "../../lib/types";
 import { openThread } from "../../lib/ui";
 import { toast } from "../../components/Toast";
 import { num } from "../../lib/format";
+import { isMainWindow } from "../../lib/thisWindow";
 
 let snoozes: Snooze[] = [];
 const subs = new Set<() => void>();
@@ -70,7 +71,8 @@ function start() {
   void onMailChanged(reloadSoon);
   void onSnoozeWoke((b) => {
     reloadSoon();
-    wokeToast(b);
+    // Once, in the main window (its Open shows the conversation there).
+    if (isMainWindow) wokeToast(b);
   });
   void load();
 }

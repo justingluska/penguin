@@ -21,6 +21,7 @@ import { isLabelChoice, threadAbilities } from "../../lib/capabilities";
 import { folderOptions, moveToOption } from "./MovePicker";
 import { dismissFollowUps, inReplyLater, leaveReplyLater, toggleReplyLater } from "../triage/actions";
 import { COPY_CONVERSATION_KEYS, copyConversation } from "../thread/copy";
+import { openThreadWindow } from "../../app/windows";
 
 const keyOf = (r: ThreadRef) => r.accountId + "\u0000" + r.threadId;
 const sameRef = (a: ThreadRef | null, b: ThreadRef) => !!a && keyOf(a) === keyOf(b);
@@ -122,6 +123,14 @@ export function threadMenu(t: ThreadSummary): MenuEntries {
         openSelected();
       },
     },
+    // Leaves the list and cursor where they are (the window marks it read when it opens).
+    !multi &&
+      view !== "drafts" && {
+        label: "Open in new window",
+        icon: "window",
+        keys: sameRef(getUi().selected, ref) ? "shift+o" : undefined,
+        onSelect: () => void openThreadWindow(ref),
+      },
     { type: "separator" },
     { label: "Reply", icon: "reply", keys: "r", disabled: one, onSelect: compose("reply") },
     { label: "Reply all", icon: "replyall", keys: "a", disabled: one, onSelect: compose("replyAll") },

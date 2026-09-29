@@ -13,7 +13,8 @@ import { REPLY_LATER_LABEL } from "../../lib/types";
 import { getUi } from "../../lib/ui";
 import { num } from "../../lib/format";
 import { dismissToast, toast } from "../../components/Toast";
-import { fail, isPendingUndo, isUnread, setUndo, targets, undo } from "../../app/actions";
+import { fail, isPendingUndo, isUnread, runUndoSteps, setUndo, targets, undo } from "../../app/actions";
+import { single, type UndoOp } from "../../app/remoteUndo";
 import { cachedThread, list, meta, patchThreads, removeLocal, restoreLocal, revertChange, settleRemoval, type Removal } from "../../app/store";
 import { reloadTriageSoon, shiftTriageCount } from "./state";
 
@@ -80,8 +81,9 @@ export function markReplyLater(refs: ThreadRef[]) {
     shiftTriageCount(refs, "replyLater", -1);
     back.catch((e) => fail("undo", e, refs)).finally(reloadTriageSoon);
   };
-  setUndo("Reply later", undoRun);
-  toastId = undoToast(refs.length > 1 ? `Moved ${num(refs.length)} to Reply Later` : "Moved to Reply Later", "ReplyLater", undoRun);
+  const message = refs.length > 1 ? `Moved ${num(refs.length)} to Reply Later` : "Moved to Reply Later";
+  setUndo("Reply later", undoRun, { message, steps: putBackSteps(prev) });
+  toastId = undoToast(message, "ReplyLater", undoRun);
   call
     .catch((e) => {
       if (removal) restoreLocal(removal);
@@ -93,17 +95,21 @@ export function markReplyLater(refs: ThreadRef[]) {
 }
 
 /** Undo a mark: the label off, then the inbox and unread state as they were. */
-async function putBack(prev: { ref: ThreadRef; unread: boolean; inbox: boolean }[]) {
-  await api.replyLater(
-    prev.map((p) => p.ref),
-    false,
-  );
+function putBack(prev: { ref: ThreadRef; unread: boolean; inbox: boolean }[]) {
+  return runUndoSteps(putBackSteps(prev));
+}
+
+/** putBack as data (app/remoteUndo.ts), for a conversation window that closes. */
+function putBackSteps(prev: { ref: ThreadRef; unread: boolean; inbox: boolean }[]): UndoOp[][] {
   const inbox = prev.filter((p) => p.inbox).map((p) => p.ref);
   const unread = prev.filter((p) => p.unread).map((p) => p.ref);
-  await Promise.all([
-    inbox.length ? api.modifyThreads(inbox, { kind: "moveToInbox" }) : null,
-    unread.length ? api.modifyThreads(unread, { kind: "markUnread" }) : null,
-  ]);
+  return [
+    [{ cmd: "replyLater", refs: prev.map((p) => p.ref), on: false }],
+    [
+      ...(inbox.length ? [{ cmd: "modify" as const, refs: inbox, action: { kind: "moveToInbox" as const } }] : []),
+      ...(unread.length ? [{ cmd: "modify" as const, refs: unread, action: { kind: "markUnread" as const } }] : []),
+    ],
+  ];
 }
 
 /** Y on a Reply Later conversation: the label comes off and it's back in the Inbox. */
@@ -126,8 +132,9 @@ function backToInbox(refs: ThreadRef[]) {
     shiftTriageCount(refs, "replyLater", 1);
     back.catch((e) => fail("undo", e, refs)).finally(reloadTriageSoon);
   };
-  setUndo("Back to inbox", undoRun);
-  toastId = undoToast(refs.length > 1 ? `Moved ${num(refs.length)} back to the inbox` : "Moved back to the inbox", "ReplyLaterOff", undoRun);
+  const message = refs.length > 1 ? `Moved ${num(refs.length)} back to the inbox` : "Moved back to the inbox";
+  setUndo("Back to inbox", undoRun, { message, steps: single({ cmd: "replyLater", refs, on: true }) });
+  toastId = undoToast(message, "ReplyLaterOff", undoRun);
   call
     .catch((e) => {
       if (removal) restoreLocal(removal);
@@ -152,8 +159,9 @@ export function leaveReplyLater(refs: ThreadRef[]) {
     shiftTriageCount(refs, "replyLater", 1);
     back.catch((e) => fail("undo", e, refs)).finally(reloadTriageSoon);
   };
-  setUndo("Done", undoRun);
-  toastId = undoToast(refs.length > 1 ? `Took ${num(refs.length)} out of Reply Later` : "Took it out of Reply Later", "ReplyLaterDone", undoRun);
+  const message = refs.length > 1 ? `Took ${num(refs.length)} out of Reply Later` : "Took it out of Reply Later";
+  setUndo("Done", undoRun, { message, steps: single({ cmd: "replyLater", refs, on: true }) });
+  toastId = undoToast(message, "ReplyLaterDone", undoRun);
   call
     .catch((e) => {
       restoreLocal(removal);
@@ -178,8 +186,9 @@ export function dismissFollowUps(refs: ThreadRef[]) {
     shiftTriageCount(refs, "followUp", 1);
     back.catch((e) => fail("undo", e, refs)).finally(reloadTriageSoon);
   };
-  setUndo("Dismissed", undoRun);
-  toastId = undoToast(refs.length > 1 ? `Dismissed ${num(refs.length)} follow-ups` : "Dismissed", "Dismissed", undoRun);
+  const message = refs.length > 1 ? `Dismissed ${num(refs.length)} follow-ups` : "Dismissed";
+  setUndo("Dismissed", undoRun, { message, steps: single({ cmd: "dismissFollowUps", refs, dismissed: false }) });
+  toastId = undoToast(message, "Dismissed", undoRun);
   call
     .catch((e) => {
       if (removal) restoreLocal(removal);

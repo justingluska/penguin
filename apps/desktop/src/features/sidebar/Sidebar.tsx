@@ -16,6 +16,7 @@ import { meta } from "../../app/store";
 import { PROFILE_MOD, goTo, goToCalendar, profileKeys, switchAccount } from "../../app/shortcuts";
 import { inboxUnread, switchProfile, useProfiles } from "../../app/profiles";
 import { openCompose } from "../../app/actions";
+import { newMessageMenu } from "../../app/windows";
 import { SyncProgress } from "./SyncProgress";
 import { UnreadBadge, badgeText } from "./UnreadBadge";
 import { useTriageCounts } from "../triage/state";
@@ -167,6 +168,7 @@ export const Sidebar = memo(function Sidebar() {
           title={tip("New message", "C")}
           aria-label="New message (C)"
           onClick={() => openCompose("new")}
+          onContextMenu={(e) => showContextMenu(e, newMessageMenu(), { label: "New message" })}
         >
           <Icon name="compose" size="sm" />
           <span className="sb-compose-label">New</span>

@@ -245,11 +245,12 @@ async function threadSubject(accountId: string, threadId: string): Promise<strin
   }
 }
 
-/** Mounted once (by the Compose root). */
-export function useOutboxToasts(open: { draft: (accountId: string, draftId: string) => void }) {
+/** Mounted once (by the Compose root); `active` in the main window only, so each toast shows once. */
+export function useOutboxToasts(open: { draft: (accountId: string, draftId: string) => void }, active: boolean) {
   const openRef = useRef(open);
   openRef.current = open;
   useEffect(() => {
+    if (!active) return;
     const unSent = onScheduledSent((b) => {
       const missed = Math.min(b.missed, b.sent.length);
       if (missed > 0) {
@@ -293,7 +294,7 @@ export function useOutboxToasts(open: { draft: (accountId: string, draftId: stri
       unSent.then((f) => f());
       unDue.then((f) => f());
     };
-  }, []);
+  }, [active]);
 }
 
 export function scheduleErrorText(e: unknown): string {

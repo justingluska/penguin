@@ -27,6 +27,11 @@ input, textarea { font: inherit; color: inherit; }
 .small { font-size: var(--text-xs); }
 .is-disabled { opacity: .5; }
 .app-loading { background: var(--background); }
+/* Conversation and compose windows (app/windowShell.tsx): what they show
+   when there's nothing to show (a draft that's gone, a failed load). */
+.win-problem { height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px;
+  padding: var(--titlebar-h) 32px 0; text-align: center; color: var(--text-muted); font-size: var(--text-sm); background: var(--background); }
+.win-problem p { margin: 0; max-width: 420px; }
 
 /* Thin, quiet scrollbars */
 .v-scroll { overflow-y: auto; overscroll-behavior: contain; scrollbar-width: thin; scrollbar-color: var(--gray-a3) transparent; }
@@ -220,6 +225,11 @@ button.earlier { cursor: pointer; }
 .att-stack { display: flex; flex-direction: column; gap: 8px; margin-top: 14px; }
 .quick-reply { flex: none; }
 button.qr-box { width: 100%; text-align: left; cursor: text; }
+/* The reply box takes most of the row; Forward sits beside it (about a fifth). */
+.qr-row { display: flex; gap: 8px; }
+.qr-row > .qr-box:first-child { flex: 4; min-width: 0; }
+button.qr-fwd { flex: 1; width: auto; min-width: 0; justify-content: center; cursor: pointer; padding: 0 10px; color: var(--text-muted); }
+.qr-fwd span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .qr-box:hover { border-color: var(--border-interactive); background: var(--bg-row-hover); }
 .pane-empty { flex: 1; display: flex; align-items: center; justify-content: center; padding: 24px; font-size: var(--text-sm); }
 

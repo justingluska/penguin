@@ -37,7 +37,7 @@ export function releasesUrlFor(endpoint) {
 }
 /** Commits shown for the first release (the history before it is the whole project). */
 const FIRST_RELEASE_MAX = 25;
-const INTERNAL = new Set(["docs", "ci", "box", "design", "scripts", "mock", "research", "icons", "chore", "test", "tests", "release", "publish"]);
+const INTERNAL = new Set(["docs", "ci", "box", "design", "scripts", "mock", "research", "icons", "chore", "test", "tests", "release", "publish", "whats"]);
 /** Commit hash prefix → the line to show instead, or null to hide it. */
 const OVERRIDES = loadOverrides(join(here, "../whats-new.json"));
 

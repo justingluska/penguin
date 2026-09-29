@@ -10,12 +10,14 @@ import { useSetting } from "../../lib/settings";
 import { Icon } from "../../components/Icon";
 import { accountInScope, list, meta } from "../../app/store";
 import { openCompose } from "../../app/actions";
+import { newMessageMenu } from "../../app/windows";
 import { useKeyTip } from "../../lib/shortcutHints";
 import { meName } from "../../lib/me";
 import { Avatar } from "../../components/Identity";
 import { openSettings } from "../settings/state";
 import { Keys } from "../../components/Kbd";
 import { currentSplit } from "../../app/store";
+import { showContextMenu } from "../../components/ContextMenu";
 
 const MOD = isMac ? "⌘" : "Ctrl+";
 
@@ -85,7 +87,13 @@ export function FloeTools({ on }: { on: boolean }) {
       <button className="btn btn-ghost btn-icon" title={tip("Search", "/")} aria-label="Search" onClick={() => setUi({ overlay: "search", searchPrefill: null })}>
         <Icon name="search" size="sm" />
       </button>
-      <button className="btn btn-ghost btn-icon" title={tip("New message", "C")} aria-label="New message" onClick={() => openCompose("new")}>
+      <button
+        className="btn btn-ghost btn-icon"
+        title={tip("New message", "C")}
+        aria-label="New message"
+        onClick={() => openCompose("new")}
+        onContextMenu={(e) => showContextMenu(e, newMessageMenu(), { label: "New message" })}
+      >
         <Icon name="compose" size="sm" />
       </button>
       <button

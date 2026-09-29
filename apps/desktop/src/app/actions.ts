@@ -26,6 +26,7 @@ import { snoozeLocal, snoozesChanged, unsnoozeLocal } from "../features/snooze/s
 import { hintActionExit } from "../features/inbox/rowExit";
 import { inboxLikeView } from "../features/smart/catalog";
 import { noteCleared } from "../features/zero/zero";
+import { single, type RemoteUndo, type UndoOp } from "./remoteUndo";
 import {
   accountById,
   accountInScope,
@@ -41,15 +42,33 @@ import {
   type Removal,
 } from "./store";
 
-let lastUndo: { label: string; run: () => void } | null = null;
+/**
+ * What Z undoes. `remote` is the same undo as data, for an action that
+ * closes a conversation window (app/remoteUndo.ts): the main window offers it
+ * once that window is gone.
+ */
+let lastUndo: { label: string; run: () => void; remote?: RemoteUndo } | null = null;
+/** Counts undos as they're set (a closing window checks whether its last action left one). */
+let undoCount = 0;
 
 export function canUndo(): boolean {
   return lastUndo !== null;
 }
 
-/** Make `run` what Z undoes next (e.g. compose's pending send). */
-export function setUndo(label: string, run: () => void) {
-  lastUndo = { label, run };
+/** Make `run` what Z undoes next (e.g. compose's pending send). Every undo is set here. */
+export function setUndo(label: string, run: () => void, remote?: RemoteUndo) {
+  lastUndo = { label, run, remote };
+  undoCount++;
+}
+
+/** How many undos have been set so far (compare before and after an action). */
+export function undoSerial(): number {
+  return undoCount;
+}
+
+/** The current undo as data, when it has one (see RemoteUndo). */
+export function currentRemoteUndo(): RemoteUndo | null {
+  return lastUndo?.remote ?? null;
 }
 
 /** Forget `run` if it's still the pending undo (e.g. the send went out). */
@@ -167,11 +186,12 @@ async function removeWith(
     restoreLocal(removal, back);
     back.catch((e) => fail("undo", e, refs));
   };
-  lastUndo = { label: doneLabel, run: undoRun };
+  const message = refs.length > 1 ? many(num(refs.length)) : doneLabel;
+  setUndo(doneLabel, undoRun, { message, steps: single({ cmd: "modify", refs, action: inverse }) });
   toastId = toast({
     kind: "action",
     key: `undo:${doneLabel}`,
-    message: refs.length > 1 ? many(num(refs.length)) : doneLabel,
+    message,
     action: { label: "Undo", keys: "z", run: () => lastUndo?.run === undoRun && undo() },
   });
   try {
@@ -203,7 +223,7 @@ export function archive(refs = targets()) {
     return moveToInbox(refs);
   }
   // Elsewhere the rows stay; they just lose the inbox label.
-  lastUndo = { label: "Archived", run: () => modify(refs, { kind: "moveToInbox" }, "undo") };
+  setUndo("Archived", () => modify(refs, { kind: "moveToInbox" }, "undo"));
   modify(refs, { kind: "archive" }, "archive");
   toast({ message: refs.length > 1 ? `Archived ${num(refs.length)}` : "Archived", action: { label: "Undo", keys: "z", run: undo } });
 }
@@ -221,7 +241,7 @@ export function moveToInbox(refs = targets()) {
     return removeWith(refs, { kind: "moveToInbox" }, { kind: "archive" }, "Moved to inbox", "move to inbox", (n) => `Moved ${n} to inbox`);
   }
   // Everywhere else the rows stay; they just gain the inbox label.
-  lastUndo = { label: "Moved to inbox", run: () => modify(refs, { kind: "archive" }, "undo") };
+  setUndo("Moved to inbox", () => modify(refs, { kind: "archive" }, "undo"));
   modify(refs, { kind: "moveToInbox" }, "move to inbox");
   toast({ message: refs.length > 1 ? `Moved ${num(refs.length)} to inbox` : "Moved to inbox", action: { label: "Undo", keys: "z", run: undo } });
 }
@@ -324,15 +344,42 @@ type SnoozeState = { ref: ThreadRef; until: number | null; inbox: boolean };
  * again at the old time, else unsnoozed (back to the inbox only if it was there).
  */
 function putBack(prev: SnoozeState[]): Promise<unknown> {
-  const calls: Promise<unknown>[] = [];
+  return runUndoSteps(putBackSteps(prev));
+}
+
+/** putBack as data (one step: every call in parallel). */
+function putBackSteps(prev: SnoozeState[]): UndoOp[][] {
+  const ops: UndoOp[] = [];
   const byUntil = new Map<number, ThreadRef[]>();
   for (const p of prev) if (p.until !== null) byUntil.set(p.until, [...(byUntil.get(p.until) ?? []), p.ref]);
-  for (const [until, refs] of byUntil) calls.push(api.snoozeThreads(refs, until));
+  for (const [until, refs] of byUntil) ops.push({ cmd: "snooze", refs, until });
   const toInbox = prev.filter((p) => p.until === null && p.inbox).map((p) => p.ref);
   const elsewhere = prev.filter((p) => p.until === null && !p.inbox).map((p) => p.ref);
-  if (toInbox.length) calls.push(api.unsnoozeThreads(toInbox, true));
-  if (elsewhere.length) calls.push(api.unsnoozeThreads(elsewhere, false));
-  return Promise.all(calls);
+  if (toInbox.length) ops.push({ cmd: "unsnooze", refs: toInbox, toInbox: true });
+  if (elsewhere.length) ops.push({ cmd: "unsnooze", refs: elsewhere, toInbox: false });
+  return [ops];
+}
+
+/** Run an undo described as data (RemoteUndo): each step's calls together, the steps in order. */
+export async function runUndoSteps(steps: UndoOp[][]): Promise<void> {
+  for (const step of steps) {
+    await Promise.all(
+      step.map((op) => {
+        switch (op.cmd) {
+          case "modify":
+            return api.modifyThreads(op.refs, op.action);
+          case "snooze":
+            return api.snoozeThreads(op.refs, op.until);
+          case "unsnooze":
+            return api.unsnoozeThreads(op.refs, op.toInbox);
+          case "replyLater":
+            return api.replyLater(op.refs, op.on);
+          case "dismissFollowUps":
+            return api.dismissFollowUps(op.refs, op.dismissed);
+        }
+      }),
+    );
+  }
 }
 
 /**
@@ -365,12 +412,13 @@ export function snooze(refs: ThreadRef[], until: number) {
     snoozesChanged();
     back.catch((e) => fail("undo", e, refs));
   };
-  lastUndo = { label: "Snoozed", run: undoRun };
   const when = fmtUntil(until);
+  const message = refs.length > 1 ? `Snoozed ${num(refs.length)} ${when}` : `Snoozed ${when}`;
+  setUndo("Snoozed", undoRun, { message, steps: putBackSteps(prev) });
   toastId = toast({
     kind: "action",
     key: "undo:Snoozed",
-    message: refs.length > 1 ? `Snoozed ${num(refs.length)} ${when}` : `Snoozed ${when}`,
+    message,
     action: { label: "Undo", keys: "z", run: () => lastUndo?.run === undoRun && undo() },
   });
   call
@@ -411,11 +459,12 @@ export function unsnooze(refs = targets()) {
     snoozesChanged();
     back.catch((e) => fail("undo", e, refs));
   };
-  lastUndo = { label: "Unsnoozed", run: undoRun };
+  const message = refs.length > 1 ? `Unsnoozed ${num(refs.length)}, moved to inbox` : "Unsnoozed, moved to inbox";
+  setUndo("Unsnoozed", undoRun, { message, steps: putBackSteps(prev) });
   toastId = toast({
     kind: "action",
     key: "undo:Unsnoozed",
-    message: refs.length > 1 ? `Unsnoozed ${num(refs.length)}, moved to inbox` : "Unsnoozed, moved to inbox",
+    message,
     action: { label: "Undo", keys: "z", run: () => lastUndo?.run === undoRun && undo() },
   });
   call
@@ -457,13 +506,16 @@ function labelsOf(ref: ThreadRef): string[] {
 
 /** Send label deltas as modify_threads calls: every add first, then the removals. */
 async function sendDeltas(items: { ref: ThreadRef; delta: LabelDelta }[]) {
+  await runUndoSteps(deltaSteps(items));
+}
+
+/** sendDeltas as data: the adds, then the removals. */
+function deltaSteps(items: { ref: ThreadRef; delta: LabelDelta }[]): UndoOp[][] {
   const { add, remove } = deltaCalls(items);
-  await Promise.all(
-    [...add].map(([id, rs]) => api.modifyThreads(rs, id === INBOX ? { kind: "moveToInbox" } : { kind: "addLabel", labelId: id })),
-  );
-  await Promise.all(
-    [...remove].map(([id, rs]) => api.modifyThreads(rs, id === INBOX ? { kind: "archive" } : { kind: "removeLabel", labelId: id })),
-  );
+  return [
+    [...add].map(([id, refs]): UndoOp => ({ cmd: "modify", refs, action: id === INBOX ? { kind: "moveToInbox" } : { kind: "addLabel", labelId: id } })),
+    [...remove].map(([id, refs]): UndoOp => ({ cmd: "modify", refs, action: id === INBOX ? { kind: "archive" } : { kind: "removeLabel", labelId: id } })),
+  ];
 }
 
 /**
@@ -502,11 +554,12 @@ export function moveTo(refs: ThreadRef[], targetFor: (accountId: string) => stri
     if (staying.length) patchThreads(staying, patch(false), back);
     back.catch((e) => fail("undo", e, all));
   };
-  lastUndo = { label: done, run: undoRun };
+  const message = all.length > 1 ? `Moved ${num(all.length)} to ${name}` : done;
+  setUndo(done, undoRun, { message, steps: deltaSteps(items.map((i) => ({ ref: i.ref, delta: undoDelta(i.before, i.delta) }))) });
   toastId = toast({
     kind: "action",
     key: "undo:Moved",
-    message: all.length > 1 ? `Moved ${num(all.length)} to ${name}` : done,
+    message,
     action: { label: "Undo", keys: "z", run: () => lastUndo?.run === undoRun && undo() },
   });
   call

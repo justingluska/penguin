@@ -20,6 +20,8 @@ import { openAttachment } from "./openAttachment";
 import { currentSettings } from "../../lib/settings";
 import { startUnsubscribe } from "../unsubscribe/actions";
 import { COPY_CONVERSATION_KEYS, copyConversation, copyMessage } from "./copy";
+import { openThreadWindow } from "../../app/windows";
+import { isMainWindow } from "../../lib/windowBus";
 
 function gmailMessageUrl(email: string, messageId: string): string {
   return `https://mail.google.com/mail/u/${encodeURIComponent(email)}/#all/${encodeURIComponent(messageId)}`;
@@ -37,6 +39,8 @@ export function messageMenu(m: MessageView, opts: { expanded: boolean; onToggle?
     !draft && { label: "Reply all", icon: "replyall", keys: "a", onSelect: compose("replyAll") },
     !draft && { label: "Forward", icon: "forward", keys: "f", onSelect: compose("forward") },
     { type: "separator" },
+    // (A conversation window already is one.)
+    isMainWindow && { label: "Open conversation in new window", icon: "window", keys: "shift+o", onSelect: () => void openThreadWindow(thread) },
     opts.onToggle && { label: opts.expanded ? "Collapse" : "Expand", icon: opts.expanded ? "minus" : "expand", onSelect: opts.onToggle },
     !draft &&
       (isUnread(thread)

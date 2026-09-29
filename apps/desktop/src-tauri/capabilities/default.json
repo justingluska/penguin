@@ -1,7 +1,7 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
-  "description": "Main window: Penguin's own commands, event listening, and window dragging for the overlay title bar. No plugin APIs are exposed to JS; links open through the open_external command, which allows only http/https/mailto.",
+  "description": "Main window: Penguin's own commands, event listening, window dragging for the overlay title bar, and bringing itself forward (a send handed over by a compose window counts down here). No plugin APIs are exposed to JS; links open through the open_external command, which allows only http/https/mailto.",
   "windows": [
     "main"
   ],
@@ -11,6 +11,9 @@
     "core:window:default",
     "core:window:allow-start-dragging",
     "core:window:allow-hide",
+    "core:window:allow-show",
+    "core:window:allow-unminimize",
+    "core:window:allow-set-focus",
     "allow-oauth-client-status",
     "allow-set-oauth-client",
     "allow-list-accounts",
@@ -134,6 +137,7 @@
     "allow-respond-to-invite",
     "allow-calendar-sync-now",
     "allow-set-menu-context",
+    "allow-open-window",
     "allow-set-me-photo",
     "allow-set-me-photo-from-google",
     "allow-clear-me-photo",

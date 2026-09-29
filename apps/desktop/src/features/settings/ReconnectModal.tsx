@@ -9,6 +9,8 @@ import { Icon } from "../../components/Icon";
 import { AccountDot } from "../../components/Identity";
 import { SignInLinkHelp } from "../../components/SignInLinkHelp";
 import { accountById, setAccounts } from "../../app/store";
+import { busSend, isMainWindow } from "../../lib/windowBus";
+import { MAIN_LABEL } from "../../lib/windowRoute";
 import "./settings.css";
 
 type Phase = { kind: "waiting" } | { kind: "done" } | { kind: "error"; message: string };
@@ -51,6 +53,11 @@ async function run(accountId: string) {
 
 /** Start the browser sign-in for `accountId` and show its progress. */
 export function openReconnect(accountId: string): void {
+  // Signing in again happens in the main window (app/handoffs.ts).
+  if (!isMainWindow) {
+    void busSend(MAIN_LABEL, "reconnect", { accountId });
+    return;
+  }
   void run(accountId);
 }
 

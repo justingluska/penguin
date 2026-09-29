@@ -52,6 +52,8 @@ pub mod text_services;
 pub mod unsubscribe;
 pub mod updater;
 pub mod views;
+/// Conversation and compose windows next to the main one.
+pub mod windows;
 pub mod writing;
 
 use std::sync::Arc;
@@ -190,6 +192,7 @@ pub fn run() {
         .manage(notify::Notifier::default())
         .manage(summary::Summarizer::system())
         .manage(writing::Writer::new())
+        .manage(windows::Seeds::default())
         .setup(move |app| {
             logging::init_app(app.path().app_log_dir().ok().as_deref());
             tracing::info!(version = crate::VERSION, "penguin starting");
@@ -290,13 +293,23 @@ pub fn run() {
                 if let Some(cal) = window.try_state::<Arc<calendar::commands::Calendar>>() {
                     cal.on_focus();
                 }
+                // Menu items that act on a window go to this one now.
+                app_menu::window_focused(window.app_handle(), window.label());
             }
-            // macOS: closing the window (red button, ⌘W) hides it like Mail;
-            // sync, scheduled sends and reminders keep running. ⌘Q quits and
-            // the Dock icon brings the window back (RunEvent::Reopen).
+            // A conversation or compose window closed for real.
+            if let WindowEvent::Destroyed = event {
+                app_menu::window_gone(window.app_handle(), window.label());
+                if let Some(seeds) = window.try_state::<windows::Seeds>() {
+                    seeds.forget(window.label());
+                }
+            }
+            // macOS: closing the main window (red button, ⌘W) hides it like
+            // Mail; sync, scheduled sends and reminders keep running. ⌘Q quits
+            // and the Dock icon brings it back (RunEvent::Reopen). Conversation
+            // and compose windows close for real.
             #[cfg(target_os = "macos")]
             if let WindowEvent::CloseRequested { api, .. } = event {
-                if window.label() == "main" {
+                if window.label() == windows::MAIN {
                     api.prevent_close();
                     if let Err(e) = window.hide() {
                         tracing::warn!(error = %e, "could not hide the window");
@@ -418,6 +431,8 @@ pub fn run() {
             text_services::learn_spelling,
             text_services::look_up,
             app_menu::set_menu_context,
+            windows::open_window,
+            windows::take_window_seed,
             updater::restart_to_update,
             updater::check_for_updates,
             applog::read_log,
@@ -447,13 +462,17 @@ pub fn run() {
         .build(context)
         .expect("error while building Penguin")
         .run(|app, event| {
+            // The Dock icon brings the main window back when it's hidden,
+            // even while a conversation or compose window is open.
             #[cfg(target_os = "macos")]
-            if let RunEvent::Reopen {
-                has_visible_windows: false,
-                ..
-            } = event
-            {
-                app_menu::show_main(app);
+            if let RunEvent::Reopen { .. } = event {
+                let hidden = app
+                    .get_webview_window(windows::MAIN)
+                    .map(|w| !w.is_visible().unwrap_or(true) || w.is_minimized().unwrap_or(false))
+                    .unwrap_or(false);
+                if hidden {
+                    app_menu::show_main(app);
+                }
             }
             let _ = (app, event);
         });

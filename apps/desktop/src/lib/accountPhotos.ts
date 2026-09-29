@@ -1,6 +1,7 @@
 // Each account's own Google profile photo (backend: src-tauri/src/avatars/account.rs).
 //
-// Components call useAccountPhoto(accountId) through AccountAvatar. Each
+// Components call useAccountPhoto(accountId) through AccountAvatar, and
+// Avatar for your own addresses. Each
 // account is asked once per session, off the render path; the answer (an
 // `avatar:` URL, or null for "letter avatar only") lives here, so re-renders
 // and remounts never reach the backend. Until it lands, and whenever the ask
@@ -64,11 +65,21 @@ function subscribe(cb: () => void) {
 
 /** The account's photo URL once known, else null (show the monogram). */
 export function useAccountPhoto(accountId: string | null | undefined): string | null {
+  return useAccountPhotoAnswer(accountId) ?? null;
+}
+
+/**
+ * Like useAccountPhoto, but tells "no answer yet" (undefined) from "no photo"
+ * or a failed ask (null), so a fallback photo isn't flashed first.
+ */
+export function useAccountPhotoAnswer(accountId: string | null | undefined): string | null | undefined {
   const v = useSyncExternalStore(subscribe, () => version);
   useEffect(() => {
     if (!accountId) return;
     watchCache();
     ask(accountId);
   }, [accountId, v]);
-  return accountId ? (answers.get(accountId) ?? null) : null;
+  if (!accountId) return null;
+  if (answers.has(accountId)) return answers.get(accountId) ?? null;
+  return failedAt.has(accountId) ? null : undefined;
 }

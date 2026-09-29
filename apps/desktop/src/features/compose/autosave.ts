@@ -142,6 +142,25 @@ export class DraftSaver {
     }
   }
 
+  /** What the server has is this draft as it is now. */
+  isSaved(): boolean {
+    return !!this.state.draftId && fingerprint(this.state) === this.lastSaved && this.state.draftAccountId === this.state.accountId;
+  }
+
+  /**
+   * The server copy may be behind (its last save failed in another window):
+   * the next flush saves even without an edit.
+   */
+  markUnsaved() {
+    this.lastSaved = null;
+    if (this.status.kind === "saved") this.set({ kind: "idle" });
+  }
+
+  /** Stopped for good (sent, discarded, or handed to another window). */
+  get stopped(): boolean {
+    return this.dead;
+  }
+
   /** Stop saving and delete the server copy (Discard). */
   async discard(): Promise<void> {
     this.dead = true;
@@ -197,6 +216,16 @@ export function rekeySaver(s: DraftSaver, key: string) {
 /** Save every open draft now (before the page reloads, e.g. switching demo mode). */
 export function flushAllSavers(): Promise<void> {
   return Promise.all([...new Set(savers.values())].map((s) => s.flush())).then(() => undefined);
+}
+
+/**
+ * Drafts still open here whose latest text isn't on the server (saving
+ * failed, e.g. offline), after flushAllSavers: a window about to close hands
+ * these to the main window instead of losing them.
+ */
+export function unsavedDrafts(): EditorState[] {
+  // Untouched composers (a reply opened and closed) were never meant to be drafts.
+  return [...new Set(savers.values())].filter((s) => !s.stopped && s.state.touched && !s.isSaved() && hasContent(s.state)).map((s) => s.current());
 }
 
 export function forgetSaver(s: DraftSaver) {

@@ -5,8 +5,10 @@
 // and screenshotted alone.
 
 import { invoke } from "@tauri-apps/api/core";
-import { listen, type UnlistenFn } from "@tauri-apps/api/event";
+import { emit, emitTo, listen, type UnlistenFn } from "@tauri-apps/api/event";
 import { isDemo } from "./demo";
+import { isMainWindow, thisWindowLabel } from "./thisWindow";
+import type { MockLike } from "./mockBridge";
 import type {
   SmartCount,
   SplitCounts,
@@ -75,6 +77,8 @@ import type {
   AvatarStatus,
   AvatarsChangedEvent,
   MenuContext,
+  OpenedWindow,
+  WindowRequest,
   MenuEvent,
   NotifyContext,
   NotificationOpen,
@@ -143,7 +147,9 @@ const devMock = (import.meta.env.DEV || import.meta.env.VITE_MOCK === "1") && (i
  * backend, for screenshots. Every command and event below goes to the mock, so
  * the Rust side is never asked for mail, accounts or settings, and nothing real
  * is sent or changed. The only real calls left are window chrome: which native
- * menu items are enabled (setMenuContext) and menu clicks (onMenu).
+ * menu items are enabled (setMenuContext), menu clicks (onMenu), and opening
+ * conversation and compose windows (openWindow, takeWindowSeed), which run
+ * on the same mock through the main window (lib/mockBridge.ts).
  */
 export { isDemo };
 /**
@@ -155,14 +161,95 @@ export const isMock = devMock || isDemo;
 /** The sidebar's "Mock" badge: the developer mock only, never demo mode (clean screenshots). */
 export const showMockBadge = devMock && !isDemo;
 
-let mockModule: Promise<typeof import("./mock")> | null = null;
-function mockBackend() {
-  mockModule ??= import("./mock");
-  return mockModule.then((m) => m.mockBackend);
+let mockModule: Promise<MockLike> | null = null;
+/**
+ * The mock lives in the main window; conversation and compose windows reach
+ * it through the main window (lib/mockBridge.ts), so all of them share one
+ * mailbox, as they share the one Rust backend.
+ */
+function mockBackend(): Promise<MockLike> {
+  mockModule ??= isMainWindow
+    ? Promise.all([import("./mock"), import("./mockBridge")]).then(([m, bridge]) => {
+        bridge.hostMock(m.mockBackend);
+        return m.mockBackend;
+      })
+    : import("./mockBridge").then((bridge) => bridge.remoteMock());
+  return mockModule;
+}
+
+/** App events between windows (lib/windowBus.ts); nothing on the Rust side reads them. */
+const BUS_EVENT = "penguin://window-bus";
+let busChannel: BroadcastChannel | null = null;
+const browserBus = () => (busChannel ??= typeof BroadcastChannel === "undefined" ? null : new BroadcastChannel(BUS_EVENT));
+
+/**
+ * Post a message to another window (`to` a label, or "*"). Window chrome, not
+ * a backend call: real inside Tauri in demo mode too (the demo's windows
+ * share its mock through it), a BroadcastChannel in a browser.
+ */
+export function busPost(to: string, msg: unknown): Promise<void> {
+  if (inTauri) return to === "*" ? emit(BUS_EVENT, msg) : emitTo(to, BUS_EVENT, msg);
+  browserBus()?.postMessage(msg);
+  return Promise.resolve();
+}
+
+/** Messages to this window (and to every window) from the others. */
+export function onBusMessage(cb: (msg: unknown) => void): void {
+  if (inTauri) {
+    void listenHere<unknown>(BUS_EVENT, (e) => cb(e.payload));
+    return;
+  }
+  browserBus()?.addEventListener("message", (e) => cb((e as MessageEvent).data));
+}
+
+/**
+ * Listen for a backend event meant for this window: `app.emit` reaches every
+ * window, `emit_to(label)` only that one (menu items, the image viewer). A
+ * listener with no target would hear events emitted to any window.
+ */
+function listenHere<T>(event: string, cb: (e: { payload: T }) => void): Promise<UnlistenFn> {
+  return listen<T>(event, cb, { target: thisWindowLabel });
+}
+
+/** Mutating commands in flight, by name (callsSettled). */
+const inflight = new Map<string, number>();
+const settledWaiters = new Set<() => void>();
+
+/**
+ * Resolves once none of `cmds` is in flight, or after `timeoutMs`. A window
+ * about to close waits for its last change to reach the backend (and to be
+ * refused, if it is: app/windowShell.tsx).
+ */
+export function callsSettled(cmds: readonly string[], timeoutMs: number): Promise<void> {
+  const busy = () => cmds.some((c) => (inflight.get(c) ?? 0) > 0);
+  if (!busy()) return Promise.resolve();
+  return new Promise((resolve) => {
+    const done = () => {
+      settledWaiters.delete(check);
+      clearTimeout(timer);
+      resolve();
+    };
+    const check = () => !busy() && done();
+    const timer = setTimeout(done, timeoutMs);
+    settledWaiters.add(check);
+  });
+}
+
+function track<T>(cmd: string, p: Promise<T>): Promise<T> {
+  inflight.set(cmd, (inflight.get(cmd) ?? 0) + 1);
+  const end = () => {
+    const n = (inflight.get(cmd) ?? 1) - 1;
+    if (n <= 0) inflight.delete(cmd);
+    else inflight.set(cmd, n);
+    // After the caller's own handlers (a failed removal puts the row back first).
+    setTimeout(() => [...settledWaiters].forEach((f) => f()), 0);
+  };
+  p.then(end, end);
+  return p;
 }
 
 function call<T>(cmd: string, args?: Record<string, unknown>): Promise<T> {
-  const p = isMock ? mockBackend().then((m) => m.invoke<T>(cmd, args ?? {})) : invoke<T>(cmd, args);
+  const p = track(cmd, isMock ? mockBackend().then((m) => m.invoke<T>(cmd, args ?? {})) : invoke<T>(cmd, args));
   // Every failed command lands in penguin.log (Settings → Developer → View log).
   p.catch((e) => {
     const err = asCommandError(e);
@@ -541,6 +628,16 @@ export const api = {
   setMenuContext: (context: MenuContext) =>
     inTauri ? invoke<void>("set_menu_context", { context }) : call<void>("set_menu_context", { context }),
 
+  // Windows (src-tauri/src/windows.rs). Window chrome: real inside Tauri even
+  // in demo mode (the new window runs on the demo mock too); the browser mock
+  // opens a popup with the same query.
+  /** Open a conversation or a composer in a window of its own (a conversation's second open focuses its window). */
+  openWindow: (request: WindowRequest) =>
+    inTauri ? invoke<OpenedWindow>("open_window", { request }) : call<OpenedWindow>("open_window", { request }),
+  /** The editor state another window handed to this composer window, once (null: none). */
+  takeWindowSeed: () =>
+    inTauri ? invoke<unknown>("take_window_seed") : call<unknown>("take_window_seed", { label: thisWindowLabel }),
+
   // New-mail notifications (src-tauri/src/notify.rs).
   /** What's on screen, so new mail already visible doesn't notify. Sent when it changes. */
   setNotifyContext: (context: NotifyContext) => call<void>("set_notify_context", { context }),
@@ -631,32 +728,32 @@ export const api = {
 /** A browser sign-in started, or Penguin couldn't open the browser for it (`error`). */
 export function onSignInUrl(cb: (e: SignInLink) => void): Promise<UnlistenFn> {
   if (isMock) return mockBackend().then((m) => m.listen(EVENTS.signInUrl, cb as (p: unknown) => void));
-  return listen<SignInLink>(EVENTS.signInUrl, (e) => cb(e.payload));
+  return listenHere<SignInLink>(EVENTS.signInUrl, (e) => cb(e.payload));
 }
 
 export function onSyncStatus(cb: (s: SyncStatus) => void): Promise<UnlistenFn> {
   if (isMock) return mockBackend().then((m) => m.listen(EVENTS.syncStatus, cb as (p: unknown) => void));
-  return listen<SyncStatus>(EVENTS.syncStatus, (e) => cb(e.payload));
+  return listenHere<SyncStatus>(EVENTS.syncStatus, (e) => cb(e.payload));
 }
 
 export function onMailChanged(cb: (e: MailChangedEvent) => void): Promise<UnlistenFn> {
   if (isMock) return mockBackend().then((m) => m.listen(EVENTS.mailChanged, cb as (p: unknown) => void));
-  return listen<MailChangedEvent>(EVENTS.mailChanged, (e) => cb(e.payload));
+  return listenHere<MailChangedEvent>(EVENTS.mailChanged, (e) => cb(e.payload));
 }
 
 export function onActionFailed(cb: (e: ActionFailedEvent) => void): Promise<UnlistenFn> {
   if (isMock) return mockBackend().then((m) => m.listen(EVENTS.actionFailed, cb as (p: unknown) => void));
-  return listen<ActionFailedEvent>(EVENTS.actionFailed, (e) => cb(e.payload));
+  return listenHere<ActionFailedEvent>(EVENTS.actionFailed, (e) => cb(e.payload));
 }
 
 export function onBodyFetchFailed(cb: (e: BodyFetchFailedEvent) => void): Promise<UnlistenFn> {
   if (isMock) return mockBackend().then((m) => m.listen(EVENTS.bodyFetchFailed, cb as (p: unknown) => void));
-  return listen<BodyFetchFailedEvent>(EVENTS.bodyFetchFailed, (e) => cb(e.payload));
+  return listenHere<BodyFetchFailedEvent>(EVENTS.bodyFetchFailed, (e) => cb(e.payload));
 }
 
 export function onSettingsChanged(cb: (s: Settings) => void): Promise<UnlistenFn> {
   if (isMock) return mockBackend().then((m) => m.listen(EVENTS.settingsChanged, cb as (p: unknown) => void));
-  return listen<Settings>(EVENTS.settingsChanged, (e) => cb(e.payload));
+  return listenHere<Settings>(EVENTS.settingsChanged, (e) => cb(e.payload));
 }
 
 /**
@@ -666,7 +763,7 @@ export function onSettingsChanged(cb: (s: Settings) => void): Promise<UnlistenFn
  */
 export function onImageOpen(cb: (payload: unknown) => void): Promise<UnlistenFn> {
   if (isMock) return mockBackend().then((m) => m.listen(EVENTS.imageOpen, cb));
-  return listen<unknown>(EVENTS.imageOpen, (e) => cb(e.payload));
+  return listenHere<unknown>(EVENTS.imageOpen, (e) => cb(e.payload));
 }
 
 /** Narrow an unknown rejection to CommandError. */
@@ -677,65 +774,65 @@ export function asCommandError(e: unknown): { code: string; message: string } {
 
 export function onUpdate(cb: (e: UpdateEvent) => void): Promise<UnlistenFn> {
   if (isMock) return mockBackend().then((m) => m.listen(EVENTS.update, cb as (p: unknown) => void));
-  return listen<UpdateEvent>(EVENTS.update, (e) => cb(e.payload));
+  return listenHere<UpdateEvent>(EVENTS.update, (e) => cb(e.payload));
 }
 
 export function onAvatarsChanged(cb: (e: AvatarsChangedEvent) => void): Promise<UnlistenFn> {
   if (isMock) return mockBackend().then((m) => m.listen(EVENTS.avatarsChanged, cb as (p: unknown) => void));
-  return listen<AvatarsChangedEvent>(EVENTS.avatarsChanged, (e) => cb(e.payload));
+  return listenHere<AvatarsChangedEvent>(EVENTS.avatarsChanged, (e) => cb(e.payload));
 }
 
 export function onScheduledSent(cb: (e: ScheduledSentBatch) => void): Promise<UnlistenFn> {
   if (isMock) return mockBackend().then((m) => m.listen(EVENTS.scheduledSent, cb as (p: unknown) => void));
-  return listen<ScheduledSentBatch>(EVENTS.scheduledSent, (e) => cb(e.payload));
+  return listenHere<ScheduledSentBatch>(EVENTS.scheduledSent, (e) => cb(e.payload));
 }
 
 export function onReminderDue(cb: (e: ReminderDue) => void): Promise<UnlistenFn> {
   if (isMock) return mockBackend().then((m) => m.listen(EVENTS.reminderDue, cb as (p: unknown) => void));
-  return listen<ReminderDue>(EVENTS.reminderDue, (e) => cb(e.payload));
+  return listenHere<ReminderDue>(EVENTS.reminderDue, (e) => cb(e.payload));
 }
 
 /** A new-mail notification was clicked (src-tauri/src/notify.rs). */
 export function onNotificationOpen(cb: (e: NotificationOpen) => void): Promise<UnlistenFn> {
   if (isMock) return mockBackend().then((m) => m.listen(EVENTS.notificationOpen, cb as (p: unknown) => void));
-  return listen<NotificationOpen>(EVENTS.notificationOpen, (e) => cb(e.payload));
+  return listenHere<NotificationOpen>(EVENTS.notificationOpen, (e) => cb(e.payload));
 }
 
 /** A native menu bar item was chosen (src-tauri/src/app_menu.rs); real inside Tauri even in a mock build. */
 export function onSnoozeWoke(cb: (e: SnoozeWokeBatch) => void): Promise<UnlistenFn> {
   if (isMock) return mockBackend().then((m) => m.listen(EVENTS.snoozeWoke, cb as (p: unknown) => void));
-  return listen<SnoozeWokeBatch>(EVENTS.snoozeWoke, (e) => cb(e.payload));
+  return listenHere<SnoozeWokeBatch>(EVENTS.snoozeWoke, (e) => cb(e.payload));
 }
 
 export function onMenu(cb: (e: MenuEvent) => void): Promise<UnlistenFn> {
   if (!inTauri) return mockBackend().then((m) => m.listen(EVENTS.menu, cb as (p: unknown) => void));
-  return listen<MenuEvent>(EVENTS.menu, (e) => cb(e.payload));
+  return listenHere<MenuEvent>(EVENTS.menu, (e) => cb(e.payload));
 }
 
 export function onCalendarChanged(cb: (e: CalendarChangedEvent) => void): Promise<UnlistenFn> {
   if (isMock) return mockBackend().then((m) => m.listen(EVENTS.calendarChanged, cb as (p: unknown) => void));
-  return listen<CalendarChangedEvent>(EVENTS.calendarChanged, (e) => cb(e.payload));
+  return listenHere<CalendarChangedEvent>(EVENTS.calendarChanged, (e) => cb(e.payload));
 }
 
 export function onRulesChanged(cb: (e: RulesOverview) => void): Promise<UnlistenFn> {
   if (isMock) return mockBackend().then((m) => m.listen(EVENTS.rulesChanged, cb as (p: unknown) => void));
-  return listen<RulesOverview>(EVENTS.rulesChanged, (e) => cb(e.payload));
+  return listenHere<RulesOverview>(EVENTS.rulesChanged, (e) => cb(e.payload));
 }
 
 /** A rule acted on (or, in dry-run, matched) mail. */
 export function onRuleFired(cb: (e: RuleFiredEvent) => void): Promise<UnlistenFn> {
   if (isMock) return mockBackend().then((m) => m.listen(EVENTS.ruleFired, cb as (p: unknown) => void));
-  return listen<RuleFiredEvent>(EVENTS.ruleFired, (e) => cb(e.payload));
+  return listenHere<RuleFiredEvent>(EVENTS.ruleFired, (e) => cb(e.payload));
 }
 
 /** Text being written by write_with_ai, so far. */
 export function onWriteProgress(cb: (e: WriteProgress) => void): Promise<UnlistenFn> {
   if (isMock) return mockBackend().then((m) => m.listen(EVENTS.writeProgress, cb as (p: unknown) => void));
-  return listen<WriteProgress>(EVENTS.writeProgress, (e) => cb(e.payload));
+  return listenHere<WriteProgress>(EVENTS.writeProgress, (e) => cb(e.payload));
 }
 
 /** A summary in progress: notes on part of a long thread, or the summary so far. */
 export function onSummaryProgress(cb: (e: SummaryProgress) => void): Promise<UnlistenFn> {
   if (isMock) return mockBackend().then((m) => m.listen(EVENTS.summaryProgress, cb as (p: unknown) => void));
-  return listen<SummaryProgress>(EVENTS.summaryProgress, (e) => cb(e.payload));
+  return listenHere<SummaryProgress>(EVENTS.summaryProgress, (e) => cb(e.payload));
 }

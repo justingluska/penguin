@@ -75,7 +75,8 @@ export function useLabelLook(): number {
 
 let labelIndex = new Map<string, Label>();
 let accountIndex = new Map<string, Account>();
-let myEmails = new Set<string>();
+/** Your addresses (lowercase) → the account that has it (the first, if two share one). */
+let myEmails = new Map<string, string>();
 
 export function accountById(id: string): Account | undefined {
   return accountIndex.get(id);
@@ -85,6 +86,10 @@ export function labelById(accountId: string, labelId: string): Label | undefined
 }
 export function isMe(email: string): boolean {
   return myEmails.has(email.toLowerCase());
+}
+/** The id of the account whose address this is, if it's one of yours. */
+export function accountIdForEmail(email: string): string | undefined {
+  return myEmails.get(email.toLowerCase());
 }
 
 /**
@@ -173,7 +178,8 @@ function publishAccounts() {
   const accounts = orderAccounts(incoming, appliedOrder);
   if (accounts.length === meta.get().accounts.length && accounts.every((a, i) => a === meta.get().accounts[i])) return;
   accountIndex = new Map(accounts.map((a) => [a.id, a]));
-  myEmails = new Set(accounts.map((a) => a.email.toLowerCase()));
+  myEmails = new Map();
+  for (const a of accounts) if (!myEmails.has(a.email.toLowerCase())) myEmails.set(a.email.toLowerCase(), a.id);
   meta.set({ accounts });
 }
 
@@ -274,6 +280,8 @@ export interface ListState {
 
 export const list = createStore<ListState>({ key: "", items: [], loading: false, loaded: false, hasMore: false, error: null });
 
+/** The list is live (startMail ran): the main window, once accounts are known. */
+let listStarted = false;
 const PAGE = 100;
 const REFRESH_CAP = 1000;
 let listSeq = 0;
@@ -518,6 +526,7 @@ const visible = (items: ThreadSummary[]) =>
   suppressed.size === 0 ? items : items.filter((t) => !suppressed.has(refKey(t)));
 
 export async function reloadList() {
+  if (!listStarted) return;
   const ui = getUi();
   const key = queryKey(ui);
   const seq = ++listSeq;
@@ -582,6 +591,7 @@ export async function listAllInView(): Promise<ThreadRef[]> {
 }
 
 export async function loadMore() {
+  if (!listStarted) return;
   const s = list.get();
   if (s.loading || !s.hasMore || s.items.length === 0) return;
   const ui = getUi();
@@ -609,6 +619,7 @@ export async function loadMore() {
  * and an unchanged answer leaves the list untouched.
  */
 export async function refreshList() {
+  if (!listStarted) return;
   const s = list.get();
   if (!s.loaded) return reloadList();
   const ui = getUi();
@@ -784,6 +795,7 @@ let lastKey = "";
 let lastViewKey = "";
 let lastUnreadOnly = false;
 function reloadIfQueryChanged() {
+  if (!listStarted) return;
   const ui = getUi();
   const k = queryKey(ui);
   if (k === lastKey) return;
@@ -834,8 +846,13 @@ function installHoverPrefetch() {
   );
 }
 
-/** Called once accounts are known. */
+/**
+ * Called once accounts are known, in the main window only: until then (and
+ * for good in a conversation or compose window, which show no list) the
+ * list isn't loaded and no view change reloads it.
+ */
 export function startMail() {
+  listStarted = true;
   installHoverPrefetch();
   settingsSub ??= subscribeSettings(reloadIfQueryChanged);
   lastKey = queryKey(getUi());

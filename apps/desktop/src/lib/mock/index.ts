@@ -22,6 +22,7 @@
 //   ./smart.ts — smart views: seeded receipts, trips, parcels, bills, bookings, files; lists, headers, counts
 //   ./writing.ts — Write with AI, suggested replies and snippet files: a fake streaming writer
 //   ./split.ts — Split Inbox: the inbox filtered by a split's queries, and the tab counts
+//   ./appWindows.ts — conversation and compose windows: window.open with the app's query, composer seeds
 import type { UnlistenFn } from "@tauri-apps/api/event";
 import { mailHandlers } from "./mail";
 import { searchHandlers } from "./search";
@@ -47,10 +48,11 @@ import { smartHandlers } from "./smart";
 import { semanticIndexHandlers } from "./semanticIndex";
 import { writingHandlers } from "./writing";
 import { splitHandlers, withSplits } from "./split";
+import { appWindowHandlers } from "./appWindows";
 
 export type MockHandler = (args: Record<string, any>) => unknown | Promise<unknown>;
 
-const handlers: Record<string, MockHandler> = { ...mailHandlers, ...searchHandlers, ...windowHandlers, ...avatarHandlers, ...composeHandlers, ...menuHandlers, ...ruleHandlers, ...meHandlers, ...calendarHandlers, ...askHandlers, ...unsubscribeHandlers, ...snoozeHandlers, ...providerHandlers, ...triageHandlers, ...notificationHandlers, ...inviteHandlers, ...summaryHandlers, ...smartHandlers, ...semanticIndexHandlers, ...imageHandlers, ...writingHandlers, ...splitHandlers };
+const handlers: Record<string, MockHandler> = { ...mailHandlers, ...searchHandlers, ...windowHandlers, ...avatarHandlers, ...composeHandlers, ...menuHandlers, ...ruleHandlers, ...meHandlers, ...calendarHandlers, ...askHandlers, ...unsubscribeHandlers, ...snoozeHandlers, ...providerHandlers, ...triageHandlers, ...notificationHandlers, ...inviteHandlers, ...summaryHandlers, ...smartHandlers, ...semanticIndexHandlers, ...imageHandlers, ...writingHandlers, ...splitHandlers, ...appWindowHandlers };
 handlers.search = withEvents(handlers.search);
 handlers.send_message = withReplyLaterClear(handlers.send_message);
 handlers.list_threads = withSplits(withInvites(handlers.list_threads));
@@ -77,8 +79,14 @@ export const mockBackend = {
   },
   emit(event: string, payload: unknown) {
     listeners.get(event)?.forEach((cb) => cb(payload));
+    emitted.forEach((f) => f(event, payload));
+  },
+  /** Every event, also for the other windows (lib/mockBridge.ts hostMock). */
+  onEmit(f: (event: string, payload: unknown) => void) {
+    emitted.add(f);
   },
 };
+const emitted = new Set<(event: string, payload: unknown) => void>();
 
 // scripts/bench-ui emits backend events through this (a mail-changed storm
 // during a backfill), only on a page it has marked as a benchmark.

@@ -117,12 +117,19 @@ test("storage that refuses the flag rejects without reloading", async () => {
 const src = new URL("../src/", import.meta.url).pathname;
 const apiSource = readFileSync(join(src, "lib/api.ts"), "utf8");
 
-test("api.ts: raw invoke() only in call(), the log writer and the menu context", () => {
+test("api.ts: raw invoke() only in call(), the log writer and window chrome (menu context, opening windows)", () => {
   const raw = apiSource.split("\n").filter((l) => /(?<![.\w])invoke</.test(l));
-  assert.equal(raw.length, 3, raw.join("\n"));
+  assert.equal(raw.length, 5, raw.join("\n"));
   assert.ok(raw[0].includes("isMock ?"), "call() routes on isMock");
   assert.ok(raw[1].includes('"log_client_event"'));
-  assert.ok(raw[2].includes('"set_menu_context"') && raw[2].includes("inTauri ?"));
+  // Window chrome: no mail, accounts or settings; a demo's windows run on the mock too.
+  for (const [line, cmd] of [
+    [raw[2], "set_menu_context"],
+    [raw[3], "open_window"],
+    [raw[4], "take_window_seed"],
+  ]) {
+    assert.ok(line.includes(`"${cmd}"`) && line.includes("inTauri ?"), line);
+  }
   const log = apiSource.slice(apiSource.indexOf("export function logClientEvent"));
   assert.ok(log.indexOf("if (isMock)") < log.indexOf('invoke<void>("log_client_event"'), "the log writer returns early in mock/demo mode");
 });
@@ -131,11 +138,19 @@ test("api.ts: every event listener checks isMock before the real listen() (the n
   const lines = apiSource.split("\n");
   let checked = 0;
   lines.forEach((l, i) => {
-    if (!/return listen</.test(l) || l.includes("EVENTS.menu")) return;
+    if (!/return listenHere</.test(l) || l.includes("EVENTS.menu")) return;
     assert.match(lines[i - 1], /if \(isMock\) return mockBackend\(\)/, `line ${i + 1}: ${l.trim()}`);
     checked++;
   });
   assert.ok(checked > 10);
+  // The real listen() is called in two places only: listenHere (each window
+  // hears the backend's events for it) and the window bus, whose events come
+  // from Penguin's other windows, never from the backend.
+  const real = lines.filter((l) => /(?<![.\w])listen</.test(l));
+  assert.equal(real.length, 1, real.join("\n"));
+  assert.ok(real[0].includes("target: thisWindowLabel"));
+  const bus = apiSource.slice(apiSource.indexOf("export function onBusMessage"));
+  assert.ok(bus.indexOf("listenHere<unknown>(BUS_EVENT") > 0 && bus.indexOf("listenHere<unknown>(BUS_EVENT") < bus.indexOf("\n}"));
 });
 
 test("no module outside api.ts calls the Tauri command or event API", () => {

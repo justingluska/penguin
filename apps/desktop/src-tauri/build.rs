@@ -133,6 +133,9 @@ const COMMANDS: &[&str] = &[
     "respond_to_invite",
     "calendar_sync_now",
     "set_menu_context",
+    // Conversation and compose windows (src/windows.rs).
+    "open_window",
+    "take_window_seed",
     "set_me_photo",
     "set_me_photo_from_google",
     "clear_me_photo",
