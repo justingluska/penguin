@@ -7,7 +7,7 @@ import { getUi, setUi } from "../../lib/ui";
 import { busSend, isMainWindow } from "../../lib/windowBus";
 import { MAIN_LABEL } from "../../lib/windowRoute";
 
-export const SETTINGS_SECTIONS = ["you", "accounts", "profiles", "general", "inbox", "sync", "calendar", "compose", "signatures", "privacy", "search", "ai", "views", "rules", "keyboard", "diagnostics", "whatsnew", "about"] as const;
+export const SETTINGS_SECTIONS = ["you", "accounts", "profiles", "general", "inbox", "sync", "calendar", "compose", "signatures", "privacy", "sharing", "search", "ai", "views", "rules", "keyboard", "diagnostics", "whatsnew", "about"] as const;
 export type SettingsSection = (typeof SETTINGS_SECTIONS)[number];
 
 /** A section named by another window (app/handoffs.ts), or null. */

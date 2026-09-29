@@ -16,7 +16,7 @@ import { currentSettings, subscribeSettings, updateSettings } from "../lib/setti
 import type { MenuContext, SettingsPatch } from "../lib/types";
 import { toast } from "../components/Toast";
 import { isSettingsOpen, openSettings, subscribeSettingsOpen } from "../features/settings/state";
-import { isStarred, isUnread } from "./actions";
+import { isStarred, isUnread, targetsInSpam } from "./actions";
 import { list, meta } from "./store";
 import { debugInfo } from "../lib/debugInfo";
 import { isMainWindow } from "../lib/windowBus";
@@ -145,6 +145,7 @@ export function menuContext(): MenuContext {
     selection: sel !== null,
     selectionUnread: sel !== null && isUnread(sel),
     selectionStarred: sel !== null && isStarred(sel),
+    selectionSpam: sel !== null && targetsInSpam(),
     sidebarVisible: !getLayout().sidebarCollapsed,
     floe: currentSettings().floeMode,
     unreadOnly: ui.unreadOnly,

@@ -239,6 +239,9 @@ fn lenient_compose_font<'de, D: serde::Deserializer<'de>>(d: D) -> Result<Compos
 pub const COMPOSE_FONT_SIZE_MIN: u8 = 12;
 pub const COMPOSE_FONT_SIZE_MAX: u8 = 20;
 pub const COMPOSE_FONT_SIZE_DEFAULT: u8 = 15;
+/// Check spelling while typing: on, like Safari and Mail. Also WebKit's
+/// starting state on a first launch (src/spelling.rs `prime`).
+pub const CHECK_SPELLING_DEFAULT: bool = true;
 /// Sidebar text size, in steps from the default (each step ≈ 1px).
 pub const SIDEBAR_TEXT_STEP_MIN: i8 = -2;
 pub const SIDEBAR_TEXT_STEP_MAX: i8 = 2;
@@ -477,6 +480,13 @@ pub struct Settings {
     /// draft from an instruction, rewrite a selection. On by default; runs
     /// only when asked, and only on this Mac.
     pub write_with_ai: bool,
+    /// Underline misspelled words as you type, in every window (WebKit's
+    /// continuous spell checking; src/spelling.rs). On by default; Edit ▸
+    /// Spelling and Grammar ▸ Check Spelling While Typing is the same switch.
+    pub check_spelling: bool,
+    /// Check grammar along with spelling (Edit ▸ Spelling and Grammar ▸
+    /// Check Grammar With Spelling). Off by default, as in Safari and Mail.
+    pub check_grammar: bool,
     /// Composer signatures (rich text; HTML through the composer allowlist).
     #[serde(deserialize_with = "lenient_signatures")]
     pub signatures: Vec<Signature>,
@@ -1237,11 +1247,135 @@ fn is_photo_id(id: &str) -> bool {
             .all(|b| b.is_ascii_hexdigit() && !b.is_ascii_uppercase())
 }
 
-/// `penguin-cli mcp`: read-only access to the local index for AI tools.
-#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
-#[serde(rename_all = "camelCase", default)]
+/// Settings → Developer → "Agents (CLI and MCP)": what `penguin-cli` and its
+/// MCP server may do. Ordered: each level includes the ones below it.
+#[derive(Debug, Clone, Copy, Default, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
+#[serde(rename_all = "camelCase")]
+pub enum AgentAccess {
+    /// No MCP server; the CLI can't draft or send.
+    #[default]
+    Off,
+    /// Search and read the local index (the MCP server's read-only tools).
+    Read,
+    /// Read, plus create / update / list / delete its own drafts.
+    Draft,
+    /// Read and draft, plus send (through the outbox, after a delay the
+    /// user can cancel). Only `SettingsState::grant_agent_send` sets it.
+    Send,
+}
+
+impl AgentAccess {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            AgentAccess::Off => "off",
+            AgentAccess::Read => "read",
+            AgentAccess::Draft => "draft",
+            AgentAccess::Send => "send",
+        }
+    }
+
+    /// What Settings calls the level.
+    pub fn label(self) -> &'static str {
+        match self {
+            AgentAccess::Off => "Off",
+            AgentAccess::Read => "Read only",
+            AgentAccess::Draft => "Read and draft",
+            AgentAccess::Send => "Read, draft and send",
+        }
+    }
+}
+
+/// Seconds an agent's send waits in the outbox before it goes (the user can
+/// cancel it meanwhile). Anything else loads as the default.
+pub const AGENT_SEND_DELAYS: [u32; 4] = [10, 30, 60, 300];
+pub const AGENT_SEND_DELAY_DEFAULT: u32 = 60;
+
+/// `penguin-cli` and its MCP server (`agents` in the UI). Stored under
+/// `mcp` for compatibility: older builds wrote `{"enabled": bool}`, which
+/// loads as Read (true) or Off (false). An unknown `access` value loads as
+/// Off. `enabled` is still written (true for any level above Off) so an
+/// older build reading this file keeps the MCP server's on/off state.
+#[derive(Debug, Clone, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
 pub struct McpSettings {
+    pub access: AgentAccess,
+    /// Derived from `access`; kept in the file for older builds.
     pub enabled: bool,
+    /// An agent's send waits this long in the outbox (AGENT_SEND_DELAYS).
+    pub send_delay_seconds: u32,
+    /// Agents may only send to addresses I've sent mail to before (from any
+    /// account) or to my own accounts. On by default.
+    pub send_known_only: bool,
+}
+
+impl Default for McpSettings {
+    fn default() -> Self {
+        McpSettings::with_access(AgentAccess::Off)
+    }
+}
+
+impl McpSettings {
+    pub fn with_access(access: AgentAccess) -> McpSettings {
+        McpSettings {
+            access,
+            enabled: access > AgentAccess::Off,
+            send_delay_seconds: AGENT_SEND_DELAY_DEFAULT,
+            send_known_only: true,
+        }
+    }
+
+    fn set_access(&mut self, access: AgentAccess) {
+        self.access = access;
+        self.enabled = access > AgentAccess::Off;
+    }
+}
+
+impl<'de> Deserialize<'de> for McpSettings {
+    fn deserialize<D: serde::Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
+        let raw = serde_json::Value::deserialize(d)?;
+        let obj = raw.as_object();
+        let field = |k: &str| obj.and_then(|o| o.get(k));
+        let access = match field("access") {
+            // Present: it decides, and anything unrecognized is Off.
+            Some(v) => serde_json::from_value(v.clone()).unwrap_or(AgentAccess::Off),
+            // A file from before levels existed.
+            None => match field("enabled").and_then(|v| v.as_bool()) {
+                Some(true) => AgentAccess::Read,
+                _ => AgentAccess::Off,
+            },
+        };
+        let mut out = McpSettings::with_access(access);
+        if let Some(n) = field("sendDelaySeconds").and_then(|v| v.as_u64()) {
+            if let Some(&d) = AGENT_SEND_DELAYS.iter().find(|&&d| u64::from(d) == n) {
+                out.send_delay_seconds = d;
+            }
+        }
+        if let Some(b) = field("sendKnownOnly").and_then(|v| v.as_bool()) {
+            out.send_known_only = b;
+        }
+        Ok(out)
+    }
+}
+
+/// `update_settings({mcp})`: omitted fields are unchanged; unknown keys are
+/// ignored (never granted). `access: "send"` is refused here: raising the
+/// level to send goes only through `enable_agent_send`, after the
+/// confirmation. Lowering to any level works. `enabled` is the old switch
+/// (true = at least Read, false = Off).
+#[derive(Debug, Clone, Default, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct McpPatch {
+    pub access: Option<AgentAccess>,
+    pub enabled: Option<bool>,
+    pub send_delay_seconds: Option<u32>,
+    pub send_known_only: Option<bool>,
+}
+
+impl McpPatch {
+    /// Whether applying this would raise the level to Send.
+    pub fn raises_to_send(&self, current: AgentAccess) -> bool {
+        self.access == Some(AgentAccess::Send) && current != AgentAccess::Send
+    }
 }
 
 // Manual: the swipe actions have different defaults per direction.
@@ -1284,6 +1418,8 @@ impl Default for Settings {
             send_later_hour: SEND_LATER_HOUR_DEFAULT,
             instant_replies: InstantReplies::default(),
             write_with_ai: true,
+            check_spelling: CHECK_SPELLING_DEFAULT,
+            check_grammar: false,
             signatures: Vec::new(),
             signature_defaults: BTreeMap::new(),
             signature_insert: SignatureInsert::default(),
@@ -1341,8 +1477,8 @@ pub struct SettingsPatch {
     pub accent_color: Option<AccentColor>,
     pub corners: Option<CornerStyle>,
     pub dark_email_bodies: Option<bool>,
-    /// Replaces the whole MCP section.
-    pub mcp: Option<McpSettings>,
+    /// Merged field by field (see McpPatch); never raises the level to send.
+    pub mcp: Option<McpPatch>,
     pub floe_mode: Option<bool>,
     pub compose_font: Option<ComposeFont>,
     /// Clamped to 12–20.
@@ -1361,6 +1497,8 @@ pub struct SettingsPatch {
     /// Replaces the whole section; the one-liners are normalized.
     pub instant_replies: Option<InstantReplies>,
     pub write_with_ai: Option<bool>,
+    pub check_spelling: Option<bool>,
+    pub check_grammar: Option<bool>,
     /// Replaces the whole list (order included); HTML is re-sanitized.
     pub signatures: Option<Vec<Signature>>,
     /// Replaces the whole map.
@@ -1394,6 +1532,32 @@ pub struct SettingsPatch {
 }
 
 impl Settings {
+    /// The `mcp` part of a patch. A request to raise the level to Send is
+    /// ignored here (`update_settings` rejects it before this runs; this is
+    /// the second line): only `SettingsState::grant_agent_send` sets it.
+    fn apply_mcp(&mut self, p: McpPatch) {
+        let current = self.mcp.access;
+        let wanted = match (p.access, p.enabled) {
+            (Some(a), _) => Some(a),
+            (None, Some(true)) if current == AgentAccess::Off => Some(AgentAccess::Read),
+            (None, Some(false)) => Some(AgentAccess::Off),
+            _ => None,
+        };
+        if let Some(a) = wanted {
+            if a != AgentAccess::Send || current == AgentAccess::Send {
+                self.mcp.set_access(a);
+            }
+        }
+        if let Some(d) = p.send_delay_seconds {
+            if AGENT_SEND_DELAYS.contains(&d) {
+                self.mcp.send_delay_seconds = d;
+            }
+        }
+        if let Some(b) = p.send_known_only {
+            self.mcp.send_known_only = b;
+        }
+    }
+
     pub fn apply(&mut self, patch: SettingsPatch) {
         if let Some(v) = patch.theme {
             self.theme = v;
@@ -1471,7 +1635,7 @@ impl Settings {
             self.dark_email_bodies = v;
         }
         if let Some(v) = patch.mcp {
-            self.mcp = v;
+            self.apply_mcp(v);
         }
         if let Some(v) = patch.floe_mode {
             self.floe_mode = v;
@@ -1529,6 +1693,12 @@ impl Settings {
         }
         if let Some(v) = patch.write_with_ai {
             self.write_with_ai = v;
+        }
+        if let Some(v) = patch.check_spelling {
+            self.check_spelling = v;
+        }
+        if let Some(v) = patch.check_grammar {
+            self.check_grammar = v;
         }
         if let Some(v) = patch
             .sync_window_months
@@ -1681,7 +1851,14 @@ impl Settings {
     /// really coming from that address: From is attacker-controlled, and a
     /// spoofed "trusted" sender would otherwise learn the reader's IP and
     /// open time.
+    ///
+    /// Spam never loads them on its own, whatever the setting: a remote
+    /// image there is how a spammer learns the address is read. Loading
+    /// them by hand (load_remote_images) still works.
     pub fn remote_images_for(&self, m: &Message) -> RemoteImageDecision {
+        if m.label_ids.iter().any(|l| l == "SPAM") {
+            return RemoteImageDecision::Block;
+        }
         match self.remote_images {
             RemoteImages::Always => RemoteImageDecision::Load,
             RemoteImages::Never => RemoteImageDecision::Block,
@@ -1940,6 +2117,17 @@ impl SettingsState {
         Ok(next)
     }
 
+    /// Raise the agent level to Send (Settings → Developer, after the user
+    /// confirmed the disclaimer). Persisted like `update`.
+    pub fn grant_agent_send(&self) -> std::io::Result<Settings> {
+        let mut current = self.current.write().unwrap_or_else(|p| p.into_inner());
+        let mut next = current.clone();
+        next.mcp.set_access(AgentAccess::Send);
+        next.save(&self.path)?;
+        *current = next.clone();
+        Ok(next)
+    }
+
     /// Point `me.photo` at a stored photo id (or none); persisted like
     /// `update`. Returns the settings and the id it replaced.
     pub fn set_me_photo(&self, id: Option<String>) -> std::io::Result<(Settings, Option<String>)> {
@@ -1961,8 +2149,10 @@ mod tests {
         let s: Settings = serde_json::from_str("{}").unwrap();
         assert!(!s.mcp.enabled);
         let mut s = Settings::default();
+        // The old switch still works: on = Read.
         s.apply(serde_json::from_str(r#"{"mcp":{"enabled":true}}"#).unwrap());
         assert!(s.mcp.enabled);
+        assert_eq!(s.mcp.access, AgentAccess::Read);
         assert!(
             serde_json::from_str::<SettingsPatch>(r#"{"mcp":{"enabled":true,"sendTool":true}}"#)
                 .is_ok(),
@@ -1970,8 +2160,108 @@ mod tests {
         );
         assert_eq!(
             serde_json::to_value(&s).unwrap()["mcp"],
-            serde_json::json!({"enabled": true})
+            serde_json::json!({"access": "read", "enabled": true, "sendDelaySeconds": 60, "sendKnownOnly": true})
         );
+    }
+
+    #[test]
+    fn agent_access_migrates_from_enabled_and_unknown_values_load_as_off() {
+        let load = |json: &str| serde_json::from_str::<Settings>(json).unwrap().mcp;
+        // Files from before levels.
+        assert_eq!(load(r#"{"mcp":{"enabled":true}}"#).access, AgentAccess::Read);
+        assert_eq!(load(r#"{"mcp":{"enabled":false}}"#).access, AgentAccess::Off);
+        assert_eq!(load(r#"{"mcp":{}}"#).access, AgentAccess::Off);
+        // Every level round-trips, with `enabled` derived.
+        for a in [
+            AgentAccess::Off,
+            AgentAccess::Read,
+            AgentAccess::Draft,
+            AgentAccess::Send,
+        ] {
+            let text = serde_json::to_string(&McpSettings::with_access(a)).unwrap();
+            let back: McpSettings = serde_json::from_str(&text).unwrap();
+            assert_eq!(back.access, a);
+            assert_eq!(back.enabled, a != AgentAccess::Off);
+        }
+        // `access` decides over `enabled`; an unknown value (a newer
+        // build's, a typo, a wrong type) is Off, never a guess upward.
+        for bad in [
+            r#""sendEverything""#,
+            r#""SEND""#,
+            "3",
+            "null",
+            r#"{"level":"send"}"#,
+        ] {
+            let m = load(&format!(r#"{{"mcp":{{"access":{bad},"enabled":true}}}}"#));
+            assert_eq!(m.access, AgentAccess::Off, "{bad}");
+            assert!(!m.enabled);
+        }
+        assert_eq!(
+            load(r#"{"mcp":{"access":"draft","enabled":false}}"#).access,
+            AgentAccess::Draft
+        );
+        // A bad delay loads as the default; the rest of the section survives.
+        let m = load(r#"{"mcp":{"access":"send","sendDelaySeconds":1,"sendKnownOnly":false}}"#);
+        assert_eq!(
+            (m.access, m.send_delay_seconds, m.send_known_only),
+            (AgentAccess::Send, 60, false)
+        );
+        assert_eq!(
+            load(r#"{"mcp":{"sendDelaySeconds":300}}"#).send_delay_seconds,
+            300
+        );
+        // A non-object section doesn't sink the whole file.
+        let s: Settings = serde_json::from_str(r#"{"mcp":true,"floeMode":true}"#).unwrap();
+        assert_eq!(s.mcp.access, AgentAccess::Off);
+        assert!(s.floe_mode);
+    }
+
+    #[test]
+    fn a_patch_can_lower_the_agent_level_but_never_raise_it_to_send() {
+        let patch = |json: &str| serde_json::from_str::<SettingsPatch>(json).unwrap();
+        let mut s = Settings::default();
+        s.apply(patch(r#"{"mcp":{"access":"draft"}}"#));
+        assert_eq!(s.mcp.access, AgentAccess::Draft);
+        assert!(patch(r#"{"mcp":{"access":"send"}}"#)
+            .mcp
+            .unwrap()
+            .raises_to_send(s.mcp.access));
+        s.apply(patch(r#"{"mcp":{"access":"send"}}"#));
+        assert_eq!(
+            s.mcp.access,
+            AgentAccess::Draft,
+            "send only through grant_agent_send"
+        );
+        // `enabled: true` doesn't lower an existing level.
+        s.apply(patch(r#"{"mcp":{"enabled":true}}"#));
+        assert_eq!(s.mcp.access, AgentAccess::Draft);
+        // Once granted, a patch may restate it, and lowering works at once.
+        let dir = temp_dir("agent-send");
+        let state = SettingsState::load(&dir);
+        state.update(patch(r#"{"mcp":{"access":"read"}}"#)).unwrap();
+        let granted = state.grant_agent_send().unwrap();
+        assert_eq!(granted.mcp.access, AgentAccess::Send);
+        assert!(granted.mcp.enabled);
+        assert_eq!(
+            Settings::load(&dir.join(SETTINGS_FILE)).mcp.access,
+            AgentAccess::Send
+        );
+        let same = state
+            .update(patch(r#"{"mcp":{"access":"send","sendDelaySeconds":300}}"#))
+            .unwrap();
+        assert_eq!(
+            (same.mcp.access, same.mcp.send_delay_seconds),
+            (AgentAccess::Send, 300)
+        );
+        let lowered = state.update(patch(r#"{"mcp":{"access":"draft"}}"#)).unwrap();
+        assert_eq!(lowered.mcp.access, AgentAccess::Draft);
+        assert_eq!(state.get().mcp.access, AgentAccess::Draft);
+        let off = state.update(patch(r#"{"mcp":{"enabled":false}}"#)).unwrap();
+        assert_eq!((off.mcp.access, off.mcp.enabled), (AgentAccess::Off, false));
+        // Delays outside the choices are ignored.
+        let kept = state.update(patch(r#"{"mcp":{"sendDelaySeconds":0}}"#)).unwrap();
+        assert_eq!(kept.mcp.send_delay_seconds, 300);
+        let _ = std::fs::remove_dir_all(dir);
     }
 
     use super::*;
@@ -2188,6 +2478,9 @@ mod tests {
         assert_eq!(obj.remove("stripLinkTracking"), Some(serde_json::json!(false)));
         assert_eq!(obj.remove("shortcutCoach"), Some(serde_json::json!(true)));
         assert_eq!(obj.remove("requestReadReceipts"), Some(serde_json::json!(false)));
+        // Spelling is checked while typing; grammar isn't (Safari's defaults).
+        assert_eq!(obj.remove("checkSpelling"), Some(serde_json::json!(true)));
+        assert_eq!(obj.remove("checkGrammar"), Some(serde_json::json!(false)));
         assert_eq!(obj.remove("sidebarTextSize"), Some(serde_json::json!(0)));
         // Ask reads questions with Apple Intelligence when the grammar can't.
         assert_eq!(obj.remove("askWithAi"), Some(serde_json::json!(true)));
@@ -2212,7 +2505,7 @@ mod tests {
                 "profiles": [], "hiddenFromAll": [], "accountOrder": [], "swipeRight": "toggleRead", "swipeLeft": "archive", "swipeLeftLong": "trash",
                 "sidebarTheme": "graphite", "matchAccent": false, "darkShade": "black", "darkEmailBodies": false,
                 "accentColor": "blue", "corners": "rounded",
-                "mcp": { "enabled": false },
+                "mcp": { "access": "off", "enabled": false, "sendDelaySeconds": 60, "sendKnownOnly": true },
                 "floeMode": false, "composeFont": "inter", "composeFontSize": 15,
                 "followUpDays": 3,
                 "gmailUnitsPerMin": GMAIL_UNITS_PER_MIN_DEFAULT,
@@ -2261,6 +2554,14 @@ mod tests {
                 strip_link_tracking: true
             }
         );
+        // Settings files from before spell checking get it on, grammar off;
+        // the patch turns each one on or off.
+        assert!(partial.check_spelling);
+        assert!(!partial.check_grammar);
+        s.apply(serde_json::from_str(r#"{"checkSpelling":false,"checkGrammar":true}"#).unwrap());
+        assert!(!s.check_spelling && s.check_grammar);
+        s.apply(serde_json::from_str(r#"{"checkSpelling":true}"#).unwrap());
+        assert!(s.check_spelling && s.check_grammar);
         // Read receipts are asked for only once turned on.
         assert!(!partial.request_read_receipts);
         s.apply(serde_json::from_str(r#"{"requestReadReceipts":true}"#).unwrap());
@@ -2724,6 +3025,14 @@ mod tests {
             s.remote_images_for(&from("other@shop.example")),
             RemoteImageDecision::Load
         );
+        // Spam: blocked under Always, and for a trusted, authenticated sender.
+        let mut spam = from("other@shop.example");
+        spam.label_ids = vec!["SPAM".into(), "UNREAD".into()];
+        assert_eq!(s.remote_images_for(&spam), RemoteImageDecision::Block);
+        s.remote_images = RemoteImages::Ask;
+        let mut trusted_spam = authed.clone();
+        trusted_spam.label_ids = vec!["SPAM".into()];
+        assert_eq!(s.remote_images_for(&trusted_spam), RemoteImageDecision::Block);
     }
 
     fn profile(id: &str, name: &str, accounts: &[&str]) -> Profile {

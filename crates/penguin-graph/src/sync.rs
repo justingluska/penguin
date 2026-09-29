@@ -10,7 +10,8 @@
 //!    (`$orderby=receivedDateTime desc`; plain delta if Graph refuses it).
 //!    Delta pages carry light fields only; messages inside the sync window
 //!    are then fetched in full, older ones stored headers-only (or in full,
-//!    or not at all, per `OlderMail`). An ordered page's bodies come from
+//!    or not at all, per `OlderMail`); Junk Email only back to the spam
+//!    window (30 days, `spam_window_start_ms`), in every pass. An ordered page's bodies come from
 //!    one folder listing of its date range (`list_full_range`), not a GET
 //!    per message: Outlook limits requests per mailbox, not bytes. The page link is saved after every
 //!    page, so a restart resumes mid-folder. A delta round's state is taken
@@ -41,11 +42,12 @@ use std::time::Duration;
 
 use futures_util::FutureExt;
 use penguin_core::{
-    Account, AccountProvider, Message, Store, SyncCursor, SyncPhase, SyncStage, SyncStatus,
+    Account, AccountProvider, Message, Store, SyncCursor, SyncErrorKind, SyncPhase, SyncStage,
+    SyncStatus,
 };
 use penguin_provider::heartbeat::Heartbeat;
 use penguin_provider::ids::system;
-use penguin_provider::window::{window_start_ms, OlderMail, WindowPolicy};
+use penguin_provider::window::{spam_window_start_ms, window_start_ms, OlderMail, WindowPolicy};
 use penguin_provider::{
     async_trait, Backend, Error, MailProvider, Result, SyncHandle, SyncObserver, SyncTask,
 };
@@ -113,17 +115,7 @@ impl Shared {
         policy: WindowPolicy,
     ) -> Arc<Self> {
         Arc::new(Shared {
-            status: Mutex::new(SyncStatus {
-                account_id: account_id.to_string(),
-                phase: SyncPhase::Idle,
-                indexed: 0,
-                total_estimate: None,
-                last_synced_at: None,
-                error: None,
-                rate_per_min: None,
-                eta_secs: None,
-                stage: None,
-            }),
+            status: Mutex::new(SyncStatus::new(account_id, SyncPhase::Idle)),
             poked: AtomicBool::new(false),
             wake: Notify::new(),
             observer,
@@ -198,6 +190,18 @@ fn is_message_specific(e: &Error) -> bool {
         Error::Other(_) => true,
         _ => false,
     }
+}
+
+/// A message in Junk Email received before `spam_start`: not synced.
+fn stale_spam(map: &FolderMap, w: &WireMessage, spam_start: i64) -> bool {
+    w.parent_folder_id
+        .as_deref()
+        .is_some_and(|f| map.is_spam(f))
+        && w.received_date_time
+            .as_deref()
+            .and_then(parse_date_ms)
+            .unwrap_or(0)
+            < spam_start
 }
 
 /// A delta link Graph no longer accepts: start the folder over.
@@ -313,6 +317,12 @@ impl AccountSync {
         }
     }
 
+    /// Spam received before this is never downloaded, not even as headers
+    /// (`spam_window_start_ms`: 30 days, or the window if shorter).
+    fn spam_start(&self) -> i64 {
+        spam_window_start_ms(now_ms(), self.shared.policy().months)
+    }
+
     fn fill_pending(&self) -> bool {
         self.cursor.backfill_done
             && self
@@ -371,7 +381,11 @@ impl AccountSync {
         }
     }
 
-    async fn publish_status(&mut self, stored: u64) -> Result<()> {
+    /// Counts, phase and health note. `progress`: the step was the work
+    /// sync was doing (mail stored, or a poll once backfill is done), which
+    /// ends a failure streak; without it (init: signed in, folders read; a
+    /// poll while a failing backfill waits) an open failure stays.
+    async fn publish_status(&mut self, stored: u64, progress: bool) -> Result<()> {
         let indexed = self.count().await?;
         let rate = if stored > 0 {
             self.rate.record(stored)
@@ -379,8 +393,17 @@ impl AccountSync {
             None
         };
         let (phase, stage, note) = (self.resting_phase(), self.stage(), self.health_note());
+        let now = now_ms();
+        if progress {
+            // The error backoff starts over after work that succeeded.
+            self.failures = 0;
+        }
         self.shared.update(|s| {
             s.indexed = indexed;
+            if !progress && s.failing() {
+                return;
+            }
+            s.record_progress(now);
             s.phase = phase;
             s.stage = stage;
             s.error = note;
@@ -408,7 +431,7 @@ impl AccountSync {
         self.graph = GraphCursor::parse(&self.cursor.provider_state)?;
         self.refresh_folders().await?;
         self.next_poll = Instant::now();
-        self.publish_status(0).await
+        self.publish_status(0, false).await
     }
 
     /// Re-read folders and categories: drop cursors of folders that are
@@ -756,6 +779,7 @@ impl AccountSync {
             })
             .await?;
         let full_start = self.full_start();
+        let spam_start = self.spam_start();
         let older = self.shared.policy().older;
         let parked: HashSet<String> = self.cursor.failed_message_ids.iter().cloned().collect();
         let mut to_fetch: Vec<String> = Vec::new();
@@ -805,6 +829,7 @@ impl AccountSync {
                     }
                 }
                 None if parked.contains(&w.id) => {}
+                None if folder_label.as_deref() == Some(system::SPAM) && date < spam_start => {}
                 None if date >= full_start || older == OlderMail::Full => {
                     to_fetch.push(w.id.clone())
                 }
@@ -981,7 +1006,7 @@ impl AccountSync {
         }
         self.save_cursor().await?;
         if !incremental {
-            self.publish_status(result.stored).await?;
+            self.publish_status(result.stored, true).await?;
         }
         Ok(finished)
     }
@@ -1004,7 +1029,12 @@ impl AccountSync {
     /// Incremental: every folder's delta round, parked retries, label refresh.
     async fn poll(&mut self) -> Result<()> {
         if self.cursor.backfill_done {
-            self.shared.update(|s| s.phase = SyncPhase::Incremental);
+            self.shared.update(|s| {
+                // Not while a failure is open: this poll hasn't worked yet.
+                if !s.failing() {
+                    s.phase = SyncPhase::Incremental;
+                }
+            });
         }
         let map = self.client.folders().await?;
         let folders: Vec<Folder> = map
@@ -1041,10 +1071,10 @@ impl AccountSync {
             self.refresh_folders().await?;
         }
         self.save_cursor().await?;
-        self.publish_status(0).await?;
+        let resting = self.resting_phase() != SyncPhase::Backfilling;
+        self.publish_status(0, resting).await?;
         self.shared.update(|s| s.last_synced_at = Some(now_ms()));
         self.next_poll = Instant::now() + POLL_INTERVAL;
-        self.failures = 0;
         Ok(())
     }
 
@@ -1099,7 +1129,7 @@ impl AccountSync {
         self.save_cursor().await?;
         self.client.db(|s| s.optimize()).await?;
         tracing::info!(account = %self.client.account_id(), "backfill complete");
-        self.publish_status(0).await
+        self.publish_status(0, true).await
     }
 
     /// One page of the body-fill pass over `[full_start, full_since)`.
@@ -1136,6 +1166,7 @@ impl AccountSync {
             .await?;
         let map = self.client.folders().await?;
         let parked: HashSet<String> = self.cursor.failed_message_ids.iter().cloned().collect();
+        let spam_start = self.spam_start();
         let ids: Vec<String> = page
             .value
             .iter()
@@ -1145,6 +1176,7 @@ impl AccountSync {
                     .as_deref()
                     .is_some_and(|f| map.is_synced(f))
             })
+            .filter(|w| !stale_spam(&map, w, spam_start))
             .map(|w| w.id.clone())
             .collect();
         let (a, probe) = (self.acct(), ids);
@@ -1169,7 +1201,7 @@ impl AccountSync {
             }
         }
         self.save_cursor().await?;
-        self.publish_status(stored.len() as u64).await
+        self.publish_status(stored.len() as u64, true).await
     }
 
     /// One page of the headers pass over mail older than the window.
@@ -1196,6 +1228,7 @@ impl AccountSync {
             )
             .await?;
         let map = self.client.folders().await?;
+        let spam_start = self.spam_start();
         let listed: Vec<WireMessage> = page
             .value
             .into_iter()
@@ -1205,6 +1238,7 @@ impl AccountSync {
                     .as_deref()
                     .is_some_and(|f| map.is_synced(f))
             })
+            .filter(|w| !stale_spam(&map, w, spam_start))
             .collect();
         let (a, probe) = (
             self.acct(),
@@ -1235,7 +1269,7 @@ impl AccountSync {
             }
         }
         self.save_cursor().await?;
-        self.publish_status(inserted as u64).await
+        self.publish_status(inserted as u64, true).await
     }
 
     /// One unit of work; false when there's nothing to do until the next poll.
@@ -1282,17 +1316,17 @@ impl AccountSync {
                 Ok(()) => return,
                 Err(Error::NeedsReauth(msg)) => {
                     tracing::warn!(account = %self.client.account_id(), "sync stopped: account needs to sign in again");
-                    self.shared.update(|s| {
-                        s.phase = SyncPhase::NeedsReauth;
-                        s.error = Some(msg);
-                    });
+                    let now = now_ms();
+                    self.shared
+                        .update(|s| s.record_failure(SyncErrorKind::Auth, msg, now, None));
                     return;
                 }
                 Err(Error::Keychain(msg)) => {
                     tracing::warn!(account = %self.client.account_id(), error = %msg, "sync stopped: keychain access failed");
+                    let now = now_ms();
                     self.shared.update(|s| {
-                        s.phase = SyncPhase::NeedsReauth;
-                        s.error = Some(format!("Keychain access failed: {msg}"));
+                        let msg = format!("Keychain access failed: {msg}");
+                        s.record_failure(SyncErrorKind::Keychain, msg, now, None)
                     });
                     return;
                 }
@@ -1300,15 +1334,17 @@ impl AccountSync {
                     self.failures += 1;
                     let wait =
                         Duration::from_secs(5u64 << self.failures.min(10)).min(MAX_ERROR_BACKOFF);
-                    tracing::warn!(account = %self.client.account_id(), error = %e, ?wait, "sync error; retrying");
-                    self.shared.update(|s| {
-                        s.phase = SyncPhase::Error;
-                        s.error = Some(e.to_string());
-                    });
+                    tracing::warn!(account = %self.client.account_id(), error = %e, failures = self.failures, ?wait, "sync error; retrying");
+                    let (kind, message, now) = (e.sync_kind(), e.to_string(), now_ms());
+                    let retry_in = wait.as_millis() as i64;
+                    self.shared
+                        .update(|s| s.record_failure(kind, message, now, Some(retry_in)));
                     tokio::select! {
                         _ = tokio::time::sleep(wait) => {}
                         _ = self.shared.wake.notified() => {}
                     }
+                    // The next attempt polls too: only synced mail ends the failure.
+                    self.shared.poked.store(true, Ordering::SeqCst);
                 }
             }
         }
@@ -1512,10 +1548,9 @@ impl Backend for GraphBackend {
                             .or_else(|| payload.downcast_ref::<String>().cloned())
                             .unwrap_or_else(|| "unknown panic".into());
                         tracing::error!(account = %account_id, panic = %panic, "Microsoft sync task panicked");
-                        ticker_shared.update(|s| {
-                            s.phase = SyncPhase::Error;
-                            s.error = Some(format!("internal sync error ({panic}); restart sync to retry"));
-                        });
+                        let msg = format!("internal sync error ({panic}); restart sync to retry");
+                        ticker_shared
+                            .update(|s| s.record_failure(SyncErrorKind::Internal, msg, now_ms(), None));
                     }
                 }
                 _ = ticker => {}
@@ -1531,10 +1566,9 @@ impl Backend for GraphBackend {
 
     fn retry_sync(&self, account: &Account) -> SyncHandle {
         let (_, shared) = self.entry(&account.id);
-        shared.update(|s| {
-            s.phase = SyncPhase::Idle;
-            s.error = None;
-        });
+        // The failure stays until this attempt syncs (or fails again), so
+        // the UI can tell whether the retry worked.
+        shared.update(|s| s.retry_now(now_ms()));
         let handle = self.start_sync(account);
         handle.poke();
         handle

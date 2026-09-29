@@ -69,14 +69,14 @@ const VIEWS: Array<[MailboxView["kind"], string, IconName, string?]> = [
   ["drafts", "Go to Drafts", "draft"],
   ["done", "Go to Done", "done", "archive archived"],
   ["all", "Go to All mail", "archive"],
-  ["spam", "Go to Spam", "shield"],
+  ["spam", "Go to Spam", "shield", "junk bulk"],
   ["trash", "Go to Trash", "trash", "deleted bin"],
 ];
 
 function iconFor(s: Shortcut): IconName {
   const byId: Record<string, IconName> = {
     "go.inbox": "inbox", "go.replyLater": "replyLater", "go.followUp": "followUp", "triage.replyLater": "replyLater", "go.starred": "star", "go.snoozed": "snooze", "go.sent": "send", "go.drafts": "draft", "go.done": "done",
-    "go.all": "archive", "go.trash": "trash", "triage.done": "done", "triage.trash": "trash", "triage.star": "star",
+    "go.all": "archive", "go.trash": "trash", "go.spam": "shield", "triage.done": "done", "triage.trash": "trash", "triage.spam": "shield", "triage.notSpam": "inbox", "triage.star": "star",
     "triage.read": "unread", "triage.unread": "unread", "triage.unsubscribe": "belloff", "triage.label": "tag", "triage.move": "folder", "triage.snooze": "snooze", "triage.undo": "undo", "thread.copy": "copy",
     "compose.new": "compose", "compose.reply": "reply", "compose.replyAll": "replyall", "compose.forward": "forward",
     "search.open": "search", "app.shortcuts": "keyboard", "app.theme": getUi().theme === "dark" ? "sun" : "moon",

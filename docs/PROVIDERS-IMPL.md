@@ -22,7 +22,7 @@ crates/penguin-provider   the seam (no Tauri, no network of its own)
   error.rs                Error (the one error type every provider returns)
   compose.rs              outgoing MIME (Draft → RFC 822), shared by all providers
   outbox.rs, snooze.rs    send later, reminders, snooze wakes (run through MailProvider)
-  window.rs               WindowPolicy, OlderMail, window_start_ms
+  window.rs               WindowPolicy, OlderMail, window_start_ms, spam_window_start_ms
   ids.rs                  id rules, IMAP id/thread helpers, label-id encoding, system labels
   credentials.rs          Keychain vaults: PasswordCredential, MicrosoftCredential, SecretVault
   fake.rs                 FakeProvider / FakeBackend (feature "fake")
@@ -120,6 +120,10 @@ backoff 5 s → 5 min, a poke wakes it.
   older mail per `OlderMail` (headers-only with `insert_header_messages`,
   full, or none). Newest first; commit in chunks (~100); new mail during a
   long backfill must not wait for it.
+- Sync the spam folder (SPAM) only back to `spam_window_start_ms` (30 days,
+  or the window if shorter), and never in the older-mail pass: providers
+  delete spam after about a month, and older spam only bloats the index.
+  Spam that arrives later syncs like any new mail.
 - Park messages that keep failing on their own in
   `cursor.failed_message_ids` and retry them in bounded batches, as Gmail does.
 - Re-read the label/folder list periodically and `replace_labels`.
@@ -196,7 +200,8 @@ via their own calls; snooze = archive, wake = +INBOX +UNREAD; reminders =
 | ±`c:X` | — | PATCH categories |
 | +SPAM / −SPAM | MOVE to/from `\Junk` | move to/from junkemail |
 
-Trash: MOVE to `\Trash` (Graph: deleteditems). Untrash: MOVE to INBOX. Keep
+Report spam = +SPAM −INBOX, Not spam = +INBOX −SPAM (one delta each;
+`conformance::run` checks both). Trash: MOVE to `\Trash` (Graph: deleteditems). Untrash: MOVE to INBOX. Keep
 the local optimistic state right: the app already applied the delta locally;
 after success it pokes your sync, which must converge to the server's truth.
 

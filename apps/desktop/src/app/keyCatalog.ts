@@ -34,6 +34,7 @@ export const MENU_KEYS: Record<string, string> = {
   "go.all": "mod+6",
   "go.trash": "mod+7",
   "go.snoozed": "mod+8",
+  "go.spam": "mod+9",
   "app.settings": "mod+,",
   "compose.new": "mod+n",
   "window.close": "mod+w",
@@ -45,6 +46,7 @@ export const MENU_KEYS: Record<string, string> = {
   "view.zoom.out": "mod+-",
   "app.sync": "mod+shift+n",
   "compose.newWindow": "mod+alt+n",
+  "edit.spelling.panel": "mod+shift+;",
 };
 
 /** Menu items that aren't registry shortcuts, as sheet rows. */
@@ -53,6 +55,7 @@ const MENU_ONLY_ROWS: { id: string; label: string; group: string }[] = [
   { id: "view.zoom.in", label: "Zoom in", group: "Window" },
   { id: "view.zoom.out", label: "Zoom out", group: "Window" },
   { id: "view.zoom.reset", label: "Actual size", group: "Window" },
+  { id: "edit.spelling.panel", label: "Show spelling and grammar", group: "Compose window" },
 ];
 
 /** Keys an overlay handles itself while it's open. */

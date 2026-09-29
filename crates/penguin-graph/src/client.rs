@@ -2,8 +2,9 @@
 //! engine share, the folder map (cached; refreshed when an unknown folder
 //! shows up) and store access for messages and their locations.
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
+use std::time::Instant;
 
 use futures_util::future::join_all;
 use penguin_core::{Message, Store};
@@ -34,6 +35,33 @@ pub struct GraphClient {
     pub(crate) store: Store,
     account_id: String,
     folders: Mutex<Option<Arc<FolderMap>>>,
+    /// `window_estimate` answers per window (months), with when they were
+    /// fetched. Held here, with this signed-in account's client, rather than
+    /// process-wide: a count belongs to one mailbox connection, and signing
+    /// out drops it.
+    pub(crate) estimates: std::sync::Mutex<HashMap<u32, (u64, Instant)>>,
+    /// Messages whose bodies this client is downloading right now.
+    bodies_in_flight: std::sync::Mutex<HashSet<String>>,
+}
+
+/// Messages a body download has claimed; released when dropped, including
+/// when the download is cancelled.
+pub(crate) struct BodyClaim<'a> {
+    client: &'a GraphClient,
+    pub ids: Vec<String>,
+}
+
+impl Drop for BodyClaim<'_> {
+    fn drop(&mut self) {
+        let mut set = self
+            .client
+            .bodies_in_flight
+            .lock()
+            .unwrap_or_else(|e| e.into_inner());
+        for id in &self.ids {
+            set.remove(id);
+        }
+    }
 }
 
 pub(crate) fn enc(id: &str) -> String {
@@ -50,7 +78,25 @@ impl GraphClient {
             api,
             store,
             folders: Mutex::new(None),
+            estimates: std::sync::Mutex::new(HashMap::new()),
+            bodies_in_flight: std::sync::Mutex::new(HashSet::new()),
         }
+    }
+
+    /// Claim the `ids` no other body download of this client has claimed.
+    /// The backend keeps one client per signed-in account, so this is per
+    /// account and store, and a sign-out starts afresh.
+    pub(crate) fn claim_bodies(&self, ids: &[String]) -> BodyClaim<'_> {
+        let mut set = self
+            .bodies_in_flight
+            .lock()
+            .unwrap_or_else(|e| e.into_inner());
+        let ids = ids
+            .iter()
+            .filter(|id| set.insert((*id).clone()))
+            .cloned()
+            .collect();
+        BodyClaim { client: self, ids }
     }
 
     pub fn account_id(&self) -> &str {

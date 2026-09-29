@@ -62,6 +62,24 @@ pub enum Error {
 
 pub type Result<T> = std::result::Result<T, Error>;
 
+impl Error {
+    /// What kind of problem this is when it stops a sync attempt (the same
+    /// as the provider seam's `Error::sync_kind`).
+    pub fn sync_kind(&self) -> penguin_core::SyncErrorKind {
+        use penguin_core::SyncErrorKind as K;
+        match self {
+            Error::NeedsReauth(_) => K::Auth,
+            Error::Keychain(_) => K::Keychain,
+            Error::NotConfigured(_) => K::Config,
+            Error::Network(_) => K::Network,
+            Error::RateLimited | Error::Http { status: 429, .. } => K::RateLimited,
+            Error::Http { status, .. } if *status >= 500 => K::Server,
+            Error::Store(_) => K::Storage,
+            _ => K::Other,
+        }
+    }
+}
+
 /// Gmail's errors as the provider seam's, variant for variant (same
 /// messages), so the app's error codes and texts are what they were.
 impl From<Error> for penguin_provider::Error {

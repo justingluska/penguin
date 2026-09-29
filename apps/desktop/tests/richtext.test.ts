@@ -238,3 +238,13 @@ test("lockedAccount holds replies and forwards to the thread's account", () => {
   assert.equal(lockedAccount({ lockReplyAccount: true }, { mode: "new", thread }), null);
   assert.equal(lockedAccount({ lockReplyAccount: true }, { mode: "reply" }), null);
 });
+
+test("pasted plain text keeps its blank lines: a paragraph per line, an empty one per blank line", async () => {
+  const { plainTextSlice } = await import("../src/features/compose/editor/textPaste.ts");
+  const schema = composerSchema();
+  const slice = plainTextSlice(schema, "Hi Dana,\n\nThe plan is attached.\nSee you Monday.\n\nSam\n");
+  const lines = slice.content.content.map((n) => n.textContent);
+  assert.deepEqual(lines, ["Hi Dana,", "", "The plan is attached.", "See you Monday.", "", "Sam"]);
+  assert.equal(slice.openStart, 1);
+  assert.equal(slice.openEnd, 1);
+});

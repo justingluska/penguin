@@ -58,6 +58,16 @@ fn now_ms() -> i64 {
 
 fn harness_with(policy: WindowPolicy) -> Harness {
     let fake = FakeGraph::new();
+    harness_over(policy, fake.clone(), fake)
+}
+
+/// A harness whose backend reaches `fake` through `transport` (a wrapper
+/// that can hold requests back); sign-in still talks to `fake` directly.
+fn harness_over(
+    policy: WindowPolicy,
+    fake: Arc<FakeGraph>,
+    transport: Arc<dyn crate::Transport>,
+) -> Harness {
     let mem = Arc::new(MemorySecrets::default());
     let vault: SecretVault<MicrosoftCredential> = SecretVault::new(Box::new(mem));
     vault
@@ -83,7 +93,7 @@ fn harness_with(policy: WindowPolicy) -> Harness {
     };
     store.upsert_account(&account).unwrap();
     let rec = Arc::new(Recorder::default());
-    let backend = GraphBackend::with_parts(store.clone(), rec.clone(), auth, fake.clone()).unwrap();
+    let backend = GraphBackend::with_parts(store.clone(), rec.clone(), auth, transport).unwrap();
     backend.set_window_policy(policy);
     Harness {
         fake,
@@ -475,6 +485,34 @@ async fn growing_the_window_downloads_bodies_and_turning_headers_on_lists_older_
     assert_eq!(h.store.is_body_pending(ME, &ancient).unwrap(), Some(false));
     assert_eq!(s.cursor().window.full_since_ms, Some(0));
     assert_eq!(h.count(), 3);
+}
+
+/// Junk Email syncs back 30 days only: older spam isn't stored in the
+/// first delta round, the headers pass or the full range pass, while old
+/// mail elsewhere is. Spam that arrives later syncs as new mail.
+#[tokio::test]
+async fn junk_email_syncs_only_the_spam_window() {
+    let h = harness();
+    let fresh = h.fake.add("junkemail", msg("Claim your prize", 3));
+    let stale = h.fake.add("junkemail", msg("Old prize", 45));
+    let ancient_spam = h.fake.add("junkemail", msg("Ancient prize", 400));
+    let old_mail = h.fake.add("inbox", msg("From last year", 400));
+    let mut s = synced(&h).await;
+    assert_eq!(h.labels(&fresh), vec!["SPAM"]);
+    assert!(h.local(&stale).is_none(), "spam past 30 days, first round");
+    assert!(h.local(&ancient_spam).is_none());
+    assert_eq!(h.store.is_body_pending(ME, &old_mail).unwrap(), Some(true));
+    // Everything in full: the range pass leaves old spam out too.
+    h.backend.set_window_policy(WindowPolicy::EVERYTHING);
+    s.run_until_idle().await.unwrap();
+    assert_eq!(h.store.is_body_pending(ME, &old_mail).unwrap(), Some(false));
+    assert!(h.local(&stale).is_none() && h.local(&ancient_spam).is_none());
+    // New spam.
+    let new = h.fake.add("junkemail", msg("Act now", 0));
+    s.poke();
+    s.run_until_idle().await.unwrap();
+    assert_eq!(h.labels(&new), vec!["SPAM"]);
+    assert!(h.rec.added.lock().unwrap().contains(&new));
 }
 
 #[tokio::test]
@@ -1019,6 +1057,130 @@ async fn details_source_attachments_search_estimates_and_photo() {
     assert_eq!(p.profile_photo().await.unwrap(), None);
     h.fake.lock().photo = Some(vec![1, 2, 3]);
     assert_eq!(p.profile_photo().await.unwrap(), Some(vec![1, 2, 3]));
+}
+
+/// The estimate cache belongs to one backend's client for the account, not
+/// the process: another backend with the same account id (a sign-out and
+/// sign-in, or another test's mailbox) must not answer from it. It used to be
+/// a process-wide static keyed by account id, so the conformance suite's
+/// three-message count leaked into the test above.
+#[tokio::test]
+async fn window_estimates_are_cached_per_client_not_per_process() {
+    let first = harness();
+    for (i, days) in [1, 2, 3].into_iter().enumerate() {
+        first.fake.add("inbox", msg(&format!("First {i}"), days));
+    }
+    assert_eq!(
+        first.provider().window_estimate(0, now_ms()).await.unwrap(),
+        3
+    );
+    // Cached for the account's client: a new message isn't counted yet, and a
+    // provider handle made later shares the same client and cache.
+    first.fake.add("inbox", msg("First 3", 1));
+    assert_eq!(
+        first.provider().window_estimate(0, now_ms()).await.unwrap(),
+        3
+    );
+
+    let second = harness();
+    second.fake.add("inbox", msg("Second 0", 1));
+    assert_eq!(
+        second
+            .provider()
+            .window_estimate(0, now_ms())
+            .await
+            .unwrap(),
+        1
+    );
+}
+
+/// Forwards to the fake, except that requests whose URL contains `hold`
+/// never answer (they wait until the caller gives up on them).
+struct Held {
+    fake: Arc<FakeGraph>,
+    hold: Mutex<Option<String>>,
+    reached: tokio::sync::Notify,
+}
+
+#[penguin_provider::async_trait]
+impl crate::Transport for Held {
+    async fn send(
+        &self,
+        r: crate::http::Request,
+    ) -> penguin_provider::Result<crate::http::Response> {
+        let held = matches!(self.hold.lock().unwrap().as_deref(), Some(h) if r.url.contains(h));
+        if held {
+            self.reached.notify_one();
+            std::future::pending::<()>().await;
+        }
+        self.fake.send(r).await
+    }
+}
+
+/// A harness over `Held`, with one headers-only message ("pending") whose
+/// body download can be held. Every harness's fake numbers its messages
+/// the same way, so two of them share the message id.
+async fn held_harness() -> (Harness, Arc<Held>, String) {
+    let fake = FakeGraph::new();
+    let held = Arc::new(Held {
+        fake: fake.clone(),
+        hold: Mutex::new(None),
+        reached: tokio::sync::Notify::new(),
+    });
+    let h = harness_over(
+        WindowPolicy {
+            months: 6,
+            older: OlderMail::Headers,
+        },
+        fake,
+        held.clone(),
+    );
+    let id = h.fake.add("archive", msg("Held invoice 9", 400));
+    let q = penguin_core::query::parse("held", now_ms());
+    assert_eq!(
+        h.provider().server_search(&q, 50).await.unwrap().hits.len(),
+        1
+    );
+    assert_eq!(h.store.is_body_pending(ME, &id).unwrap(), Some(true));
+    // The body GET's path has the id with its `=` percent-encoded.
+    let path = id.trim_end_matches('=').to_string();
+    *held.hold.lock().unwrap() = Some(path);
+    (h, held, id)
+}
+
+/// A body download in progress only holds off other downloads of the same
+/// message through the same account client, and a cancelled one lets go.
+/// The claim used to be a process-wide set keyed by (account, message): a
+/// second backend with the same account id (another mailbox, or the account
+/// after a sign-out and sign-in) got nothing back while the first was in
+/// flight, and a download whose future was dropped kept its claim until the
+/// app quit, so the message's body never loaded.
+#[tokio::test]
+async fn body_downloads_claim_per_client_and_release_when_cancelled() {
+    let (first, held, id) = held_harness().await;
+    let p = first.provider();
+    let ids = vec![id.clone()];
+    let parked = tokio::spawn({
+        let (p, ids) = (p.clone(), ids.clone());
+        async move { p.fetch_pending_bodies(&ids).await }
+    });
+    held.reached.notified().await;
+
+    // Another backend, same account id and message id: not blocked.
+    let (second, second_held, second_id) = held_harness().await;
+    assert_eq!(second_id, id);
+    *second_held.hold.lock().unwrap() = None;
+    let threads = second.provider().fetch_pending_bodies(&ids).await.unwrap();
+    assert_eq!(threads.len(), 1);
+    assert_eq!(second.store.is_body_pending(ME, &id).unwrap(), Some(false));
+
+    // The first download is cancelled mid-flight; a retry downloads.
+    parked.abort();
+    assert!(parked.await.unwrap_err().is_cancelled());
+    *held.hold.lock().unwrap() = None;
+    let threads = p.fetch_pending_bodies(&ids).await.unwrap();
+    assert_eq!(threads.len(), 1);
+    assert_eq!(first.store.is_body_pending(ME, &id).unwrap(), Some(false));
 }
 
 #[test]

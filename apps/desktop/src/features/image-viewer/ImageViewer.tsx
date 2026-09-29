@@ -28,7 +28,10 @@ import { showContextMenu } from "../../components/ContextMenu";
 import { toast } from "../../components/Toast";
 import { useKeyTip } from "../../lib/shortcutHints";
 import { loadPreview } from "../thread/AttachmentPreview";
-import { copyImage, copyImageAddress, nativeFiles, openInPreview, openLabel, previewImage, revealImage, saveAllImages, saveImage, saveImageAs, savedPath } from "./actions";
+import { copyImage, copyImageAddress, copyImagePath, nativeFiles, openInPreview, openLabel, previewImage, revealImage, saveAllImages, saveImage, saveImageAs, savedPath } from "./actions";
+import { copyShareLink } from "../share/actions";
+import { pictureShare } from "../share/model";
+import { refreshShareStatus, shareReady } from "../share/state";
 import { canDragFiles, dragOut, itemDragSource } from "./fileDrag";
 import { imageMenu } from "./imageMenu";
 import { framesInOrder, resolveImageRequest } from "./bridge";
@@ -333,15 +336,18 @@ function Viewer({ st }: { st: State }) {
     setDragging(false);
     // Save All covers the pictures of this picture's message.
     const siblings = st.items.filter((x) => sameMessage(x.message, m));
+    void refreshShareStatus();
     showContextMenu(
       e,
       imageMenu(
         item,
-        { where: "viewer", saved: savedPath(item) !== null, nativeFiles, zoomed, canZoom: !!size, broken: !!error, openLabel, saveAllCount: canSaveAll(siblings) ? siblings.length : 0 },
+        { saved: savedPath(item) !== null, nativeFiles, zoomed, canZoom: !!size, broken: !!error, openLabel, shareReady: shareReady(), saveAllCount: canSaveAll(siblings) ? siblings.length : 0 },
         {
           saveAll: () => void saveAllImages(m, siblings),
           copy: () => void copyImage(item),
           copyAddress: () => copyImageAddress(item),
+          copyPath: () => void copyImagePath(item),
+          copyShareLink: () => void copyShareLink(pictureShare(item)),
           save: () => void saveImage(item),
           saveAs: () => void saveImageAs(item),
           openInPreview: () => void openInPreview(item),

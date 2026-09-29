@@ -35,7 +35,7 @@ import { ContextPanel } from "./ContextPanel";
 import { InviteCard } from "../calendar/InviteCard";
 import { openDraftForThread } from "../compose";
 import { InstantDockRow } from "../compose/InstantReplies";
-import { downloadAttachment } from "./AttachmentPreview";
+import { copyAttachmentFile, downloadAttachment } from "./AttachmentPreview";
 import { openAttachment } from "./openAttachment";
 import { openMessageDetails } from "./MessageDetails";
 import { PersonLink } from "../people/PersonCard";
@@ -44,6 +44,8 @@ import { useAvatarPlacement } from "../../lib/avatars";
 import { showContextMenu } from "../../components/ContextMenu";
 import { attachmentMenu, messageMenu } from "./threadMenus";
 import { attachmentDragSource, canDragFiles, dragOut } from "../image-viewer/fileDrag";
+import { nativeFiles } from "../image-viewer/actions";
+import { cardKeyAction } from "./attachmentMenu";
 import { COPY_CONVERSATION_KEYS, copyConversation } from "./copy";
 import { OtpBanner } from "../otp/OtpBanner";
 import { inReplyLater, toggleReplyLater } from "../triage/actions";
@@ -230,12 +232,12 @@ function PaneActions({ variant, thread }: { variant: Variant; thread: Thread | n
         className="btn btn-ghost btn-sm pane-act"
         disabled={!has}
         data-shortcut="triage.done"
-        data-shortcut-label={view === "followUp" ? "Dismiss" : "Mark done"}
-        title={tip(view === "followUp" ? "Dismiss" : "Done", "E")}
+        data-shortcut-label={view === "followUp" ? "Dismiss" : view === "spam" ? "Not spam" : "Mark done"}
+        title={tip(view === "followUp" ? "Dismiss" : view === "spam" ? "Not spam: move to the inbox" : "Done", "E")}
         onClick={() => void archive()}
       >
-        <Icon name="done" size="xs" />
-        <span className="btn-label">{view === "followUp" ? "Dismiss" : "Done"}</span>
+        <Icon name={view === "spam" ? "inbox" : "done"} size="xs" />
+        <span className="btn-label">{view === "followUp" ? "Dismiss" : view === "spam" ? "Not spam" : "Done"}</span>
         <Kbd>E</Kbd>
       </button>
       <button
@@ -854,15 +856,19 @@ function AttachmentCard({ m, a }: { m: MessageView; a: AttachmentMeta }) {
       title={`Preview ${a.filename}`}
       onClick={() => openAttachment(m, a)}
       onContextMenu={(e) => showContextMenu(e, attachmentMenu(m, a), { label: a.filename })}
-      // Drag the file out to Finder or another app (Mac app only).
+      // Drag the file out to Finder, another app or a composer in any window
+      // (Mac app only). WebKit's own drag is cancelled at dragstart; the card
+      // and its text can't be selected or dragged as text (.file-btn CSS).
       draggable={canDragFiles}
       onDragStart={(e) => dragOut(e, attachmentDragSource(m, a))}
       onKeyDown={(e) => {
-        if (e.key === "Enter" || e.key === " ") {
-          // Claim the key so list shortcuts (Enter = open thread) don't fire.
-          e.preventDefault();
-          openAttachment(m, a);
-        }
+        const act = cardKeyAction(e, { copy: nativeFiles });
+        if (!act) return;
+        // Claim the key so list shortcuts (Enter = open thread, ⌘C) don't fire.
+        e.preventDefault();
+        e.stopPropagation();
+        if (act === "preview") openAttachment(m, a);
+        else if (act === "copy") void copyAttachmentFile(m, a);
       }}
     >
       <span className="file-ico">{fileExt(a.filename)}</span>

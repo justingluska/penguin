@@ -734,6 +734,10 @@ async fn execute<E: Effects>(
                         Outcome::err(action, "skipped: the message is from the forward address")
                     } else if m.label_ids.iter().any(|l| l == "SENT") {
                         Outcome::err(action, "skipped: your own sent mail isn't forwarded")
+                    } else if m.label_ids.iter().any(|l| l == "SPAM") {
+                        // Even a rule that asks for in:spam: forwarding spam
+                        // passes it on to someone else.
+                        Outcome::err(action, "skipped: spam isn't forwarded")
                     } else if dry_run {
                         Outcome::ok(action, format!("would forward to {to}"))
                     } else {
@@ -1381,6 +1385,36 @@ pub(crate) mod tests {
         assert_eq!(json["data"]["includesBody"], false);
         assert_eq!(json["data"]["messages"][0]["message"]["text"], "");
         assert_eq!(fx.webhooks.lock().unwrap().len(), 1);
+    }
+
+    /// Spam never reaches a forward: an ordinary condition doesn't match it
+    /// (searches leave Spam out), and a rule that asks for in:spam still
+    /// doesn't pass it on.
+    #[tokio::test]
+    async fn spam_is_never_forwarded() {
+        let s = store();
+        let mut spam = message(ACCT, "s1", "ts1");
+        spam.label_ids = vec!["SPAM".into(), "UNREAD".into()];
+        arrive(&s, &[spam]);
+        let forward = || Action::Forward {
+            to: "me@y.example".into(),
+            confirmed: true,
+        };
+        let cfg = config(vec![
+            rule("r1", "from:uber.example", vec![forward()]),
+            rule("r2", "from:uber.example in:spam", vec![forward()]),
+        ]);
+        let fx = Fake::default();
+        let mut limits = Limits::default();
+        let report = pass(&s, &cfg, &fx, &mut limits).await;
+        assert!(fx.forwarded.lock().unwrap().is_empty());
+        let fired: Vec<&str> = report.fired.iter().map(|f| f.rule_id.as_str()).collect();
+        assert_eq!(fired, vec!["r2"]);
+        assert!(s
+            .rule_log(Some("r2"), 10, None)
+            .unwrap()
+            .iter()
+            .any(|e| e.outcomes.to_string().contains("spam isn't forwarded")));
     }
 
     #[tokio::test]

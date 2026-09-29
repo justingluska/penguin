@@ -22,6 +22,7 @@ pub mod store;
 mod store_tests;
 pub mod structured;
 pub mod summary;
+pub mod sync_health;
 pub mod text;
 pub mod types;
 pub mod unsubscribe;

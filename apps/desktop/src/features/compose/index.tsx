@@ -38,6 +38,8 @@ import { queueSend } from "./send";
 import { currentSettings, useSetting } from "../../lib/settings";
 import { forgetSaver, rekeySaver, saverFor, saverForDraftId, saverForKey, useSaveStatus, type DraftSaver, type SaveStatus } from "./autosave";
 import { AttachmentList, filesToAttachments, OriginalFiles, type OriginalStatus } from "./attachments";
+import { FilePreview } from "./filePreview";
+import { stepFile } from "./previewSource";
 import { hasAllFiles, withFiles, withoutFiles } from "./quote";
 import { asFile, referencedCids, splitDropped } from "./inline";
 import { loadInlineSrc, setInlineSrc } from "./inlineSrc";
@@ -673,6 +675,34 @@ function Composer({ ctx }: { ctx: ComposeContext }) {
     }
   }
 
+  // Previewing an attachment before it goes out (filePreview.tsx): the index
+  // in st.attachments, and what had focus to give it back to.
+  const [previewAt, setPreviewAtState] = useState<number | null>(null);
+  const previewReturn = useRef<HTMLElement | null>(null);
+  function setPreviewAt(i: number) {
+    if (previewAt === null) {
+      // A chip opened with Space keeps focus; a click (WebKit doesn't focus
+      // clicked buttons) gives it back to the text.
+      const el = document.activeElement;
+      previewReturn.current = el instanceof HTMLElement && el !== document.body ? el : null;
+    }
+    setPreviewAtState(i);
+  }
+  function closePreview(next: number | null) {
+    if (next !== null) {
+      setPreviewAtState(next);
+      return;
+    }
+    setPreviewAtState(null);
+    const back = previewReturn.current;
+    previewReturn.current = null;
+    if (back?.isConnected) back.focus({ preventScroll: true });
+    else body.focus();
+  }
+  function removeAttachment(i: number) {
+    setSt((s) => (s ? { ...s, attachments: s.attachments.filter((_, j) => j !== i), touched: true } : s));
+  }
+
   /** "Send as attachment" on an inline image (the editor already took it out of the text). */
   const imageAsFile = (cid: string) => setSt((s) => (s ? { ...s, attachments: asFile(s.attachments, cid), touched: true } : s));
 
@@ -924,6 +954,17 @@ function Composer({ ctx }: { ctx: ComposeContext }) {
       inert={popping}
       aria-busy={popping}
       onKeyDown={onKey}
+      onPaste={(e) => {
+        // Files pasted outside the text (a file copied in Finder or with
+        // Penguin's Copy, pasted in Subject or To): attached. WebKit hands
+        // pasted file URLs to the page as clipboardData.files. The text's
+        // own paste (RichBody) already took pastes into the message.
+        if (e.defaultPrevented || (e.target as Element | null)?.closest?.(".cmp-rich-text")) return;
+        const files = [...(e.clipboardData?.files ?? [])];
+        if (!files.length) return;
+        e.preventDefault();
+        void attach(files);
+      }}
       onDragOver={(e) => {
         if (!e.dataTransfer.types.includes("Files")) return;
         e.preventDefault();
@@ -1079,6 +1120,9 @@ function Composer({ ctx }: { ctx: ComposeContext }) {
               onChange={(e) => update({ subject: e.target.value })}
               placeholder="Subject"
               aria-label="Subject"
+              // Checked while typing like the body (Settings → Compose);
+              // the address fields never are.
+              spellCheck
             />
           </div>
 
@@ -1159,7 +1203,23 @@ function Composer({ ctx }: { ctx: ComposeContext }) {
             />
           )}
 
-          <AttachmentList list={st.attachments} onRemove={(i) => update({ attachments: st.attachments.filter((_, j) => j !== i) })} />
+          <AttachmentList list={st.attachments} onPreview={setPreviewAt} onRemove={removeAttachment} />
+          {previewAt !== null && st.attachments[previewAt] && (
+            <FilePreview
+              list={st.attachments}
+              at={previewAt}
+              accountId={st.draftAccountId ?? st.accountId}
+              onStep={setPreviewAt}
+              onRemove={(i) => {
+                // Stay open on the next file, if there is one.
+                const rest = st.attachments.filter((_, j) => j !== i);
+                const next = stepFile(rest, Math.min(i, rest.length - 1), 0);
+                removeAttachment(i);
+                closePreview(next >= 0 ? next : null);
+              }}
+              onClose={() => closePreview(null)}
+            />
+          )}
           <OriginalFiles
             status={origStatus}
             forward={ctx.mode === "forward"}
@@ -1369,7 +1429,35 @@ function RecipientField({
   const [open, setOpen] = useState(false);
   const people = usePeople();
   const exclude = useMemo(() => new Set(list.map((a) => a.email.toLowerCase())), [list]);
-  const sugg = useMemo(() => (text.trim() ? matchPeople(people, text, exclude, 6) : []), [people, text, exclude]);
+  // Everyone in your mail, from the local people index (people you wrote to
+  // first); the in-memory list of people seen this session fills in while it
+  // answers. The newest keystroke's answer wins.
+  const [indexed, setIndexed] = useState<{ q: string; people: Address[] }>({ q: "", people: [] });
+  const asked = useRef(0);
+  useEffect(() => {
+    const q = text.trim();
+    if (!q) return;
+    const n = ++asked.current;
+    api
+      .suggestRecipients(q, 8)
+      .then((people) => n === asked.current && setIndexed({ q, people }))
+      .catch(() => undefined); // Decoration: the in-memory matches still show.
+  }, [text]);
+  const sugg = useMemo(() => {
+    const q = text.trim();
+    if (!q) return [];
+    const out: Address[] = [];
+    const taken = new Set(exclude);
+    const fromIndex = indexed.q === q ? indexed.people : [];
+    for (const a of [...fromIndex, ...matchPeople(people, text, exclude, 6)]) {
+      const k = a.email.toLowerCase();
+      if (taken.has(k)) continue;
+      taken.add(k);
+      out.push(a);
+      if (out.length === 6) break;
+    }
+    return out;
+  }, [people, text, exclude, indexed]);
   const show = open && sugg.length > 0;
   const localRef = useRef<HTMLInputElement>(null);
   const ref = inputRef ?? localRef;

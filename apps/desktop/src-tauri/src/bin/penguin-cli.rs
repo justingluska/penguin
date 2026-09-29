@@ -4,7 +4,12 @@
 //!   penguin-cli search "<query>" [--json] [--account <email>] [--profile <name>] [--limit <n>]
 //!   penguin-cli thread <account> <threadId> [--json | --md] [--full] [--max-chars <n>]
 //!   penguin-cli accounts [--json]
-//!   penguin-cli mcp                       (stdio MCP server, read-only; enable in Settings → Developer)
+//!   penguin-cli attachments <account> <messageId> [--json]
+//!   penguin-cli attachment <account> <messageId> <attachmentId> [--out <file>]
+//!   penguin-cli draft create|update|list|delete …   (asks the running app; Settings → Developer → Agents)
+//!   penguin-cli send <draftId> | send --to … (queued in the app's outbox; needs the send level)
+//!   penguin-cli share-link <account> <messageId> <attachmentId> [--json]   (made by the app; Settings → Share links)
+//!   penguin-cli mcp                       (stdio MCP server; enable in Settings → Developer → Agents)
 //!   penguin-cli set-client <google-oauth-client.json>
 //!   penguin-cli add-account
 //!   penguin-cli sync <email> [--once]
@@ -14,21 +19,36 @@
 //! status and errors go to stderr, so `penguin-cli search … --json | jq`
 //! stays clean. Output never contains ANSI color (NO_COLOR is always honored).
 //! Exit codes: 0 ok, 1 error, 2 nothing found, 3 account needs sign-in,
-//! 64 usage error.
+//! 64 usage error, 69 Penguin isn't running, 77 not allowed (the agent
+//! level in Settings → Developer → Agents, or share links for agents in
+//! Settings → Share links).
+//!
+//! Drafting, sending and share links never happen in this process: they are
+//! requests to the running Penguin app over its private socket
+//! (agent/ipc.rs), which checks the level and uses its own credentials (and,
+//! for share links, its own storage secret). penguin-cli never starts the
+//! app.
 //!
 //! Env: PENGUIN_DATA_DIR=<dir> to use a throwaway database/config/cache;
 //! PENGUIN_LOG=<filter> (e.g. `info`) for logs on stderr.
 
+use std::io::IsTerminal;
 use std::process::ExitCode;
 use std::sync::Arc;
 use std::time::Instant;
 
 use penguin_core::{Store, SyncStatus};
+use penguin_desktop_lib::agent::attach::AttachmentArg;
 use penguin_desktop_lib::agent::output::{self as out, envelope, ThreadOptions};
-use penguin_desktop_lib::agent::{self, audit::AuditLog, queries, AgentCtx};
+use penguin_desktop_lib::agent::sharing::ShareLinkArgs;
+use penguin_desktop_lib::agent::writes::{
+    BodyFormat, DraftArgs, DraftIdArgs, ListDraftsArgs, UpdateDraftArgs,
+};
+use penguin_desktop_lib::agent::{self, audit::AuditLog, files, ipc, queries, AgentCtx};
 use penguin_desktop_lib::error::{CmdError, ErrorCode};
 use penguin_desktop_lib::logging;
 use penguin_desktop_lib::ops::{self, Paths};
+use penguin_desktop_lib::settings::AgentAccess;
 use penguin_gmail::api::GmailClient;
 use penguin_gmail::auth::{AuthManager, OAuthClientConfig};
 use penguin_gmail::probe;
@@ -38,6 +58,15 @@ const USAGE: &str = "usage:
   penguin-cli search \"<query>\" [--json] [--account <email>] [--profile <name>] [--limit <n>]
   penguin-cli thread <account> <threadId> [--json | --md] [--full] [--max-chars <n>]
   penguin-cli accounts [--json]
+  penguin-cli attachments <account> <messageId> [--json]
+  penguin-cli attachment <account> <messageId> <attachmentId> [--out <file>]
+  penguin-cli draft create [DRAFT FIELDS] [--json]
+  penguin-cli draft update <draftId> [--account <email>] [DRAFT FIELDS] [--json]
+  penguin-cli draft list [--account <email>] [--json]
+  penguin-cli draft delete <draftId> [--account <email>] [--json]
+  penguin-cli send <draftId> [--account <email>] [--json]
+  penguin-cli send [DRAFT FIELDS] [--json]
+  penguin-cli share-link <account> <messageId> <attachmentId> [--json]
   penguin-cli mcp
   penguin-cli set-client <google-oauth-client.json>
   penguin-cli add-account
@@ -45,7 +74,16 @@ const USAGE: &str = "usage:
   penguin-cli probe-cost <email> [--n <count>] [--variants a,b]
   penguin-cli --version
 
-exit codes: 0 ok, 1 error, 2 nothing found, 3 needs sign-in, 64 usage
+DRAFT FIELDS: --from <email> --to <addr>… --cc <addr>… --bcc <addr>… --subject <text>
+  --body <text> | --body-file <path|->  --markdown  --reply-to <messageId>  --attach <path>…
+  (drafts and sends are done by the running Penguin app, at the level set in
+  Settings → Developer → Agents; a send waits in its outbox before it goes)
+share-link: the running Penguin uploads that attachment (or cid: picture) to your
+  storage and prints a link anyone holding it can use until it expires; needs
+  \"Read and draft\" and \"Let agents (CLI and MCP) create share links\" in Settings → Share links
+
+exit codes: 0 ok, 1 error, 2 nothing found, 3 needs sign-in, 64 usage,
+  69 Penguin isn't running, 77 not allowed (agent level, share links for agents)
 env: PENGUIN_DATA_DIR=<dir> (isolated data), PENGUIN_LOG=<filter> (stderr logs)
 docs: docs/CLI.md";
 
@@ -53,6 +91,10 @@ const EXIT_ERROR: u8 = 1;
 const EXIT_NOTHING_FOUND: u8 = 2;
 const EXIT_NEEDS_REAUTH: u8 = 3;
 const EXIT_USAGE: u8 = 64;
+/// sysexits EX_UNAVAILABLE: Penguin isn't running.
+const EXIT_UNAVAILABLE: u8 = 69;
+/// sysexits EX_NOPERM: the agent level doesn't allow it.
+const EXIT_DENIED: u8 = 77;
 
 /// Legacy commands report plain strings (exit 1).
 type CliResult = Result<(), String>;
@@ -106,6 +148,8 @@ impl From<CmdError> for Failure {
             ErrorCode::NotConfigured => (EXIT_ERROR, "notConfigured"),
             ErrorCode::Network => (EXIT_ERROR, "network"),
             ErrorCode::Cancelled => (EXIT_ERROR, "cancelled"),
+            ErrorCode::PermissionDenied => (EXIT_DENIED, "permissionDenied"),
+            ErrorCode::Unavailable => (EXIT_UNAVAILABLE, "unavailable"),
             ErrorCode::Other => (EXIT_ERROR, "other"),
         };
         Failure {
@@ -130,6 +174,11 @@ async fn main() -> ExitCode {
         Some("search") => search(rest),
         Some("thread") => thread(rest),
         Some("accounts") => accounts(rest),
+        Some("attachments") => list_attachments(rest),
+        Some("attachment") => attachment(rest).await,
+        Some("draft") => draft(rest).await,
+        Some("send") => send(rest).await,
+        Some("share-link") => share_link(rest).await,
         Some("mcp") => mcp().await,
         Some("set-client") => set_client(rest).map_err(Failure::from),
         Some("add-account") => add_account().await.map_err(Failure::from),
@@ -356,6 +405,355 @@ fn accounts(args: &[String]) -> Outcome {
     Ok(())
 }
 
+// ---------- attachments (read) ----------
+
+fn list_attachments(args: &[String]) -> Outcome {
+    let pos = positionals(args, &[]);
+    let [account, message_id] = pos.as_slice() else {
+        return Err(Failure::usage(
+            "usage: penguin-cli attachments <account> <messageId> [--json]",
+        ));
+    };
+    let ctx = agent_ctx()?;
+    let out = files::list_attachments(&ctx, account, message_id)?;
+    if args.iter().any(|a| a == "--json") {
+        return print_json("attachments", &out);
+    }
+    for a in &out.attachments {
+        println!(
+            "{}  {}  {}  {} bytes{}{}",
+            a.id,
+            a.filename,
+            a.mime_type,
+            a.size,
+            if a.inline { "  [embedded picture]" } else { "" },
+            if a.cached { "  [cached]" } else { "" }
+        );
+    }
+    for url in &out.remote_images {
+        println!("remote picture (not fetched): {url}");
+    }
+    if let Some(note) = &out.remote_images_note {
+        eprintln!("{note}");
+    }
+    if out.attachments.is_empty() {
+        return Err(Failure::nothing_after_output("no attachments"));
+    }
+    Ok(())
+}
+
+/// One attachment's bytes: from Penguin's cache, else downloaded by the
+/// running app. Written to --out (never over an existing file) or to
+/// stdout when it isn't a terminal.
+async fn attachment(args: &[String]) -> Outcome {
+    let pos = positionals(args, &["--out"]);
+    let [account, message_id, attachment_id] = pos.as_slice() else {
+        return Err(Failure::usage(
+            "usage: penguin-cli attachment <account> <messageId> <attachmentId> [--out <file>]",
+        ));
+    };
+    let out_path = flag(args, "--out").map(std::path::PathBuf::from);
+    if out_path.is_none() && std::io::stdout().is_terminal() {
+        return Err(Failure::usage(
+            "that would print a file to the terminal; give --out <file>, or pipe it",
+        ));
+    }
+    let ctx = agent_ctx()?;
+    let meta = files::find(&ctx, account, message_id, attachment_id)?;
+    let account = account.trim().to_lowercase();
+    let bytes = match files::cached(&ctx, &account, message_id, &meta) {
+        Some(b) => b,
+        None => {
+            eprintln!(
+                "{} isn't downloaded yet; asking Penguin for it…",
+                meta.filename
+            );
+            let reply = ipc::call(
+                &ctx.paths,
+                "cli",
+                "fetch_attachment",
+                serde_json::json!({"accountId": account, "messageId": message_id, "attachmentId": meta.id}),
+            )
+            .await?;
+            use base64::Engine;
+            base64::engine::general_purpose::STANDARD
+                .decode(reply["dataBase64"].as_str().unwrap_or_default())
+                .map_err(|e| format!("Penguin sent unreadable bytes: {e}"))?
+        }
+    };
+    match out_path {
+        Some(p) => {
+            use std::io::Write;
+            let mut f = std::fs::OpenOptions::new()
+                .write(true)
+                .create_new(true)
+                .open(&p)
+                .map_err(|e| format!("writing {}: {e}", p.display()))?;
+            f.write_all(&bytes)
+                .map_err(|e| format!("writing {}: {e}", p.display()))?;
+            eprintln!(
+                "saved {} ({} bytes) to {}",
+                meta.filename,
+                bytes.len(),
+                p.display()
+            );
+        }
+        None => {
+            use std::io::Write;
+            std::io::stdout()
+                .write_all(&bytes)
+                .map_err(|e| e.to_string())?;
+        }
+    }
+    Ok(())
+}
+
+// ---------- drafts and sends (asked of the running app) ----------
+
+/// Every value of a repeatable `--flag`; a value with commas and no angle
+/// brackets or quotes is split (`--to a@x.example,b@y.example`).
+fn flag_all(args: &[String], name: &str, split: bool) -> Vec<String> {
+    let mut out = Vec::new();
+    let mut i = 0;
+    while i < args.len() {
+        if args[i] == name {
+            if let Some(v) = args.get(i + 1) {
+                if split && v.contains(',') && !v.contains('<') && !v.contains('"') {
+                    out.extend(
+                        v.split(',')
+                            .map(str::trim)
+                            .filter(|s| !s.is_empty())
+                            .map(String::from),
+                    );
+                } else {
+                    out.push(v.clone());
+                }
+            }
+            i += 2;
+        } else {
+            i += 1;
+        }
+    }
+    out
+}
+
+const DRAFT_FLAGS: [&str; 12] = [
+    "--from",
+    "--to",
+    "--cc",
+    "--bcc",
+    "--subject",
+    "--body",
+    "--body-file",
+    "--reply-to",
+    "--attach",
+    "--account",
+    "--out",
+    "--limit",
+];
+
+fn body_arg(args: &[String]) -> Result<Option<String>, Failure> {
+    match (flag(args, "--body"), flag(args, "--body-file")) {
+        (Some(_), Some(_)) => Err(Failure::usage("give --body or --body-file, not both")),
+        (Some(b), None) => Ok(Some(b.to_string())),
+        (None, Some("-")) => {
+            let mut s = String::new();
+            std::io::Read::read_to_string(&mut std::io::stdin(), &mut s)
+                .map_err(|e| format!("reading the body from stdin: {e}"))?;
+            Ok(Some(s))
+        }
+        (None, Some(path)) => std::fs::read_to_string(path)
+            .map(Some)
+            .map_err(|e| Failure::usage(format!("reading {path}: {e}"))),
+        (None, None) => Ok(None),
+    }
+}
+
+/// `--attach` paths, made absolute against the current directory (the app
+/// reads them; it has no idea where this shell is).
+fn attach_args(args: &[String]) -> Result<Vec<AttachmentArg>, Failure> {
+    let cwd = std::env::current_dir().map_err(|e| format!("current directory: {e}"))?;
+    Ok(flag_all(args, "--attach", false)
+        .into_iter()
+        .map(|p| AttachmentArg {
+            path: Some(cwd.join(p).display().to_string()),
+            ..AttachmentArg::default()
+        })
+        .collect())
+}
+
+fn draft_args(args: &[String]) -> Result<DraftArgs, Failure> {
+    Ok(DraftArgs {
+        to: flag_all(args, "--to", true),
+        cc: flag_all(args, "--cc", true),
+        bcc: flag_all(args, "--bcc", true),
+        subject: flag(args, "--subject").map(String::from),
+        body: body_arg(args)?.unwrap_or_default(),
+        format: args
+            .iter()
+            .any(|a| a == "--markdown")
+            .then_some(BodyFormat::Markdown),
+        from_account: flag(args, "--from").map(String::from),
+        reply_to_message_id: flag(args, "--reply-to").map(String::from),
+        attachments: attach_args(args)?,
+    })
+}
+
+async fn ask_app(tool: &str, args: serde_json::Value) -> Result<serde_json::Value, Failure> {
+    let paths = Paths::resolve()?;
+    Ok(ipc::call(&paths, "cli", tool, args).await?)
+}
+
+fn to_json<T: serde::Serialize>(v: &T) -> Result<serde_json::Value, Failure> {
+    Ok(serde_json::to_value(v).map_err(|e| e.to_string())?)
+}
+
+/// The app's answer: as is with --json, else one line per draft.
+fn report(args: &[String], v: &serde_json::Value) -> Outcome {
+    if args.iter().any(|a| a == "--json") {
+        println!(
+            "{}",
+            serde_json::to_string_pretty(v).map_err(|e| e.to_string())?
+        );
+        return Ok(());
+    }
+    let d = &v["data"];
+    match v["kind"].as_str() {
+        Some("draft") => println!(
+            "draft {} saved in {} (thread {}): {}",
+            d["draftId"].as_str().unwrap_or_default(),
+            d["accountId"].as_str().unwrap_or_default(),
+            d["threadId"].as_str().unwrap_or_default(),
+            d["subject"].as_str().unwrap_or_default()
+        ),
+        Some("drafts") => {
+            for x in d["drafts"].as_array().into_iter().flatten() {
+                println!(
+                    "{}  {}  {}  {}{}",
+                    x["draftId"].as_str().unwrap_or_default(),
+                    x["accountId"].as_str().unwrap_or_default(),
+                    x["updatedAtIso"].as_str().unwrap_or_default(),
+                    x["subject"].as_str().unwrap_or_default(),
+                    if x["queuedSend"].is_object() {
+                        "  [queued to send]"
+                    } else {
+                        ""
+                    }
+                );
+            }
+        }
+        Some("draftDeleted") => println!(
+            "deleted draft {}",
+            d["draftId"].as_str().unwrap_or_default()
+        ),
+        Some("shareLink") => {
+            // The link alone on stdout (`penguin-cli share-link … | pbcopy`).
+            println!("{}", d["url"].as_str().unwrap_or_default());
+            eprintln!(
+                "Anyone with this link can download {} ({} bytes) until {}.",
+                d["name"].as_str().unwrap_or_default(),
+                d["size"],
+                d["expiresAtIso"].as_str().unwrap_or_default()
+            );
+        }
+        Some("sendQueued") => {
+            println!(
+                "queued draft {}: goes at {} (in {} s) unless cancelled in Penguin",
+                d["draftId"].as_str().unwrap_or_default(),
+                d["sendAtIso"].as_str().unwrap_or_default(),
+                d["delaySeconds"]
+            );
+            eprintln!("It isn't sent yet: it waits in Penguin's outbox, and goes only while Penguin runs.");
+        }
+        _ => println!("{v}"),
+    }
+    Ok(())
+}
+
+async fn draft(args: &[String]) -> Outcome {
+    const USAGE_DRAFT: &str =
+        "usage: penguin-cli draft create|update <draftId>|list|delete <draftId> … (see --help)";
+    let pos = positionals(args, &DRAFT_FLAGS);
+    let v = match pos.as_slice() {
+        ["create"] => ask_app("create_draft", to_json(&draft_args(args)?)?).await?,
+        ["update", id] => {
+            let d = draft_args(args)?;
+            if d.reply_to_message_id.is_some() || d.from_account.is_some() {
+                return Err(Failure::usage(
+                    "an existing draft keeps its account and reply; --from and --reply-to are for create",
+                ));
+            }
+            let has = |f: &str| args.iter().any(|a| a == f);
+            let u = UpdateDraftArgs {
+                account_id: flag(args, "--account").map(String::from),
+                draft_id: id.to_string(),
+                to: has("--to").then_some(d.to),
+                cc: has("--cc").then_some(d.cc),
+                bcc: has("--bcc").then_some(d.bcc),
+                subject: d.subject,
+                body: (has("--body") || has("--body-file")).then_some(d.body),
+                format: d.format,
+                attachments: has("--attach").then_some(d.attachments),
+            };
+            ask_app("update_draft", to_json(&u)?).await?
+        }
+        ["list"] => {
+            let a = ListDraftsArgs {
+                account: flag(args, "--account").map(String::from),
+            };
+            ask_app("list_drafts", to_json(&a)?).await?
+        }
+        ["delete", id] => {
+            let a = DraftIdArgs {
+                account_id: flag(args, "--account").map(String::from),
+                draft_id: id.to_string(),
+            };
+            ask_app("delete_draft", to_json(&a)?).await?
+        }
+        _ => return Err(Failure::usage(USAGE_DRAFT)),
+    };
+    report(args, &v)
+}
+
+async fn send(args: &[String]) -> Outcome {
+    let pos = positionals(args, &DRAFT_FLAGS);
+    let v = match pos.as_slice() {
+        [id] => {
+            let a = DraftIdArgs {
+                account_id: flag(args, "--account").map(String::from),
+                draft_id: id.to_string(),
+            };
+            ask_app("send_draft", to_json(&a)?).await?
+        }
+        [] => ask_app("send_message", to_json(&draft_args(args)?)?).await?,
+        _ => {
+            return Err(Failure::usage(
+                "usage: penguin-cli send <draftId> [--account <email>] | send --to … --subject … --body …",
+            ))
+        }
+    };
+    report(args, &v)
+}
+
+/// A share link for one attachment or embedded (cid:) picture, made by the
+/// running app with the user's own storage. This process never sees the
+/// storage or its secret.
+async fn share_link(args: &[String]) -> Outcome {
+    let pos = positionals(args, &[]);
+    let [account, message_id, attachment_id] = pos.as_slice() else {
+        return Err(Failure::usage(
+            "usage: penguin-cli share-link <account> <messageId> <attachmentId> [--json]",
+        ));
+    };
+    let a = ShareLinkArgs {
+        account_id: account.to_string(),
+        message_id: message_id.to_string(),
+        attachment_id: attachment_id.to_string(),
+    };
+    let v = ask_app("create_share_link", to_json(&a)?).await?;
+    report(args, &v)
+}
+
 /// stdio MCP server. stdout is the JSON-RPC channel: nothing else may print
 /// there, so every message here goes to stderr.
 async fn mcp() -> Outcome {
@@ -365,9 +763,10 @@ async fn mcp() -> Outcome {
             .config_dir
             .join(penguin_desktop_lib::settings::SETTINGS_FILE),
     );
-    if !settings.mcp.enabled {
+    let level = settings.mcp.access;
+    if level == AgentAccess::Off {
         return Err(Failure::from(
-            "Penguin's MCP server is turned off. Enable it in Penguin → Settings → Developer, then restart your MCP client."
+            "Penguin's MCP server is turned off. Enable it in Penguin → Settings → Developer → Agents, then restart your MCP client."
                 .to_string(),
         ));
     }
@@ -375,7 +774,8 @@ async fn mcp() -> Outcome {
     let audit = Arc::new(AuditLog::open(agent::log_dir().as_deref()));
     if let Some(p) = audit.path() {
         eprintln!(
-            "penguin mcp: read-only; tool calls are logged to {}",
+            "penguin mcp: agent level \"{}\"; tool calls are logged to {}",
+            level.label(),
             p.display()
         );
     }

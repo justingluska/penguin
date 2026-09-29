@@ -9,6 +9,7 @@ import { Icon } from "../../components/Icon";
 import { attachmentSize, MAX_ATTACHMENT_BYTES } from "./draft";
 import { fileRows, inlineWidth, newContentId } from "./inline";
 import type { InlineImageAttrs } from "./editor/handle";
+import { cardKeyAction } from "../thread/attachmentMenu";
 
 function readAsBase64(file: File): Promise<string> {
   return new Promise((resolve, reject) => {
@@ -165,21 +166,40 @@ export function OriginalFiles({
 
 /**
  * The attachment row: files only (inline images are in the text). `list` is
- * what will be sent, so the total counts the images too; `onRemove` gets the
- * index in `list`.
+ * what will be sent, so the total counts the images too; `onPreview` and
+ * `onRemove` get the index in `list`. A chip previews on click, on its eye
+ * or with Space when focused (compose/filePreview.tsx); ⌫ or the X removes.
  */
-export function AttachmentList({ list, onRemove }: { list: OutgoingAttachment[]; onRemove: (index: number) => void }) {
+export function AttachmentList({ list, onPreview, onRemove }: { list: OutgoingAttachment[]; onPreview: (index: number) => void; onRemove: (index: number) => void }) {
   const rows = fileRows(list);
   if (rows.length === 0) return null;
   const total = list.reduce((n, a) => n + attachmentSize(a), 0);
   return (
     <div className="cmp-atts" aria-label="Attachments">
       {rows.map(({ a, i }) => (
-        <span key={`${a.filename}-${i}`} className={`cmp-att ${fileTone(a.filename, a.mimeType)}`} title={a.filename}>
-          <span className="mini-ico">{fileExt(a.filename)}</span>
-          <span className="cmp-att-name truncate">{a.filename}</span>
-          <span className="cmp-att-size tnum">{fmtBytes(attachmentSize(a))}</span>
-          <button className="cmp-att-x" aria-label={`Remove ${a.filename}`} onClick={() => onRemove(i)}>
+        <span key={`${a.filename}-${i}`} className={`cmp-att ${fileTone(a.filename, a.mimeType)}`}>
+          <button
+            className="cmp-att-open"
+            title={`Preview ${a.filename} (Space)`}
+            onClick={() => onPreview(i)}
+            onKeyDown={(e) => {
+              const act = cardKeyAction(e, { remove: true });
+              if (!act) return;
+              // Space and ⌫ are the chip's, not the editor's or the app's.
+              e.preventDefault();
+              e.stopPropagation();
+              if (act === "preview") onPreview(i);
+              else if (act === "remove") onRemove(i);
+            }}
+          >
+            <span className="mini-ico">{fileExt(a.filename)}</span>
+            <span className="cmp-att-name truncate">{a.filename}</span>
+            <span className="cmp-att-size tnum">{fmtBytes(attachmentSize(a))}</span>
+          </button>
+          <button className="cmp-att-eye" aria-label={`Preview ${a.filename}`} title="Preview" tabIndex={-1} onClick={() => onPreview(i)}>
+            <Icon name="eye" size="2xs" />
+          </button>
+          <button className="cmp-att-x" aria-label={`Remove ${a.filename}`} title="Remove" onClick={() => onRemove(i)}>
             <Icon name="x" size="2xs" />
           </button>
         </span>

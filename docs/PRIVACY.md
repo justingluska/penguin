@@ -89,6 +89,16 @@ What's left to check on a real account:
 - **The Gmail API route.** Gmail's API documents no read-receipt field. Penguin relies on the header travelling in the raw MIME that `messages.send` / `drafts.send` receive, and that needs an end-to-end check with a Workspace recipient (this build box has no accounts).
 - **A per-message toggle.** One in the composer belongs to the compose owner. Until then the setting's description says it applies to every message.
 
+## Share links: what leaves the Mac
+
+"Copy Share Link" uploads a picture or attachment to storage the user owns and set up (Cloudflare R2 or any S3-compatible bucket; there is no Penguin bucket) and copies a link that expires after 1 hour, 24 hours or 7 days. The full guide, including setting up an R2 bucket with a token limited to that bucket, is `docs/SHARE-LINKS.md`.
+
+- **Only on the user's choice.** Nothing is uploaded until the user chooses Copy Share Link on a file. Agents (CLI and MCP) can share attachments only when "Let agents (CLI and MCP) create share links" is on, and it is off by default.
+- **Only the file.** The bytes, the file name (so a download keeps it) and its type go to the user's storage over HTTPS. No sender, subject, recipients, message id or account.
+- **Private until shared.** The bucket stays private; the object's name has 128 random bits; the link is a presigned URL. Anyone who has the link can download the file until it expires. Nobody can list the bucket or open a file without one.
+- **Deleted afterwards.** By default Penguin deletes each upload once its link expires, retrying if it can't; a bucket lifecycle rule on the `penguin/` prefix is the recommended backstop. "Delete now" on the toast deletes it at once.
+- **A remote picture** in a message body is fetched once more (the same hardened request Save makes), so its sender's server sees that request.
+
 ## Sources
 
 Read statuses and receipts:

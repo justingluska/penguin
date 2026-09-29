@@ -58,6 +58,21 @@ test("overlay keys are listed, groups come in order, and the filter matches labe
   assert.ok(sheetGroups(REGISTRY, { mac: false, q: "shift+k" }).some((x) => x.rows.some((r) => r.label === "First conversation")));
 });
 
+test("! is two actions, one per context, and each gets its row; G then ! goes to Spam", () => {
+  const g = sheetGroups(
+    [
+      ...REGISTRY,
+      sc("triage.spam", "!", "Report spam", "Triage"),
+      sc("triage.notSpam", "!", "Not spam", "Triage"),
+      sc("go.spam", "g !", "Go to Spam", "Go to"),
+    ],
+    { mac: true },
+  );
+  assert.deepEqual(find(g, "Report spam")?.keys, ["!"]);
+  assert.deepEqual(find(g, "Not spam")?.keys, ["!"]);
+  assert.deepEqual(find(g, "Go to Spam")?.keys, ["g !", "mod+9"]);
+});
+
 test("menu accelerators convert to registry syntax", () => {
   assert.equal(menuAccelToKeys("CmdOrCtrl+Shift+R"), "mod+shift+r");
   assert.equal(menuAccelToKeys("Ctrl+CmdOrCtrl+A"), "ctrl+mod+a");

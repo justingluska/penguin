@@ -101,11 +101,25 @@ fn secondary_windows_get_only_what_they_need() {
         "free_up_space",
         "clear_avatar_cache",
         "start_model_download",
+        // Share-link storage is set up in Settings (main window); a
+        // conversation window may share and delete, not reconfigure.
+        "share_link_config_set",
+        "share_link_config_clear",
+        "share_link_config_test",
     ] {
         assert!(
             !WINDOWS.contains(&perm(cmd)),
             "windows.json must not grant {cmd}"
         );
+    }
+    // Conversation windows copy attachments as files; compose windows
+    // preview the files about to go out. Both, like the main window.
+    for cmd in ["copy_attachment_file", "preview_outgoing_file"] {
+        assert!(
+            WINDOWS.contains(&perm(cmd)),
+            "windows.json must grant {cmd}"
+        );
+        assert!(MAIN.contains(&perm(cmd)), "default.json must grant {cmd}");
     }
     // The main window has no seed to take.
     assert!(!MAIN.contains(&perm("take_window_seed")));

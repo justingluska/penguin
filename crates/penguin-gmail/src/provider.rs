@@ -19,7 +19,7 @@ use penguin_provider::{
 
 use crate::api::GmailClient;
 use crate::auth::AuthManager;
-use crate::sync::{self as gsync, SyncEngine, WindowApi};
+use crate::sync::{self as gsync, AccountState, AccountStates, SyncEngine, WindowApi};
 use crate::{drafts, Error};
 
 type PResult<T> = penguin_provider::Result<T>;
@@ -30,14 +30,23 @@ pub struct GmailProvider {
     account_id: String,
     client: GmailClient,
     store: Store,
+    state: Arc<AccountState>,
 }
 
 impl GmailProvider {
-    pub fn new(account_id: &str, client: GmailClient, store: Store) -> GmailProvider {
+    /// `state` is the account's estimate cache and body-download claims,
+    /// kept by the backend so they outlive this handle.
+    pub fn new(
+        account_id: &str,
+        client: GmailClient,
+        store: Store,
+        state: Arc<AccountState>,
+    ) -> GmailProvider {
         GmailProvider {
             account_id: account_id.to_string(),
             client,
             store,
+            state,
         }
     }
 
@@ -80,7 +89,14 @@ impl MailProvider for GmailProvider {
     }
 
     async fn fetch_pending_bodies(&self, ids: &[String]) -> PResult<Vec<String>> {
-        Ok(gsync::fetch_pending_bodies(&self.client, &self.store, &self.account_id, ids).await?)
+        Ok(gsync::fetch_pending_bodies(
+            &self.client,
+            &self.store,
+            &self.state.bodies,
+            &self.account_id,
+            ids,
+        )
+        .await?)
     }
 
     async fn get_attachment(
@@ -240,7 +256,7 @@ impl MailProvider for GmailProvider {
     }
 
     async fn window_estimate(&self, months: u32, now_ms: i64) -> PResult<u64> {
-        Ok(gsync::window_estimate(&self.client, &self.account_id, months, now_ms).await?)
+        Ok(gsync::window_estimate(&self.client, &self.state.estimates, months, now_ms).await?)
     }
 }
 
@@ -252,6 +268,7 @@ pub struct GmailBackend {
     auth: AuthManager,
     engine: SyncEngine,
     store: Store,
+    accounts: Arc<AccountStates>,
 }
 
 impl GmailBackend {
@@ -260,6 +277,7 @@ impl GmailBackend {
             auth,
             engine,
             store,
+            accounts: Arc::default(),
         }
     }
 
@@ -295,6 +313,7 @@ impl Backend for GmailBackend {
             &account.id,
             self.gmail_client(account),
             self.store.clone(),
+            self.accounts.for_account(&account.id),
         )))
     }
 
@@ -303,6 +322,7 @@ impl Backend for GmailBackend {
     }
 
     async fn sign_out(&self, account: &Account) -> PResult<()> {
+        self.accounts.forget(&account.id);
         Ok(self.auth.sign_out(&account.email).await?)
     }
 

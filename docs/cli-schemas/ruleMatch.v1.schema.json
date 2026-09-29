@@ -8,7 +8,7 @@
       "$ref": "#/$defs/RuleMatchOut"
     },
     "kind": {
-      "description": "\"search\" | \"thread\" | \"threads\" | \"labels\" | \"people\" | \"accounts\" | \"attachmentText\" | \"ask\" | \"ruleMatch\" | \"error\"",
+      "description": "\"search\" | \"thread\" | \"threads\" | \"labels\" | \"people\" | \"accounts\" | \"attachmentText\" | \"attachments\" | \"attachment\" | \"ask\" | \"draft\" | \"drafts\" | \"draftDeleted\" | \"sendQueued\" | \"shareLink\" | \"ruleMatch\" | \"error\"",
       "type": "string"
     },
     "schemaVersion": {
@@ -129,6 +129,13 @@
         "id": {
           "type": "string"
         },
+        "inlineImages": {
+          "description": "Pictures embedded in the body (cid:), apart from `attachments`;\nget_attachment returns them as images.",
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/AttachmentOut"
+          }
+        },
         "labelIds": {
           "type": "array",
           "items": {
@@ -178,6 +185,7 @@
         "unread",
         "starred",
         "attachments",
+        "inlineImages",
         "text",
         "quotedChars",
         "truncated",

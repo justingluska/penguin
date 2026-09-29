@@ -1,0 +1,94 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Envelope",
+  "description": "Every payload: `{\"schemaVersion\": 1, \"kind\": \"...\", \"data\": {...}}`.",
+  "type": "object",
+  "properties": {
+    "data": {
+      "$ref": "#/$defs/AttachmentPayloadOut"
+    },
+    "kind": {
+      "description": "\"search\" | \"thread\" | \"threads\" | \"labels\" | \"people\" | \"accounts\" | \"attachmentText\" | \"attachments\" | \"attachment\" | \"ask\" | \"draft\" | \"drafts\" | \"draftDeleted\" | \"sendQueued\" | \"shareLink\" | \"ruleMatch\" | \"error\"",
+      "type": "string"
+    },
+    "schemaVersion": {
+      "type": "integer",
+      "format": "uint32",
+      "minimum": 0
+    }
+  },
+  "required": [
+    "schemaVersion",
+    "kind",
+    "data"
+  ],
+  "$defs": {
+    "AttachmentOut": {
+      "type": "object",
+      "properties": {
+        "filename": {
+          "type": "string"
+        },
+        "id": {
+          "type": "string"
+        },
+        "mimeType": {
+          "type": "string"
+        },
+        "size": {
+          "type": "integer",
+          "format": "uint64",
+          "minimum": 0
+        }
+      },
+      "required": [
+        "id",
+        "filename",
+        "mimeType",
+        "size"
+      ]
+    },
+    "AttachmentPayloadOut": {
+      "description": "`attachment`: what get_attachment returned, beside the image or file\ncontent block itself.",
+      "type": "object",
+      "properties": {
+        "accountId": {
+          "type": "string"
+        },
+        "attachment": {
+          "$ref": "#/$defs/AttachmentOut"
+        },
+        "messageId": {
+          "type": "string"
+        },
+        "note": {
+          "description": "E.g. that a picture was scaled down, or why it isn't shown as one.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "returned": {
+          "description": "\"image\" (an image content block follows), \"text\" (in `text`), or\n\"file\" (an embedded resource with the bytes follows).",
+          "type": "string"
+        },
+        "text": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "truncated": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "accountId",
+        "messageId",
+        "attachment",
+        "returned",
+        "truncated"
+      ]
+    }
+  }
+}

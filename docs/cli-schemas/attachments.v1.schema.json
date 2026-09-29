@@ -1,0 +1,124 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Envelope",
+  "description": "Every payload: `{\"schemaVersion\": 1, \"kind\": \"...\", \"data\": {...}}`.",
+  "type": "object",
+  "properties": {
+    "data": {
+      "$ref": "#/$defs/AttachmentsOut"
+    },
+    "kind": {
+      "description": "\"search\" | \"thread\" | \"threads\" | \"labels\" | \"people\" | \"accounts\" | \"attachmentText\" | \"attachments\" | \"attachment\" | \"ask\" | \"draft\" | \"drafts\" | \"draftDeleted\" | \"sendQueued\" | \"shareLink\" | \"ruleMatch\" | \"error\"",
+      "type": "string"
+    },
+    "schemaVersion": {
+      "type": "integer",
+      "format": "uint32",
+      "minimum": 0
+    }
+  },
+  "required": [
+    "schemaVersion",
+    "kind",
+    "data"
+  ],
+  "$defs": {
+    "AttachmentInfoOut": {
+      "type": "object",
+      "properties": {
+        "cached": {
+          "description": "Penguin already has the bytes; otherwise get_attachment asks the\nrunning app to download them.",
+          "type": "boolean"
+        },
+        "contentId": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "filename": {
+          "type": "string"
+        },
+        "id": {
+          "type": "string"
+        },
+        "inline": {
+          "description": "An embedded (cid:) picture shown in the body, not a file.",
+          "type": "boolean"
+        },
+        "mimeType": {
+          "type": "string"
+        },
+        "size": {
+          "type": "integer",
+          "format": "uint64",
+          "minimum": 0
+        }
+      },
+      "required": [
+        "id",
+        "filename",
+        "mimeType",
+        "size",
+        "inline",
+        "cached"
+      ]
+    },
+    "AttachmentsOut": {
+      "description": "`attachments` (list_attachments, `penguin-cli attachments --json`).",
+      "type": "object",
+      "properties": {
+        "accountId": {
+          "type": "string"
+        },
+        "attachments": {
+          "description": "Files and embedded pictures, in message order.",
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/AttachmentInfoOut"
+          }
+        },
+        "bodyPending": {
+          "description": "The body isn't downloaded yet (outside the sync window), so the\nattachment list may be incomplete until the message is opened.",
+          "type": "boolean"
+        },
+        "messageId": {
+          "type": "string"
+        },
+        "remoteImages": {
+          "description": "https pictures the HTML body would load (not fetched).",
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "remoteImagesNote": {
+          "description": "Set when there are remote pictures: why they aren't fetched.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "threadId": {
+          "type": "string"
+        },
+        "trackingImages": {
+          "description": "Tracking pixels and tiny or hidden remote images (not fetched).",
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "required": [
+        "accountId",
+        "messageId",
+        "threadId",
+        "attachments",
+        "remoteImages",
+        "trackingImages",
+        "bodyPending"
+      ]
+    }
+  }
+}

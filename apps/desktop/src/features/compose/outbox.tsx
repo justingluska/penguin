@@ -2,7 +2,7 @@
 // for what the app's local scheduler does (it only runs while Penguin does,
 // which the UI says wherever you schedule something).
 import { useEffect, useMemo, useRef, useState } from "react";
-import { api, asCommandError, onReminderDue, onScheduledSent } from "../../lib/api";
+import { api, asCommandError, onAgentSendQueued, onReminderDue, onScheduledSent } from "../../lib/api";
 import { openThread } from "../../lib/ui";
 import { useSetting } from "../../lib/settings";
 import { parseWhen, sendLaterPresets } from "./when";
@@ -280,6 +280,26 @@ export function useOutboxToasts(open: { draft: (accountId: string, draftId: stri
         });
       }
     });
+    // An agent queued a send (Settings → Developer → Agents): say who it's
+    // going to, and offer Cancel for as long as it waits.
+    const unAgent = onAgentSendQueued((q) => {
+      const who = q.to.length === 1 ? q.to[0] : q.to.length ? `${q.to[0]} and ${q.to.length - 1} more` : "no one";
+      toast({
+        kind: "action",
+        key: `agent-send:${q.scheduleId}`,
+        message: `An agent is sending to ${who}`,
+        detail: `${q.subject || "(no subject)"} · goes in ${q.delaySeconds < 60 ? `${q.delaySeconds} s` : `${Math.round(q.delaySeconds / 60)} min`}`,
+        action: {
+          label: "Cancel",
+          run: () =>
+            api
+              .cancelScheduledSend(q.scheduleId)
+              .then(() => toast({ message: "Send cancelled", detail: "The agent's draft stays in Drafts." }))
+              .catch((e) => toast({ tone: "error", message: `Couldn't cancel: ${asCommandError(e).message}` })),
+        },
+        duration: Math.max(5_000, q.sendAt - Date.now()),
+      });
+    });
     const unDue = onReminderDue((r) =>
       toast({
         kind: "action",
@@ -292,6 +312,7 @@ export function useOutboxToasts(open: { draft: (accountId: string, draftId: stri
     );
     return () => {
       unSent.then((f) => f());
+      unAgent.then((f) => f());
       unDue.then((f) => f());
     };
   }, [active]);

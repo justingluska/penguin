@@ -938,6 +938,38 @@ pub fn render_html(html: &str, opts: &RenderOptions) -> RenderedHtml {
     }
 }
 
+/// The remote (http/https) images an HTML body would load, found by the
+/// same image policy [`render_html`] applies (img `src`/`srcset`,
+/// `background`, CSS `url()`), without loading anything.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RemoteImageUrls {
+    /// Ordinary remote images, sorted.
+    pub images: Vec<String>,
+    /// Known trackers and tiny or hidden images, sorted.
+    pub trackers: Vec<String>,
+}
+
+/// See [`RemoteImageUrls`]. For callers that must report the images but
+/// never fetch them (penguin-cli's `list_attachments`: loading a remote
+/// image tells the sender, and every tracker on it, your IP address and
+/// that you read the mail).
+pub fn remote_image_urls(html: &str) -> RemoteImageUrls {
+    let scan = prescan::prescan(html, false);
+    let policy = Arc::new(ImagePolicy::new(&RenderOptions::default(), scan.tiny_srcs));
+    if scan.max_depth <= MAX_NESTING_DEPTH && scan.max_attrs <= prescan::MAX_ATTRS {
+        let _ = build_sanitizer(policy.clone()).clean(html);
+        let resolve = |u: &str| policy.resolve(u, false);
+        let _ = css::sanitize_stylesheet(&scan.style_text, &resolve);
+    }
+    let counts = policy.counts();
+    let mut images: Vec<String> = counts.blocked.iter().cloned().collect();
+    let mut trackers: Vec<String> = counts.trackers.iter().cloned().collect();
+    images.sort();
+    trackers.sort();
+    RemoteImageUrls { images, trackers }
+}
+
 /// Plain-text body → safe HTML (escape, linkify, fold quoted blocks).
 pub fn render_text(text: &str) -> RenderedHtml {
     let text = text.replace("\r\n", "\n").replace('\r', "\n");
@@ -949,6 +981,22 @@ pub fn render_text(text: &str) -> RenderedHtml {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn remote_image_urls_lists_without_loading() {
+        let html = r#"<style>.h{background:url(https://cdn.example/bg.png)}</style>
+            <img src="https://cdn.example/logo.png"><img src="cid:part1">
+            <img src="data:image/png;base64,iVBORw0KGgo=">
+            <img src="https://t.example/o.gif" width="1" height="1">
+            <img src="http://10.0.0.1/lan.png"><img src="javascript:alert(1)">"#;
+        let r = remote_image_urls(html);
+        assert_eq!(
+            r.images,
+            ["https://cdn.example/bg.png", "https://cdn.example/logo.png"]
+        );
+        assert_eq!(r.trackers, ["https://t.example/o.gif"]);
+        assert_eq!(remote_image_urls("<p>plain</p>"), RemoteImageUrls::default());
+    }
 
     #[test]
     fn data_image_validation() {

@@ -12,7 +12,9 @@ use std::collections::{HashMap, HashSet};
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex, RwLock};
 
-use penguin_core::{Account, AccountProvider, SemanticHandles, Store, SyncPhase, SyncStatus};
+use penguin_core::{
+    Account, AccountProvider, SemanticHandles, Store, SyncErrorKind, SyncPhase, SyncStatus,
+};
 use penguin_gmail::auth::{AuthManager, IosClientConfig, OAuthClientConfig};
 use penguin_gmail::provider::GmailBackend;
 use penguin_gmail::sync::SyncEngine;
@@ -133,6 +135,13 @@ impl SyncObserver for TauriObserver {
     fn labels_added(&self, account_id: &str, changes: Vec<(String, Vec<String>)>) {
         crate::rules::enqueue(&self.store, account_id, crate::rules::labels_added(changes));
     }
+}
+
+fn wall_ms() -> i64 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_millis() as i64)
+        .unwrap_or(0)
 }
 
 fn emit<S: Serialize + Clone>(app: &AppHandle, event: &str, payload: S) {
@@ -383,7 +392,7 @@ impl AppState {
                     AccountProvider::Gmail => "Google OAuth client is not configured".to_string(),
                     _ => e.message,
                 };
-                self.set_local_status(&account.id, SyncPhase::Error, Some(message))
+                self.set_local_status(&account.id, SyncErrorKind::Config, message)
                     .await;
                 return;
             }
@@ -397,8 +406,8 @@ impl AppState {
             tracing::info!(account = %account.id, "no stored credentials; needs sign-in");
             self.set_local_status(
                 &account.id,
-                SyncPhase::NeedsReauth,
-                Some("Sign in again to keep syncing".into()),
+                SyncErrorKind::Auth,
+                "Sign in again to keep syncing".into(),
             )
             .await;
             return;
@@ -470,23 +479,19 @@ impl AppState {
         }
     }
 
-    async fn set_local_status(&self, account_id: &str, phase: SyncPhase, error: Option<String>) {
+    /// An account no engine runs, parked on a problem only the user can fix
+    /// (no credentials, no OAuth client): shown at once.
+    async fn set_local_status(&self, account_id: &str, kind: SyncErrorKind, message: String) {
         let store = self.store.clone();
         let id = account_id.to_string();
         let indexed = blocking(move || Ok(store.count_messages(Some(&id))?))
             .await
             .unwrap_or(0);
-        let status = SyncStatus {
-            account_id: account_id.to_string(),
-            phase,
+        let mut status = SyncStatus {
             indexed,
-            total_estimate: None,
-            last_synced_at: None,
-            error,
-            rate_per_min: None,
-            eta_secs: None,
-            stage: None,
+            ..SyncStatus::new(account_id, SyncPhase::Idle)
         };
+        status.record_failure(kind, message, wall_ms(), None);
         self.local_status
             .lock()
             .unwrap()
@@ -511,15 +516,8 @@ impl AppState {
                 from_engine
                     .or_else(|| local.get(&a.id).cloned())
                     .unwrap_or_else(|| SyncStatus {
-                        account_id: a.id.clone(),
-                        phase: SyncPhase::Idle,
                         indexed: counts.get(&a.id).copied().unwrap_or(0),
-                        total_estimate: None,
-                        last_synced_at: None,
-                        error: None,
-                        rate_per_min: None,
-                        eta_secs: None,
-                        stage: None,
+                        ..SyncStatus::new(a.id.clone(), SyncPhase::Idle)
                     })
             })
             .collect()
@@ -587,6 +585,7 @@ impl AppState {
 
     pub fn emit_settings_changed(&self, settings: Settings) {
         crate::app_menu::sync_settings(&self.app, &settings);
+        crate::spelling::apply(&self.app, &settings);
         emit(&self.app, EVENT_SETTINGS_CHANGED, settings);
     }
 }

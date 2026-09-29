@@ -39,7 +39,9 @@ use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
 use futures_util::FutureExt;
-use penguin_core::{Label, Message, Store, SyncCursor, SyncPhase, SyncStage, SyncStatus};
+use penguin_core::{
+    Label, Message, Store, SyncCursor, SyncErrorKind, SyncPhase, SyncStage, SyncStatus,
+};
 use penguin_provider::heartbeat::Heartbeat;
 use serde::{Deserialize, Serialize};
 use tokio::sync::Notify;
@@ -54,8 +56,9 @@ use crate::{Error, Result};
 mod window;
 pub use window::{
     fetch_pending_bodies, range_query, search_server, to_gmail_query, window_estimate,
-    window_start_ms, OlderMail, ServerSearch, WindowApi, WindowPolicy, SERVER_SEARCH_FETCH_CAP,
-    WINDOW_MONTHS_DEFAULT, WINDOW_MONTH_CHOICES,
+    window_start_ms, AccountState, AccountStates, BodyClaims, EstimateCache, OlderMail,
+    ServerSearch, WindowApi, WindowPolicy, SERVER_SEARCH_FETCH_CAP, WINDOW_MONTHS_DEFAULT,
+    WINDOW_MONTH_CHOICES,
 };
 
 impl penguin_provider::SyncTask for SyncHandle {
@@ -87,6 +90,10 @@ pub struct GmailCursor {
     pub history_id: Option<u64>,
     /// messages.list page token for resumable newest-first backfill.
     pub backfill_page_token: Option<String>,
+    /// The spam fill ran (see `AccountSync::spam_fill`). Missing = false,
+    /// so an account synced before it existed gets its recent spam once.
+    #[serde(skip_serializing_if = "std::ops::Not::not")]
+    pub spam_filled: bool,
 }
 
 impl GmailCursor {
@@ -303,17 +310,7 @@ struct Shared {
 impl Shared {
     fn new(account_id: &str, observer: Arc<dyn SyncObserver>) -> Arc<Self> {
         Arc::new(Shared {
-            status: Mutex::new(SyncStatus {
-                account_id: account_id.to_string(),
-                phase: SyncPhase::Idle,
-                indexed: 0,
-                total_estimate: None,
-                last_synced_at: None,
-                error: None,
-                rate_per_min: None,
-                eta_secs: None,
-                stage: None,
-            }),
+            status: Mutex::new(SyncStatus::new(account_id, SyncPhase::Idle)),
             poked: AtomicBool::new(false),
             wake: Notify::new(),
             observer,
@@ -456,10 +453,15 @@ impl<C: GmailApi> AccountSync<C> {
         let stage = self.current_stage();
         let note = self.health_note();
         self.shared.update(|s| {
-            s.phase = phase;
-            s.stage = stage;
             s.indexed = indexed;
             s.total_estimate = Some(total);
+            // Reaching Gmail again is not progress: after a failure the
+            // status keeps it until the pass that follows syncs something.
+            if s.failing() {
+                return;
+            }
+            s.phase = phase;
+            s.stage = stage;
             s.error = note;
             if phase != SyncPhase::Backfilling {
                 s.rate_per_min = None;
@@ -571,7 +573,11 @@ impl<C: GmailApi> AccountSync<C> {
             .failed_message_ids
             .extend(pending.iter().cloned());
         let note = self.health_note();
-        self.shared.update(|s| s.error = note);
+        self.shared.update(|s| {
+            if !s.failing() {
+                s.error = note;
+            }
+        });
         Ok(out)
     }
 
@@ -661,12 +667,21 @@ impl<C: GmailApi> AccountSync<C> {
             let indexed = self.count().await?;
             let total = self.shared.snapshot().total_estimate;
             let eta = self.fill_eta(fetched, rate, total, indexed);
+            let (now, note) = (now_ms(), self.health_note());
             self.shared.update(|s| {
+                if s.failing() {
+                    // Mail was stored: the failure is over.
+                    s.record_progress(now);
+                    s.phase = SyncPhase::Backfilling;
+                    s.error = note;
+                }
                 s.indexed = indexed;
                 s.stage = Some(SyncStage::Window);
                 s.rate_per_min = rate;
                 s.eta_secs = eta;
             });
+            // The error backoff starts over after work that succeeded.
+            self.failures = 0;
             if self.poll_due() {
                 self.poll_history().await?;
             }
@@ -683,7 +698,12 @@ impl<C: GmailApi> AccountSync<C> {
             self.db(|s| s.optimize()).await?;
             let indexed = self.count().await?;
             let (phase, stage) = (self.resting_phase(), self.current_stage());
+            let (now, note) = (now_ms(), self.health_note());
             self.shared.update(|s| {
+                if s.failing() {
+                    s.record_progress(now);
+                    s.error = note;
+                }
                 s.phase = phase;
                 s.stage = stage;
                 s.rate_per_min = None;
@@ -701,7 +721,12 @@ impl<C: GmailApi> AccountSync<C> {
             None => return Err(Error::Other("history poll before init".into())),
         };
         if self.cursor.backfill_done {
-            self.shared.update(|s| s.phase = SyncPhase::Incremental);
+            self.shared.update(|s| {
+                // Not while a failure is open: this poll hasn't worked yet.
+                if !s.failing() {
+                    s.phase = SyncPhase::Incremental;
+                }
+            });
         }
         let mut token: Option<String> = None;
         let mut latest = start;
@@ -745,22 +770,32 @@ impl<C: GmailApi> AccountSync<C> {
         let phase = self.resting_phase();
         let stage = self.current_stage();
         let note = self.health_note();
+        let now = now_ms();
+        // The poll ends a failure only once backfill is done: while it
+        // runs, the failure is the backfill's (its next page ends it).
+        let progress = phase != SyncPhase::Backfilling;
         self.shared.update(|s| {
+            s.indexed = indexed;
+            s.last_synced_at = Some(now);
+            if total.is_some() {
+                s.total_estimate = total;
+            }
+            if !progress && s.failing() {
+                return;
+            }
+            s.record_progress(now);
             s.phase = phase;
             s.stage = stage;
-            s.indexed = indexed;
-            s.last_synced_at = Some(now_ms());
             s.error = note;
             if phase != SyncPhase::Backfilling {
                 s.rate_per_min = None;
                 s.eta_secs = None;
             }
-            if total.is_some() {
-                s.total_estimate = total;
-            }
         });
         self.next_poll = Instant::now() + POLL_INTERVAL;
-        self.failures = 0;
+        if progress {
+            self.failures = 0;
+        }
         Ok(())
     }
 
@@ -947,6 +982,9 @@ impl<C: GmailApi> AccountSync<C> {
                 self.backfill_page().await?;
                 continue;
             }
+            if self.spam_fill().await? {
+                continue;
+            }
             if self.older_page().await? {
                 continue;
             }
@@ -965,10 +1003,9 @@ impl<C: GmailApi> AccountSync<C> {
                 Ok(()) => return,
                 Err(Error::NeedsReauth(msg)) => {
                     tracing::warn!(account = %self.account_id, "sync stopped: account needs re-auth");
-                    self.shared.update(|s| {
-                        s.phase = SyncPhase::NeedsReauth;
-                        s.error = Some(msg);
-                    });
+                    let now = now_ms();
+                    self.shared
+                        .update(|s| s.record_failure(SyncErrorKind::Auth, msg, now, None));
                     return;
                 }
                 // The Keychain refused (access denied/cancelled, locked).
@@ -976,9 +1013,10 @@ impl<C: GmailApi> AccountSync<C> {
                 // so stop until they act (reconnect, or SyncEngine::retry_account).
                 Err(Error::Keychain(msg)) => {
                     tracing::warn!(account = %self.account_id, error = %msg, "sync stopped: keychain access failed");
+                    let now = now_ms();
                     self.shared.update(|s| {
-                        s.phase = SyncPhase::NeedsReauth;
-                        s.error = Some(format!("Keychain access failed: {msg}"));
+                        let msg = format!("Keychain access failed: {msg}");
+                        s.record_failure(SyncErrorKind::Keychain, msg, now, None)
                     });
                     return;
                 }
@@ -986,15 +1024,17 @@ impl<C: GmailApi> AccountSync<C> {
                     self.failures += 1;
                     let wait =
                         Duration::from_secs(5u64 << self.failures.min(10)).min(MAX_ERROR_BACKOFF);
-                    tracing::warn!(account = %self.account_id, error = %e, ?wait, "sync error; retrying");
-                    self.shared.update(|s| {
-                        s.phase = SyncPhase::Error;
-                        s.error = Some(e.to_string());
-                    });
+                    tracing::warn!(account = %self.account_id, error = %e, failures = self.failures, ?wait, "sync error; retrying");
+                    let (kind, message, now) = (e.sync_kind(), e.to_string(), now_ms());
+                    let retry_in = wait.as_millis() as i64;
+                    self.shared
+                        .update(|s| s.record_failure(kind, message, now, Some(retry_in)));
                     tokio::select! {
                         _ = tokio::time::sleep(wait) => {}
                         _ = self.shared.wake.notified() => {}
                     }
+                    // The next attempt polls too: only synced mail ends the failure.
+                    self.shared.poked.store(true, Ordering::SeqCst);
                 }
             }
         }
@@ -1134,10 +1174,9 @@ impl SyncEngine {
                     if let Err(payload) = res {
                         let panic = crate::panic_message(&*payload);
                         tracing::error!(account = %account, panic = %panic, "sync task panicked");
-                        ticker_shared.update(|s| {
-                            s.phase = SyncPhase::Error;
-                            s.error = Some(format!("internal sync error ({panic}); restart sync to retry"));
-                        });
+                        let msg = format!("internal sync error ({panic}); restart sync to retry");
+                        ticker_shared
+                            .update(|s| s.record_failure(SyncErrorKind::Internal, msg, now_ms(), None));
                     }
                 }
                 _ = ticker => {}
@@ -1157,10 +1196,9 @@ impl SyncEngine {
     /// error backoff.
     pub fn retry_account(&self, account_id: &str) -> SyncHandle {
         let shared = self.shared_for(account_id);
-        shared.update(|s| {
-            s.phase = SyncPhase::Idle;
-            s.error = None;
-        });
+        // The failure stays until this attempt syncs (or fails again), so
+        // the UI can tell whether the retry worked.
+        shared.update(|s| s.retry_now(now_ms()));
         let handle = self.start_account(account_id);
         handle.poke();
         handle

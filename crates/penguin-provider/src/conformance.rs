@@ -6,9 +6,10 @@
 //!   unit tests (fixtures with fictional `.example` data).
 //! - [`run`]: drives a live [`MailProvider`] through the calls the app makes
 //!   (fetch, headers, raw source, attachments, label changes, archive,
-//!   trash, drafts, send, search) against a mailbox that holds one known
-//!   message. Point it at a test server (Dovecot/GreenMail/Stalwart for
-//!   IMAP, recorded fixtures for Graph) or at the [`crate::fake`] provider.
+//!   report spam / not spam, trash, drafts, send, search) against a
+//!   mailbox that holds one known message. Point it at a test server
+//!   (Dovecot/GreenMail/Stalwart for IMAP, recorded fixtures for Graph) or
+//!   at the [`crate::fake`] provider.
 //!   It changes the mailbox (and sends mail when `send_to` is set), so
 //!   never at a real person's account.
 //!
@@ -272,6 +273,39 @@ pub async fn run(p: &dyn MailProvider, store: &Store, case: &Case) -> Vec<String
         }
         match labels_of(&p.fetch_messages(std::slice::from_ref(&id)).await) {
             Some(l) if l.iter().any(|x| x == label) == present => {}
+            Some(l) => out.push(format!("{name}: labels now {l:?}")),
+            None => out.push(format!("{name}: message gone after the change")),
+        }
+    }
+    // Report spam and Not spam (the app's ThreadAction::ReportSpam /
+    // NotSpam): into Spam and out of the inbox, then back. IMAP moves to
+    // and from the Junk folder (created when the server has none), Graph
+    // to and from junkemail, Gmail relabels.
+    // (name, add, remove, labels that must be there, labels that must not)
+    type SpamStep<'a> = (&'a str, Vec<String>, Vec<String>, &'a str, &'a str);
+    let spam_steps: [SpamStep; 2] = [
+        (
+            "report spam",
+            vec![system::SPAM.into()],
+            vec![system::INBOX.into()],
+            system::SPAM,
+            system::INBOX,
+        ),
+        (
+            "not spam",
+            vec![system::INBOX.into()],
+            vec![system::SPAM.into()],
+            system::INBOX,
+            system::SPAM,
+        ),
+    ];
+    for (name, add, remove, there, gone) in spam_steps {
+        if let Err(e) = p.modify_thread(&t, &add, &remove).await {
+            out.push(format!("{name}: {e}"));
+            continue;
+        }
+        match labels_of(&p.fetch_messages(std::slice::from_ref(&id)).await) {
+            Some(l) if l.iter().any(|x| x == there) && !l.iter().any(|x| x == gone) => {}
             Some(l) => out.push(format!("{name}: labels now {l:?}")),
             None => out.push(format!("{name}: message gone after the change")),
         }
@@ -678,6 +712,16 @@ mod tests {
         let failures = run(dynp.as_ref(), &store, &case).await;
         assert!(failures.is_empty(), "{failures:#?}");
         assert!(p.calls().iter().any(|c| c.starts_with("send_saved_draft")));
+        // Report spam and Not spam reach the provider as one delta each.
+        let calls = p.calls();
+        assert!(
+            calls.iter().any(|c| c == "modify_thread t1 +SPAM -INBOX"),
+            "{calls:#?}"
+        );
+        assert!(
+            calls.iter().any(|c| c == "modify_thread t1 +INBOX -SPAM"),
+            "{calls:#?}"
+        );
     }
 
     #[tokio::test]

@@ -1,4 +1,4 @@
-// What you can do with a picture: Copy, Copy image address, Save to
+// What you can do with a picture: Copy, Copy original web address, Save to
 // Downloads, Save As…, Open in Preview, Show in Finder. Shared by the
 // viewer's toolbar, keys and right-click menu and by an image attachment's
 // card menu in the thread. Bytes come from Rust (image_viewer.rs,
@@ -9,7 +9,7 @@ import type { AttachmentMeta, AttachmentPreview, MessageView } from "../../lib/t
 import { api, asCommandError, isDemo, isMock } from "../../lib/api";
 import { isMac } from "../../lib/keyboard";
 import { bytes } from "../../lib/format";
-import { copyText } from "../../lib/clipboard";
+import { copyText, copyTextLater } from "../../lib/clipboard";
 import { toast, updateToast } from "../../components/Toast";
 import {
   downloadAttachment,
@@ -87,6 +87,22 @@ export async function copyImage(it: ViewerItem) {
 /** A remote picture's https address (never an embedded data: URL, which is the picture itself). */
 export function copyImageAddress(it: ViewerItem) {
   if (it.kind === "body" && it.remote) void copyText(it.src, "Image address copied");
+}
+
+/**
+ * The picture's file path on this Mac, saving it to Downloads first if it
+ * isn't saved yet. Every picture has one (attachments and embedded pictures
+ * have no web address), and an agent or a terminal can read the file.
+ */
+export function copyImagePath(it: ViewerItem) {
+  // The clipboard write starts inside the click or key press (WebKit allows
+  // it only then); the path follows once the picture is saved.
+  const path = (async () => {
+    const p = savedPath(it) ?? (await saveImage(it));
+    if (!p) throw new Error(`${it.name} couldn't be saved`);
+    return p;
+  })();
+  void copyTextLater(path, "File path copied");
 }
 
 /** Paths saved this session for body pictures, per item (attachments keep theirs in AttachmentPreview). */

@@ -373,7 +373,8 @@ export function MessageBody({ message, onLoadImages, trailing }: { message: Mess
               </button>
               {message.trustedSenderUnverified ? (
                 <span className="mb-unverified">Couldn't verify this sender, so images weren't loaded automatically</span>
-              ) : message.from.email ? (
+              ) : message.from.email && !message.labelIds.includes("SPAM") ? (
+                // Not for spam: trusting its sender would load a spammer's pictures on every message.
                 <button type="button" className="mb-load" onClick={trustSender} title={`Always load images from ${message.from.email}`}>
                   Always from this sender
                 </button>

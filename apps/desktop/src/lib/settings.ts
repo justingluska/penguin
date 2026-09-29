@@ -67,6 +67,8 @@ export const DEFAULT_SETTINGS: Settings = {
   sendLaterHour: 8,
   instantReplies: { enabled: true, replies: ["Sounds good, thanks!", "Thanks, got it.", "Let me check and get back to you."], aiSuggestions: false },
   writeWithAi: true,
+  checkSpelling: true,
+  checkGrammar: false,
   signatures: [],
   signatureDefaults: {},
   signatureInsert: { newMessages: true, replies: true, forwards: true },
@@ -75,7 +77,7 @@ export const DEFAULT_SETTINGS: Settings = {
   gmailUnitsPerMin: 6000,
   syncWindowMonths: 6,
   olderMail: "headers",
-  mcp: { enabled: false },
+  mcp: { access: "off", enabled: false, sendDelaySeconds: 60, sendKnownOnly: true },
   showShortcutHints: false,
   shortcutCoach: true,
   unsubscribeButton: true,
@@ -169,8 +171,9 @@ export function useSettings(): Settings {
 export async function updateSettings(patch: SettingsPatch): Promise<Settings> {
   await ensureLoaded();
   const before = current;
-  // `me` is merged field by field, like the backend does.
-  set({ ...current, ...patch, me: { ...current.me, ...patch.me } });
+  // `me` and `mcp` are merged field by field, like the backend does.
+  const mcp = { ...current.mcp, ...patch.mcp };
+  set({ ...current, ...patch, me: { ...current.me, ...patch.me }, mcp: { ...mcp, enabled: mcp.access !== "off" } });
   try {
     const saved = await api.updateSettings(patch);
     set(saved);

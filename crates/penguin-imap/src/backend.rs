@@ -5,7 +5,7 @@
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex, OnceLock};
 
-use penguin_core::{Account, AccountProvider, Store, SyncPhase, SyncStatus};
+use penguin_core::{Account, AccountProvider, Store, SyncErrorKind, SyncStatus};
 use penguin_provider::credentials::{PasswordCredential, SecretVault, IMAP_SERVICE};
 use penguin_provider::window::WindowPolicy;
 use penguin_provider::{async_trait, Backend, MailProvider, SyncHandle, SyncObserver};
@@ -14,6 +14,13 @@ use crate::account::{Config, Ctx};
 use crate::provider::ImapProvider;
 use crate::sync::{self, Handle, Shared};
 use crate::{db, Error, Result};
+
+fn now_ms() -> i64 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_millis() as i64)
+        .unwrap_or(0)
+}
 
 /// The process-wide IMAP Keychain vault (read at most once per process).
 pub fn keychain_vault() -> Arc<SecretVault<PasswordCredential>> {
@@ -115,13 +122,16 @@ impl ImapBackend {
             .clone()
     }
 
-    /// A handle that reports the error and does nothing (bad settings).
-    fn failed(&self, account_id: &str, message: String) -> SyncHandle {
+    /// A handle that reports the error and does nothing (bad settings,
+    /// unusable storage). Nothing retries it: shown at once.
+    fn failed(&self, account_id: &str, e: &Error) -> SyncHandle {
         let shared = self.shared_for(account_id);
-        shared.update(|s| {
-            s.phase = SyncPhase::Error;
-            s.error = Some(message);
-        });
+        let kind = match e.sync_kind() {
+            SyncErrorKind::Other => SyncErrorKind::Config,
+            k => k,
+        };
+        let message = e.to_string();
+        shared.update(|s| s.record_failure(kind, message, now_ms(), None));
         SyncHandle::new(Arc::new(Dead(shared)))
     }
 }
@@ -176,7 +186,7 @@ impl Backend for ImapBackend {
     fn start_sync(&self, account: &Account) -> SyncHandle {
         let ctx = match self.ctx(account) {
             Ok(c) => c,
-            Err(e) => return self.failed(&account.id, e.to_string()),
+            Err(e) => return self.failed(&account.id, &e),
         };
         let shared = self.shared_for(&account.id);
         let mut tasks = self.inner.tasks.lock().unwrap_or_else(|p| p.into_inner());
@@ -193,10 +203,9 @@ impl Backend for ImapBackend {
 
     fn retry_sync(&self, account: &Account) -> SyncHandle {
         let shared = self.shared_for(&account.id);
-        shared.update(|s| {
-            s.phase = SyncPhase::Idle;
-            s.error = None;
-        });
+        // The failure stays until this attempt stores or checks mail (or
+        // fails again), so the UI can tell whether the retry worked.
+        shared.update(|s| s.retry_now(now_ms()));
         let h = self.start_sync(account);
         h.poke();
         h

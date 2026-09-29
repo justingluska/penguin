@@ -725,15 +725,9 @@ impl FakeBackend {
 
     fn report(&self, account_id: &str, phase: SyncPhase) {
         let status = SyncStatus {
-            account_id: account_id.to_string(),
-            phase,
             indexed: self.store.count_messages(Some(account_id)).unwrap_or(0),
-            total_estimate: None,
             last_synced_at: Some(now_ms()),
-            error: None,
-            rate_per_min: None,
-            eta_secs: None,
-            stage: None,
+            ..SyncStatus::new(account_id, phase)
         };
         self.statuses
             .lock()

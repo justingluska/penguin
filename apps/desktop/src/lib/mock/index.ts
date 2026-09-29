@@ -23,8 +23,9 @@
 //   ./writing.ts — Write with AI, suggested replies and snippet files: a fake streaming writer
 //   ./split.ts — Split Inbox: the inbox filtered by a split's queries, and the tab counts
 //   ./appWindows.ts — conversation and compose windows: window.open with the app's query, composer seeds
+//   ./share.ts — share links: storage settings, the Test, fake uploads and links on share.example
 import type { UnlistenFn } from "@tauri-apps/api/event";
-import { mailHandlers } from "./mail";
+import { mailHandlers, withAgentCancel } from "./mail";
 import { searchHandlers } from "./search";
 import { windowHandlers } from "./window";
 import { avatarHandlers } from "./avatars";
@@ -49,12 +50,14 @@ import { semanticIndexHandlers } from "./semanticIndex";
 import { writingHandlers } from "./writing";
 import { splitHandlers, withSplits } from "./split";
 import { appWindowHandlers } from "./appWindows";
+import { shareHandlers } from "./share";
 
 export type MockHandler = (args: Record<string, any>) => unknown | Promise<unknown>;
 
-const handlers: Record<string, MockHandler> = { ...mailHandlers, ...searchHandlers, ...windowHandlers, ...avatarHandlers, ...composeHandlers, ...menuHandlers, ...ruleHandlers, ...meHandlers, ...calendarHandlers, ...askHandlers, ...unsubscribeHandlers, ...snoozeHandlers, ...providerHandlers, ...triageHandlers, ...notificationHandlers, ...inviteHandlers, ...summaryHandlers, ...smartHandlers, ...semanticIndexHandlers, ...imageHandlers, ...writingHandlers, ...splitHandlers, ...appWindowHandlers };
+const handlers: Record<string, MockHandler> = { ...mailHandlers, ...searchHandlers, ...windowHandlers, ...avatarHandlers, ...composeHandlers, ...menuHandlers, ...ruleHandlers, ...meHandlers, ...calendarHandlers, ...askHandlers, ...unsubscribeHandlers, ...snoozeHandlers, ...providerHandlers, ...triageHandlers, ...notificationHandlers, ...inviteHandlers, ...summaryHandlers, ...smartHandlers, ...semanticIndexHandlers, ...imageHandlers, ...writingHandlers, ...splitHandlers, ...appWindowHandlers, ...shareHandlers };
 handlers.search = withEvents(handlers.search);
 handlers.send_message = withReplyLaterClear(handlers.send_message);
+handlers.cancel_scheduled_send = withAgentCancel(handlers.cancel_scheduled_send);
 handlers.list_threads = withSplits(withInvites(handlers.list_threads));
 Object.assign(handlers, splitHandlers(handlers.list_threads));
 handlers.event_invite = withInviteCards(handlers.event_invite);

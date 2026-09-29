@@ -17,8 +17,14 @@
 //!    then the same bytes written where the user chose. The chosen path comes
 //!    from the panel, never from the UI.
 //! 3. **Show in Finder** for a file this session saved ([`reveal_saved_path`]).
+//! 4. **Copy** an attachment as a file ([`copy_attachment_file`]): the bytes
+//!    are written the same way as for a drag, then that file's URL goes on
+//!    the general pasteboard as Finder's Copy puts it (src/mac/pasteboard.rs).
+//!    Pasting in Finder, Slack, Mail or Penguin's composer gives the file.
+//!    Browser clipboard APIs can't write file URLs, hence a command.
+//!    Write-only: nothing on the pasteboard is read back.
 //!
-//! Drag out and Save As are macOS-only; elsewhere the commands answer
+//! Drag out, Copy and Save As are macOS-only; elsewhere the commands answer
 //! `invalidInput` and the UI hides them.
 
 use std::collections::HashMap;
@@ -300,6 +306,48 @@ pub async fn prepare_attachment_drag(
     let path = blocking(move || exports.add(&name, &bytes).map_err(io_err)).await?;
     tracing::info!(account = %account_id, message = %message_id, "attachment ready to drag");
     Ok(drag_file(path))
+}
+
+/// Copy an attachment to the clipboard as a file (menu Copy, ⌘C on a
+/// focused card). Returns the file written for it.
+#[tauri::command]
+pub async fn copy_attachment_file(
+    app: AppHandle,
+    state: AppStateRef<'_>,
+    exports: ExportsRef<'_>,
+    account_id: String,
+    message_id: String,
+    attachment_id: String,
+) -> CmdResult<DragFile> {
+    if !cfg!(target_os = "macos") {
+        return Err(CmdError::invalid("Copying files works on macOS only"));
+    }
+    let (attachment, bytes) =
+        crate::commands::attachment_bytes(&state, &account_id, &message_id, &attachment_id).await?;
+    let name = ops::sanitize_filename(&attachment.filename);
+    let exports = exports.inner().clone();
+    let path = blocking(move || exports.write(&name, &bytes).map_err(io_err)).await?;
+    put_on_pasteboard(&app, path.clone()).await?;
+    tracing::info!(account = %account_id, message = %message_id, "attachment copied as a file");
+    Ok(drag_file(path))
+}
+
+#[cfg(target_os = "macos")]
+async fn put_on_pasteboard(app: &AppHandle, path: PathBuf) -> CmdResult<()> {
+    let (tx, rx) = tokio::sync::oneshot::channel();
+    app.run_on_main_thread(move || {
+        let _ = tx.send(crate::mac::pasteboard::write_files(&[path.as_path()]));
+    })
+    .map_err(|e| CmdError::other(e.to_string()))?;
+    match rx.await {
+        Ok(true) => Ok(()),
+        _ => Err(CmdError::other("The clipboard refused the file")),
+    }
+}
+
+#[cfg(not(target_os = "macos"))]
+async fn put_on_pasteboard(_app: &AppHandle, _path: PathBuf) -> CmdResult<()> {
+    Err(CmdError::invalid("Copying files works on macOS only"))
 }
 
 /// Start a native file drag of a file [`prepare_image_drag`] or

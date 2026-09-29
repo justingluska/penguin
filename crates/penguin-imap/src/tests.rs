@@ -555,6 +555,53 @@ async fn older_mail_is_headers_only_until_opened() {
     );
 }
 
+/// Spam syncs back 30 days only, even with "everything in full": older
+/// spam is never downloaded, not even as headers, while old mail in other
+/// folders is. New spam arriving later syncs as usual.
+#[tokio::test]
+async fn junk_syncs_only_the_spam_window() {
+    let policies = [
+        WindowPolicy::EVERYTHING,
+        WindowPolicy {
+            months: 6,
+            older: OlderMail::Headers,
+        },
+    ];
+    for policy in policies {
+        let env = Env::new(GENERIC_CAPS, false, "fastmail").await;
+        let deliver = |folder: &str, id: &str, days: i64| {
+            env.server.deliver(
+                folder,
+                &raw(id, "Prize", &[], "claim your prize", false),
+                &[],
+                now_ms() - days * DAY,
+            );
+        };
+        deliver("Junk", "fresh-spam@prize.example", 3);
+        deliver("Junk", "stale-spam@prize.example", 45);
+        deliver("INBOX", "old-mail@lark.example", 400);
+        let mut e = env.sync(policy).await;
+        let fresh = env.by_header("fresh-spam@prize.example").unwrap();
+        assert!(fresh.label_ids.iter().any(|l| l == "SPAM"));
+        assert!(
+            env.by_header("stale-spam@prize.example").is_none(),
+            "{policy:?}"
+        );
+        assert!(
+            env.by_header("old-mail@lark.example").is_some(),
+            "{policy:?}"
+        );
+        let c = env.store.get_sync_cursor(USER).unwrap();
+        assert!(c.backfill_done, "{policy:?}");
+        // With a window, the older pass finished without Junk.
+        assert!(policy.months == 0 || c.window.older_done, "{policy:?}");
+        // Spam arriving later syncs like any new mail.
+        deliver("Junk", "new-spam@prize.example", 0);
+        e.poll(true).await.unwrap();
+        assert!(env.by_header("new-spam@prize.example").is_some());
+    }
+}
+
 #[tokio::test]
 async fn sent_copies_are_filed_exactly_once() {
     for saves in [false, true] {
@@ -756,8 +803,190 @@ async fn reaped_connection_reopens_with(caps: &[&str]) {
         now_ms(),
     );
     tokio::time::sleep(Duration::from_millis(50)).await;
-    e.poll(false).await.expect("a reaped connection is not a sync error");
+    e.poll(false)
+        .await
+        .expect("a reaped connection is not a sync error");
     assert!(env.by_header("late@lark.example").is_some());
+}
+
+// ---- failure streaks: when "Can't reach …" is shown (penguin-core sync_health.rs) ----
+
+/// Wait (up to 10 s) until `done` holds for the account's latest status.
+async fn status_until(
+    shared: &Shared,
+    done: impl Fn(&penguin_core::SyncStatus) -> bool,
+) -> penguin_core::SyncStatus {
+    for _ in 0..500 {
+        let s = shared.snapshot();
+        if done(&s) {
+            return s;
+        }
+        tokio::time::sleep(Duration::from_millis(20)).await;
+    }
+    panic!("status never settled: {:?}", shared.snapshot());
+}
+
+fn statuses_since(env: &Env, from: usize) -> Vec<penguin_core::SyncStatus> {
+    env.observer.statuses.lock().unwrap()[from..].to_vec()
+}
+
+/// A running engine with a short backoff (20 ms, 40 ms, 80 ms …) that has
+/// finished its first sync.
+async fn running(env: &Env) -> (Arc<Shared>, tokio::task::JoinHandle<()>) {
+    let shared = Shared::new(USER, env.observer.clone(), WindowPolicy::EVERYTHING);
+    let mut e = AccountSync::new(env.ctx.clone(), shared.clone());
+    e.backoff = Duration::from_millis(20);
+    let task = tokio::spawn(e.run());
+    shared.poke();
+    status_until(&shared, |s| {
+        s.phase == penguin_core::SyncPhase::Idle && s.last_synced_at.is_some()
+    })
+    .await;
+    (shared, task)
+}
+
+/// The flicker: the connection drops once (Wi-Fi hand-off, the Mac waking,
+/// a server reset). Before, that one attempt set the phase to Error, which
+/// put up "Can't reach Yahoo right now" until the retry 10 s later took it
+/// down again. Now the failure is recorded quietly and the retry closes it.
+#[tokio::test]
+async fn a_connection_that_drops_once_is_retried_quietly() {
+    let env = Env::new(GENERIC_CAPS, false, "yahoo").await;
+    let (shared, task) = running(&env).await;
+    let from = env.observer.statuses.lock().unwrap().len();
+    env.server.deliver(
+        "INBOX",
+        &raw("blip@lark.example", "After the blip", &[], "x", false),
+        &[],
+        now_ms(),
+    );
+    env.server.state.lock().unwrap().drop = Some(("*".into(), 1));
+    shared.poke();
+    let end = status_until(&shared, |s| s.recovered.is_some()).await;
+    task.abort();
+
+    let seen = statuses_since(&env, from);
+    let failures: Vec<_> = seen.iter().filter_map(|s| s.failure.clone()).collect();
+    assert!(
+        !failures.is_empty(),
+        "the dropped connection is a failed attempt"
+    );
+    assert!(
+        failures.iter().all(|f| f.count == 1 && !f.alert),
+        "{failures:?}"
+    );
+    assert_eq!(failures[0].kind, penguin_core::SyncErrorKind::Network);
+    assert!(end.failure.is_none() && end.error.is_none());
+    let r = end.recovered.unwrap();
+    assert_eq!((r.failures, r.alerted), (1, false));
+    assert!(env.by_header("blip@lark.example").is_some());
+}
+
+/// Logging in again is not progress: a server that accepts the login and
+/// then fails the same step every time must reach the alert, not reset the
+/// count on every reconnect (and flip between "Up to date" and the error).
+#[tokio::test]
+async fn a_step_that_keeps_failing_after_login_alerts_on_the_third_attempt() {
+    let env = Env::new(GENERIC_CAPS, false, "yahoo").await;
+    let (shared, task) = running(&env).await;
+    let from = env.observer.statuses.lock().unwrap().len();
+    env.server.deliver(
+        "INBOX",
+        &raw(
+            "stuck@lark.example",
+            "Behind a failing fetch",
+            &[],
+            "x",
+            false,
+        ),
+        &[],
+        now_ms(),
+    );
+    env.server.state.lock().unwrap().drop = Some(("UID FETCH".into(), 3));
+    shared.poke();
+    let end = status_until(&shared, |s| s.recovered.is_some()).await;
+    task.abort();
+
+    let seen = statuses_since(&env, from);
+    let mut steps: Vec<(u32, bool)> = seen
+        .iter()
+        .filter_map(|s| s.failure.as_ref().map(|f| (f.count, f.alert)))
+        .collect();
+    steps.dedup();
+    assert_eq!(steps, vec![(1, false), (2, false), (3, true)]);
+    let first = seen.iter().position(|s| s.failure.is_some()).unwrap();
+    let last = seen.iter().rposition(|s| s.failure.is_some()).unwrap();
+    assert!(
+        seen[first..=last]
+            .iter()
+            .all(|s| s.phase == penguin_core::SyncPhase::Error),
+        "no healthy status between the failures"
+    );
+    let r = end.recovered.unwrap();
+    assert_eq!((r.failures, r.alerted), (3, true));
+    assert!(env.by_header("stuck@lark.example").is_some());
+}
+
+/// "Retry now" keeps the failure on the status until the retry has
+/// synced: before, it reported the account healthy at once, and the
+/// alert came back when the retry failed.
+#[tokio::test]
+async fn retry_now_keeps_the_failure_until_the_retry_syncs() {
+    let env = Env::new(GENERIC_CAPS, false, "yahoo").await;
+    let h = env.backend.start_sync(&env.account);
+    h.poke();
+    for _ in 0..500 {
+        let s = env.backend.sync_status(USER).unwrap();
+        if s.phase == penguin_core::SyncPhase::Idle && s.last_synced_at.is_some() {
+            break;
+        }
+        tokio::time::sleep(Duration::from_millis(20)).await;
+    }
+    env.server.deliver(
+        "INBOX",
+        &raw("retry@lark.example", "After the retry", &[], "x", false),
+        &[],
+        now_ms(),
+    );
+    env.server.state.lock().unwrap().drop = Some(("*".into(), 1));
+    h.poke();
+    for _ in 0..500 {
+        if env.backend.sync_status(USER).unwrap().failure.is_some() {
+            break;
+        }
+        tokio::time::sleep(Duration::from_millis(20)).await;
+    }
+    // The engine now waits 10 s before trying again; the user doesn't.
+    let failed_at = env
+        .backend
+        .sync_status(USER)
+        .unwrap()
+        .failure
+        .unwrap()
+        .last_at;
+    let from = env.observer.statuses.lock().unwrap().len();
+    let retried = env.backend.retry_sync(&env.account);
+    let right_after = env.observer.statuses.lock().unwrap()[from].clone();
+    assert_eq!(right_after.phase, penguin_core::SyncPhase::Error);
+    let f = right_after.failure.unwrap();
+    assert_eq!(f.count, 1);
+    assert!(
+        f.next_retry_at.unwrap() < failed_at + 10_000,
+        "retrying now, not in 10 s"
+    );
+    let mut end = None;
+    for _ in 0..150 {
+        let s = env.backend.sync_status(USER).unwrap();
+        if s.recovered.is_some() {
+            end = Some(s);
+            break;
+        }
+        tokio::time::sleep(Duration::from_millis(20)).await;
+    }
+    retried.stop();
+    let end = end.expect("the retry synced well before the 10 s backoff");
+    assert!(end.failure.is_none());
+    assert!(env.by_header("retry@lark.example").is_some());
 }
 
 #[tokio::test]

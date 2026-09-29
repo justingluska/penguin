@@ -1,0 +1,78 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Envelope",
+  "description": "Every payload: `{\"schemaVersion\": 1, \"kind\": \"...\", \"data\": {...}}`.",
+  "type": "object",
+  "properties": {
+    "data": {
+      "$ref": "#/$defs/SendQueuedOut"
+    },
+    "kind": {
+      "description": "\"search\" | \"thread\" | \"threads\" | \"labels\" | \"people\" | \"accounts\" | \"attachmentText\" | \"attachments\" | \"attachment\" | \"ask\" | \"draft\" | \"drafts\" | \"draftDeleted\" | \"sendQueued\" | \"shareLink\" | \"ruleMatch\" | \"error\"",
+      "type": "string"
+    },
+    "schemaVersion": {
+      "type": "integer",
+      "format": "uint32",
+      "minimum": 0
+    }
+  },
+  "required": [
+    "schemaVersion",
+    "kind",
+    "data"
+  ],
+  "$defs": {
+    "SendQueuedOut": {
+      "description": "`sendQueued` (send_draft, send_message).",
+      "type": "object",
+      "properties": {
+        "accountId": {
+          "type": "string"
+        },
+        "delaySeconds": {
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        },
+        "draftId": {
+          "type": "string"
+        },
+        "recipientCount": {
+          "type": "integer",
+          "format": "uint",
+          "minimum": 0
+        },
+        "scheduleId": {
+          "type": "string"
+        },
+        "sendAt": {
+          "description": "When it goes (unix ms); the user can cancel it until then.",
+          "type": "integer",
+          "format": "int64"
+        },
+        "sendAtIso": {
+          "type": "string"
+        },
+        "status": {
+          "description": "\"queued\": it waits in the outbox; it is not sent yet.",
+          "type": "string"
+        },
+        "threadId": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "accountId",
+        "draftId",
+        "threadId",
+        "scheduleId",
+        "sendAt",
+        "sendAtIso",
+        "delaySeconds",
+        "recipientCount",
+        "status"
+      ]
+    }
+  }
+}

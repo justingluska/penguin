@@ -285,8 +285,62 @@
 .st-number:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
 .st-number[aria-invalid="true"] { border-color: var(--red-a5); }
 
-/* Developer → MCP server + command-line tool (Mcp.tsx) */
+/* Developer → Agents (CLI and MCP) + command-line tool (Mcp.tsx) */
 .st-mcp { margin: 4px 0 8px; }
+.st-agents-intro { margin-bottom: 12px; max-width: 62ch; }
+.st-agents-note { margin: 8px 0 4px; font-size: var(--text-xs); max-width: 62ch; }
+.st-agent-levels { display: flex; flex-direction: column; border: 1px solid var(--border-subtle); border-radius: var(--radius-xl); overflow: hidden; }
+.st-agent-level {
+  display: flex; align-items: flex-start; gap: 10px; width: 100%; padding: 10px 12px; text-align: left;
+  color: var(--text-muted); background: transparent;
+}
+.st-agent-level + .st-agent-level { border-top: 1px solid var(--border-subtle); }
+.st-agent-level:hover { background: var(--bg-subtle); }
+.st-agent-level:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+.st-agent-level > .i { margin-top: 1px; flex: none; }
+.st-agent-level.is-on { background: var(--accent-soft); color: var(--text-default); }
+.st-agent-level.is-on > .i { color: var(--accent-text); }
+.st-agent-level.is-send.is-on { background: var(--amber-a3); }
+.st-agent-level.is-send.is-on > .i { color: var(--amber-a11); }
+.st-agent-radio {
+  flex: none; width: 14px; height: 14px; margin-top: 2px; border-radius: 50%;
+  border: 1.5px solid var(--border-interactive); background: var(--bg-panel);
+}
+.st-agent-level.is-on .st-agent-radio { border: 4px solid var(--accent); }
+.st-agent-level.is-send.is-on .st-agent-radio { border-color: var(--amber-a11); }
+.st-agent-level-text { display: flex; flex-direction: column; min-width: 0; }
+.st-agent-level-text .st-muted { margin-top: 2px; font-size: var(--text-xs); }
+.st-agent-level-title { display: inline-flex; align-items: center; gap: 8px; font-size: var(--text-sm); color: var(--text-emphasis); font-weight: 500; }
+.st-agent-tag {
+  font-size: 10px; font-weight: 600; letter-spacing: .02em; padding: 1px 6px; border-radius: 999px;
+  color: var(--amber-a11); background: var(--amber-a3); border: 1px solid var(--amber-a5);
+}
+.st-agent-send { margin-top: 12px; padding: 0 12px; border: 1px solid var(--amber-a5); border-radius: var(--radius-xl); background: var(--amber-a3); }
+.st-agent-pending { display: flex; flex-direction: column; gap: 6px; padding: 10px 0 12px; border-top: 1px solid var(--border-subtle); font-size: var(--text-sm); }
+.st-agent-pending-row { display: flex; align-items: center; gap: 10px; }
+.st-agent-pending-row > .i { color: var(--amber-a11); flex: none; }
+.st-agent-pending-text { display: flex; flex-direction: column; flex: 1; }
+.st-agent-pending-subject { color: var(--text-emphasis); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.st-agent-pending-text .st-muted { font-size: var(--text-xs); overflow-wrap: anywhere; }
+.st-agent-confirm { width: 500px; }
+.st-agent-confirm h3 { display: flex; align-items: center; gap: 8px; }
+.st-agent-confirm h3 .i { color: var(--amber-a11); }
+.st-agent-risks { margin: 4px 0 14px; padding-left: 18px; display: flex; flex-direction: column; gap: 8px; font-size: var(--text-sm); line-height: 1.45; color: var(--text-default); }
+.st-agent-risks strong { color: var(--text-emphasis); font-weight: 600; }
+.st-agent-ack { display: flex; flex-direction: column; gap: 6px; font-size: var(--text-sm); color: var(--text-default); }
+.st-agent-ack-input { width: 100%; color: var(--text-emphasis); }
+.st-agent-ack-input::placeholder { color: var(--text-placeholder); }
+.st-agent-ack-input:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
+.st-agent-activity .st-sub-row { justify-content: space-between; }
+.st-agent-log { list-style: none; margin: 0; padding: 0; }
+.st-agent-log li { display: flex; align-items: baseline; gap: 12px; padding: 7px 0; font-size: var(--text-sm); }
+.st-agent-log li + li { border-top: 1px solid var(--border-subtle); }
+.st-agent-log-when { width: 72px; flex: none; font-size: var(--text-xs); color: var(--text-muted); }
+.st-agent-log-what { display: flex; flex-direction: column; flex: 1; }
+.st-agent-log-tool { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 6px; color: var(--text-default); }
+.st-agent-log-detail { font-size: var(--text-xs); overflow-wrap: anywhere; }
+.st-agent-via { font-size: 10px; font-weight: 600; padding: 0 5px; border-radius: 4px; color: var(--text-muted); border: 1px solid var(--border-subtle); }
+.st-agent-bad { font-size: var(--text-xs); color: var(--red-a11); }
 
 .st-mcp-body { display: flex; flex-direction: column; gap: 10px; padding: 4px 0 12px; }
 .st-mcp-warn { display: flex; align-items: center; gap: 6px; font-size: var(--text-xs); color: var(--amber-a11); }

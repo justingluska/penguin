@@ -59,6 +59,9 @@ struct FakeState {
     history_expired: bool,
     page_size: usize,
     fail_next_get: bool,
+    /// The next N message listings fail as if the network dropped (the
+    /// profile call, i.e. signing in, still works).
+    list_down: u32,
     reject_page_tokens: bool,
     needs_reauth: bool,
     keychain_denied: bool,
@@ -116,6 +119,10 @@ impl GmailApi for Fake {
             page_token.unwrap_or("-"),
             q.unwrap_or("-")
         ));
+        if s.list_down > 0 {
+            s.list_down -= 1;
+            return Err(Error::Network("connection reset".into()));
+        }
         if page_token.is_some() && s.reject_page_tokens {
             return Err(Error::Http {
                 status: 400,
@@ -505,6 +512,12 @@ async fn needs_reauth_stops_the_account() {
     let last = h.shared.snapshot();
     assert_eq!(last.phase, SyncPhase::NeedsReauth);
     assert!(last.error.is_some());
+    // Signing in again needs the user: shown at once, no timed retry.
+    let f = last.failure.unwrap();
+    assert_eq!(
+        (f.kind, f.count, f.alert, f.next_retry_at),
+        (SyncErrorKind::Auth, 1, true, None)
+    );
 }
 
 #[tokio::test(start_paused = true)]
@@ -522,8 +535,56 @@ async fn transient_errors_back_off_then_recover() {
     task.abort();
     assert_eq!(h.count(), 3);
     let statuses = h.rec.statuses.lock().unwrap();
-    assert!(statuses.iter().any(|s| s.phase == SyncPhase::Error));
-    assert_eq!(statuses.last().unwrap().error, None);
+    // The failure is on the status, but quiet: one attempt, retried in 10 s.
+    let failed = statuses
+        .iter()
+        .find(|s| s.phase == SyncPhase::Error)
+        .unwrap();
+    let f = failed.failure.as_ref().unwrap();
+    assert_eq!(
+        (f.kind, f.count, f.alert),
+        (SyncErrorKind::Network, 1, false)
+    );
+    assert_eq!(f.next_retry_at.map(|t| t - f.last_at), Some(10_000));
+    // …and the recovery says it ended by itself before anyone was told.
+    let last = statuses.last().unwrap();
+    assert_eq!(last.error, None);
+    assert!(last.failure.is_none());
+    let r = last.recovered.as_ref().unwrap();
+    assert_eq!((r.failures, r.alerted), (1, false));
+}
+
+#[tokio::test(start_paused = true)]
+async fn a_lasting_failure_alerts_on_the_third_attempt_although_sign_in_works() {
+    let h = Harness::new(mailbox(3), 10);
+    h.fake.st().list_down = 3;
+    let task = tokio::spawn(h.sync().run());
+    for _ in 0..600 {
+        tokio::time::sleep(Duration::from_secs(1)).await;
+        if h.shared.snapshot().phase == SyncPhase::Idle && h.count() == 3 {
+            break;
+        }
+    }
+    task.abort();
+    assert_eq!(h.count(), 3);
+    let statuses = h.rec.statuses.lock().unwrap();
+    let mut seen: Vec<(u32, bool)> = statuses
+        .iter()
+        .filter_map(|s| s.failure.as_ref().map(|f| (f.count, f.alert)))
+        .collect();
+    seen.dedup();
+    assert_eq!(seen, vec![(1, false), (2, false), (3, true)]);
+    // Each retry signed in fine (profile), but that alone never reported
+    // the account healthy between the failures.
+    let first = statuses.iter().position(|s| s.failure.is_some()).unwrap();
+    let last_failing = statuses.iter().rposition(|s| s.failure.is_some()).unwrap();
+    assert!(statuses[first..=last_failing]
+        .iter()
+        .all(|s| s.phase == SyncPhase::Error && s.failure.is_some()));
+    let last = statuses.last().unwrap();
+    let r = last.recovered.as_ref().unwrap();
+    assert_eq!((r.failures, r.alerted), (3, true));
+    assert!(last.failure.is_none() && last.error.is_none());
 }
 
 fn parked(h: &Harness) -> Vec<String> {

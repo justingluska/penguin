@@ -6,8 +6,9 @@
 //! keep working. Everything Penguin-specific carries an id and is emitted to
 //! the UI as `penguin://menu {id}`; `src/app/menu.ts` runs the matching entry
 //! of the shortcut registry (same code, same `when()` gate as the key).
-//! About, zoom, Check for Updates (src/updater.rs) and Help → GitHub are
-//! handled here. Copy Debug Info goes to the UI, which gathers the text and
+//! About, zoom, Check for Updates (src/updater.rs), Help → GitHub and Edit ▸
+//! Spelling and Grammar (src/spelling.rs: two responder actions and two
+//! settings) are handled here. Copy Debug Info goes to the UI, which gathers the text and
 //! copies it natively (text_services::copy_text).
 //!
 //! No double firing. WKWebView hands a ⌘-key to the page before the menu:
@@ -21,7 +22,7 @@
 //!
 //! Accelerators follow Apple Mail where Penguin had nothing: ⌃⌘A Archive,
 //! ⌘⌫ Trash, ⇧⌘U Read/Unread, ⇧⌘L Star, ⌘R / ⇧⌘R Reply / Reply All,
-//! ⇧⌘N Check for New Mail, ⌘1–⌘8 mailboxes. Floe keeps its ⇧⌘F, so Forward
+//! ⇧⌘N Check for New Mail, ⌘1–⌘9 mailboxes. Floe keeps its ⇧⌘F, so Forward
 //! is ⌥⌘F.
 //!
 //! Enabled state comes from the UI (`set_menu_context`: is there a selected
@@ -50,6 +51,7 @@ use tauri::{AppHandle, Emitter, Manager, Runtime};
 
 use crate::error::CmdResult;
 use crate::settings::{Density, Settings, ThemeSetting};
+use crate::spelling;
 
 /// Payload `{id}`: a menu item the UI runs.
 pub const EVENT_MENU: &str = "penguin://menu";
@@ -68,6 +70,9 @@ const MESSAGE_ITEMS: &[Spec] = &[
     ("compose.forward", "Forward", Some("CmdOrCtrl+Alt+F")),
     ("triage.done", "Archive", Some("Ctrl+CmdOrCtrl+A")),
     ("triage.trash", "Move to Trash", Some("CmdOrCtrl+Backspace")),
+    // One of the two is live at a time (the UI's `when`: Not Spam for spam).
+    ("triage.spam", "Report Spam", None),
+    ("triage.notSpam", "Not Spam", None),
     ("triage.read", "Mark as Read", Some("CmdOrCtrl+Shift+U")),
     ("triage.star", "Star", Some("CmdOrCtrl+Shift+L")),
     ("triage.snooze", "Snooze…", None),
@@ -83,7 +88,31 @@ const GO_ITEMS: &[Spec] = &[
     ("go.all", "All Mail", Some("CmdOrCtrl+6")),
     ("go.trash", "Trash", Some("CmdOrCtrl+7")),
     ("go.snoozed", "Snoozed", Some("CmdOrCtrl+8")),
+    ("go.spam", "Spam", Some("CmdOrCtrl+9")),
 ];
+
+/// Edit ▸ Spelling and Grammar, in order (a separator after the first two).
+/// Apple's ⌘: for the panel (here ⇧⌘;, the same keys on a US layout). Not
+/// Apple's ⌘; for Check Document Now: in the composer that's Insert snippet.
+/// Literal ids (the spelling.rs constants), so the shortcut sheet's
+/// keyCatalog.ts test finds the keys.
+const SPELLING_ITEMS: &[Spec] = &[
+    (
+        "edit.spelling.panel",
+        "Show Spelling and Grammar",
+        Some("CmdOrCtrl+Shift+;"),
+    ),
+    ("edit.spelling.checkNow", "Check Document Now", None),
+    (
+        "edit.spelling.whileTyping",
+        "Check Spelling While Typing",
+        None,
+    ),
+    ("edit.spelling.grammar", "Check Grammar With Spelling", None),
+];
+
+/// The Spelling and Grammar items that are settings (check marks).
+const SPELLING_CHECKS: &[&str] = &[spelling::MENU_WHILE_TYPING, spelling::MENU_GRAMMAR];
 
 /// Items that act on the focused window rather than the main one (besides
 /// the Message items).
@@ -115,6 +144,8 @@ pub struct MenuContext {
     pub selection: bool,
     pub selection_unread: bool,
     pub selection_starred: bool,
+    /// The selection is spam: Not Spam is live, Report Spam isn't.
+    pub selection_spam: bool,
     pub sidebar_visible: bool,
     pub floe: bool,
     /// The list's Unread filter is on.
@@ -258,6 +289,23 @@ pub fn install<R: Runtime>(app: &AppHandle<R>, settings: &Settings) -> tauri::Re
         )?)
         .build()?;
 
+    // Edit ▸ Spelling and Grammar, as in Mail and Safari. muda has no
+    // predefined items for these: the two actions go down the responder
+    // chain to the focused web view, and the two switches are settings
+    // (src/spelling.rs).
+    let mut spelling = SubmenuBuilder::new(app, "Spelling and Grammar");
+    for (i, spec) in SPELLING_ITEMS.iter().enumerate() {
+        if i == 2 {
+            spelling = spelling.separator();
+        }
+        spelling = if SPELLING_CHECKS.contains(&spec.0) {
+            spelling.item(&check(app, &mut checks, *spec)?)
+        } else {
+            spelling.item(&item(app, &mut items, *spec)?)
+        };
+    }
+    let spelling = spelling.build()?;
+
     // Titled "Edit", so AppKit adds Emoji & Symbols and Dictation itself.
     let edit = SubmenuBuilder::new(app, "Edit")
         .item(&PredefinedMenuItem::undo(app, None)?)
@@ -267,6 +315,8 @@ pub fn install<R: Runtime>(app: &AppHandle<R>, settings: &Settings) -> tauri::Re
         .item(&PredefinedMenuItem::copy(app, None)?)
         .item(&PredefinedMenuItem::paste(app, None)?)
         .item(&PredefinedMenuItem::select_all(app, None)?)
+        .separator()
+        .item(&spelling)
         .separator()
         .item(&item(
             app,
@@ -364,8 +414,8 @@ pub fn install<R: Runtime>(app: &AppHandle<R>, settings: &Settings) -> tauri::Re
         )?)
         .separator();
     for (i, spec) in MESSAGE_ITEMS.iter().enumerate() {
-        // Reply · Reply All · Forward | Archive · Trash | Read · Star · Label
-        if i == 3 || i == 5 {
+        // Reply · Reply All · Forward | Archive · Trash | Report Spam · Not Spam | Read · Star · Label
+        if i == 3 || i == 5 || i == 7 {
             message = message.separator();
         }
         message = message.item(&item(app, &mut items, *spec)?);
@@ -484,6 +534,8 @@ impl<R: Runtime> AppMenu<R> {
         for (id, ..) in MESSAGE_ITEMS {
             self.enable(id, acts);
         }
+        self.enable("triage.spam", acts && !local.selection_spam);
+        self.enable("triage.notSpam", acts && local.selection_spam);
         self.enable("thread.openWindow", acts && !local.detached);
         self.enable("app.sidebar", mail && !main.floe);
         self.checked("list.unread", main.unread_only);
@@ -547,6 +599,8 @@ impl<R: Runtime> AppMenu<R> {
     pub fn apply_settings(&self, s: &Settings) {
         self.checked("floe.toggle", s.floe_mode);
         self.checked("view.hints", s.show_shortcut_hints);
+        self.checked(spelling::MENU_WHILE_TYPING, s.check_spelling);
+        self.checked(spelling::MENU_GRAMMAR, s.check_grammar);
         self.checked("view.theme.system", s.theme == ThemeSetting::System);
         self.checked("view.theme.light", s.theme == ThemeSetting::Light);
         self.checked("view.theme.dark", s.theme == ThemeSetting::Dark);
@@ -676,6 +730,27 @@ pub fn on_menu_event<R: Runtime>(app: &AppHandle<R>, event: MenuEvent) {
         "view.zoom.in" => menu.zoom(app, 1),
         "view.zoom.out" => menu.zoom(app, -1),
         "view.zoom.reset" => menu.zoom(app, 0),
+        // For whatever text field has focus, in whichever window.
+        spelling::MENU_SHOW_PANEL | spelling::MENU_CHECK_NOW => spelling::menu_action(app, id),
+        // Settings (Settings → Compose shows the same switch): saving one
+        // updates the check mark, every window's checking and every UI.
+        spelling::MENU_WHILE_TYPING | spelling::MENU_GRAMMAR => {
+            let Some(state) = app.try_state::<Arc<crate::state::AppState>>() else {
+                return;
+            };
+            let state = state.inner().clone();
+            let current = state.settings.get();
+            // AppKit flipped the mark on click; the saved setting decides it.
+            menu.apply_settings(&current);
+            let Some(patch) = spelling::menu_patch(id, &current) else {
+                return;
+            };
+            tauri::async_runtime::spawn(async move {
+                if let Err(e) = crate::commands::save_settings(&state, patch).await {
+                    tracing::warn!(error = %e.message, "could not save the spelling setting");
+                }
+            });
+        }
         // Answered in the UI (toasts), so bring the window up.
         "app.checkUpdates" => {
             show_main(app);
@@ -766,6 +841,52 @@ mod tests {
             "thread.openWindow",
         ] {
             assert!(shortcuts.contains(&format!("id: \"{id}\"")), "{id}");
+        }
+    }
+
+    #[test]
+    fn spelling_and_grammar_is_mails_submenu() {
+        let ids: Vec<&str> = SPELLING_ITEMS.iter().map(|(id, ..)| *id).collect();
+        assert_eq!(
+            ids,
+            [
+                spelling::MENU_SHOW_PANEL,
+                spelling::MENU_CHECK_NOW,
+                spelling::MENU_WHILE_TYPING,
+                spelling::MENU_GRAMMAR,
+            ]
+        );
+        let titles: Vec<&str> = SPELLING_ITEMS.iter().map(|(_, t, _)| *t).collect();
+        assert_eq!(
+            titles,
+            [
+                "Show Spelling and Grammar",
+                "Check Document Now",
+                "Check Spelling While Typing",
+                "Check Grammar With Spelling",
+            ]
+        );
+        // The two switches are settings; the two actions aren't.
+        let s = Settings::default();
+        for (id, ..) in SPELLING_ITEMS {
+            assert_eq!(
+                SPELLING_CHECKS.contains(id),
+                spelling::menu_patch(id, &s).is_some(),
+                "{id}"
+            );
+        }
+        // Menu-only keys: no page shortcut claims them first (⌘; is the
+        // composer's Insert snippet, so Check Document Now has no key).
+        for page in [
+            include_str!("../../src/app/shortcuts.ts"),
+            include_str!("../../src/features/compose/commands.ts"),
+        ] {
+            assert!(!page.contains("\"mod+shift+;\""));
+        }
+        assert_eq!(SPELLING_ITEMS[1].2, None);
+        // Handled here, not sent to a window.
+        for (id, ..) in SPELLING_ITEMS {
+            assert!(!is_local(id), "{id}");
         }
     }
 

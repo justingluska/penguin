@@ -30,6 +30,7 @@ import { findSignature, setSignature, signatureNode } from "./signature";
 import { htmlToBlocks, withoutQuote } from "./dom";
 import type { BodyEditor, BodyHandle } from "./handle";
 import { inlineImageView } from "./imageView";
+import { plainTextSlice } from "./textPaste";
 import { AiSuggest, aiKey, aiTargetOf, rangeText, textContent, writingRange, type AiTarget } from "./aiSuggest";
 import "./editor.css";
 import { useDismiss } from "../../../lib/dismiss";
@@ -136,7 +137,11 @@ export default function RichBody(props: RichBodyProps) {
         keydown: (_view, e) => e.key === "Escape" && !(live.current.open && live.current.cur),
         contextmenu: (view, e) => onContextMenu(view, e),
       },
+      // ⌘-click (Ctrl-click) a link: open it in the browser, as in Gmail; a plain
+      // click keeps editing, and ⌘K edits the link.
+      handleClick: (view, pos, e) => onLinkClick(view, pos, e),
       handlePaste: (view, e) => onPaste(view, e),
+      clipboardTextParser: (text, _ctx, _plain, view) => plainTextSlice(view.state.schema, text),
       handleDrop: (view, e, _slice, moved) => onDrop(view, e as DragEvent, moved),
     },
     onCreate: ({ editor: ed }) => {
@@ -496,6 +501,24 @@ export default function RichBody(props: RichBodyProps) {
 
   // ---- links -----------------------------------------------------------------
 
+  function linkHrefAt(view: EditorView, pos: number): string | null {
+    const isLink = (m: { type: { name: string } }) => m.type.name === "link";
+    const mark = view.state.doc.nodeAt(pos)?.marks.find(isLink) ?? view.state.doc.resolve(pos).marks().find(isLink);
+    return mark ? normalizeHref(String(mark.attrs.href ?? "")) : null;
+  }
+
+  function openHref(href: string) {
+    api.openExternal(href).catch((err) => toast({ tone: "error", message: "Couldn't open the link", detail: asCommandError(err).message }));
+  }
+
+  function onLinkClick(view: EditorView, pos: number, e: MouseEvent): boolean {
+    if (!(e.metaKey || e.ctrlKey)) return false;
+    const href = linkHrefAt(view, pos);
+    if (!href) return false;
+    openHref(href);
+    return true;
+  }
+
   function openLinkEditor() {
     if (!editor) return;
     const { state } = editor;
@@ -691,6 +714,11 @@ export default function RichBody(props: RichBodyProps) {
               {link.existing && (
                 <button type="button" className="btn btn-ghost btn-sm" onClick={removeLink}>
                   Remove link
+                </button>
+              )}
+              {link.existing && normalizeHref(link.href) && (
+                <button type="button" className="btn btn-ghost btn-sm" title="Open in your browser (or ⌘-click the link)" onClick={() => openHref(normalizeHref(link.href)!)}>
+                  Open
                 </button>
               )}
               <span className="grow" />

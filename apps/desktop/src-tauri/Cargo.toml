@@ -74,6 +74,13 @@ resvg = { version = "0.45", default-features = false }
 # Add account: Thunderbird autoconfig XML (src/providers/autoconfig.rs);
 # already in the tree via resvg/usvg. Refuses DTDs by default.
 roxmltree = "0.20"
+# Share links (src/share/): SigV4 signing for S3-compatible storage (R2,
+# S3, MinIO), sans-IO, so requests go through the reqwest above. 0.8 keeps
+# the RustCrypto 0.10 generation (sha2, hmac, digest) the tree already has;
+# without default features it has no XML or serde dependencies.
+rusty-s3 = { version = "0.8.1", default-features = false }
+# rusty-s3's clock type, to sign at a given time (tests); already in the tree.
+jiff = { version = "0.2", default-features = false, features = ["std"] }
 # Rules: scheduled (daily/weekly) triggers in local time; already in the tree via penguin-core.
 chrono = { version = "0.4", default-features = false, features = ["clock", "std"] }
 
@@ -90,6 +97,11 @@ penguin-provider = { workspace = true, features = ["fake"] }
 # outgoing_tests.rs parses the MIME that was sent (same version as penguin-gmail).
 mail-parser = "0.11"
 
+[target.'cfg(unix)'.dependencies]
+# QoS classes for background work (src/qos.rs, macOS), and the agent
+# socket's peer check (geteuid, src/agent/ipc.rs); already in the tree.
+libc = "0.2"
+
 # Text services for the context menus; see src/text_services.rs.
 [target.'cfg(target_os = "macos")'.dependencies]
 # Drag a picture or attachment out to Finder or another app as a file
@@ -101,11 +113,10 @@ drag = "2.1"
 # and its fs plugin; no default features (those are the Linux backends).
 rfd = { version = "0.15", default-features = false }
 objc2 = "0.6"
-# QoS classes for background work (src/qos.rs); already in the tree.
-libc = "0.2"
 # NSProcessInfo: thermal state and Low Power Mode for the semantic indexer
-# (src/semantic/power.rs).
-objc2-foundation = { version = "0.3", default-features = false, features = ["std", "NSString", "NSRange", "NSArray", "NSProcessInfo"] }
+# (src/semantic/power.rs). NSUserDefaults: WebKit's spell-checking defaults;
+# NSURL: file URLs on the pasteboard (both src/mac/).
+objc2-foundation = { version = "0.3", default-features = false, features = ["std", "NSString", "NSRange", "NSArray", "NSProcessInfo", "NSUserDefaults", "NSURL"] }
 # NSSpellChecker: context-menu spelling suggestions; NSPasteboard: copy_text
-# (src/text_services.rs).
+# (src/text_services.rs) and an attachment copied as a file (src/mac/pasteboard.rs).
 objc2-app-kit = { version = "0.3", default-features = false, features = ["std", "NSApplication", "NSResponder", "NSSpellChecker", "NSPasteboard"] }

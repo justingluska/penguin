@@ -216,6 +216,12 @@ impl FolderMap {
         self.folders.iter().filter(|f| f.role != Role::Skip)
     }
 
+    /// Junk Email or a folder under it.
+    pub fn is_spam(&self, id: &str) -> bool {
+        self.get(id)
+            .is_some_and(|f| f.role == Role::System(system::SPAM))
+    }
+
     pub fn is_synced(&self, id: &str) -> bool {
         self.get(id).is_some_and(|f| f.role != Role::Skip)
     }

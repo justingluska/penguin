@@ -31,7 +31,10 @@ import { Icon } from "../../components/Icon";
 import { colorSubmenu } from "../../components/ColorGrid";
 import { confirmAction } from "../../app/confirm";
 import { openSettings } from "../settings/state";
-import { runSyncFix, syncFixFor } from "../settings/syncFix";
+import { canHide, copySyncDetails, hideSyncAlerts, runSyncFix, syncFixFor, type SyncFix } from "../settings/syncFix";
+import { activeHide, syncHealth } from "../../lib/syncHealth";
+import { getSyncHides, unhideSync } from "../../lib/syncHides";
+import { openLogViewer } from "../logs/LogViewer";
 import { UnreadBadge } from "./UnreadBadge";
 import { labelEditing, mailboxUnaffected, serviceName } from "../../lib/capabilities";
 import "./sidebarMenus.css";
@@ -143,7 +146,11 @@ export function accountMenu(a: Account, visible: string[] = meta.get().accounts.
   const movable = visible.filter((id) => all.includes(id)).length > 1;
   const ui = getUi();
   const status = meta.get().sync[a.id];
-  const fix = syncFixFor(status);
+  // A failure still retrying quietly can be retried now too.
+  const retrying = syncHealth(status) === "retrying";
+  const fix: SyncFix | null =
+    syncFixFor(status) ?? (retrying ? { kind: "retry", label: "Retry now", message: "", detail: status?.error ?? null } : null);
+  const hidden = activeHide(getSyncHides(), status);
   const profiles = getProfiles();
   const filtered = ui.accountFilter === a.id;
   const inAll = !currentSettings().hiddenFromAll.includes(a.id);
@@ -195,13 +202,18 @@ export function accountMenu(a: Account, visible: string[] = meta.get().accounts.
       ? {
           label: fix.label,
           icon: fix.kind === "reconnect" ? "lock" : "refresh",
-          onSelect: () => void runSyncFix(fix, a.id),
+          onSelect: () => void runSyncFix(fix, a.id, { announce: true }),
         }
       : {
           label: "Check for new mail",
           icon: "refresh",
           onSelect: () => void api.syncNow().catch((e) => toast({ tone: "error", message: asCommandError(e).message })),
         },
+    fix && { label: "Copy sync details", icon: "copy", onSelect: () => void copySyncDetails([a.id]) },
+    hidden
+      ? { label: "Show sync alert again", icon: "eye", onSelect: () => unhideSync(a.id, hidden.kind) }
+      : canHide(status) && { label: "Hide sync alert for 6 hours", icon: "eyeoff", onSelect: () => hideSyncAlerts([a.id]) },
+    fix && { label: "Open logs", icon: "file", onSelect: openLogViewer },
     // Reconnect is always available (e.g. to grant a scope again), not only when sync asks.
     fix?.kind !== "reconnect" && {
       label: "Sign in again…",

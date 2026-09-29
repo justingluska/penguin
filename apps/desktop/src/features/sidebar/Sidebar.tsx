@@ -7,7 +7,7 @@ import { showMockBadge } from "../../lib/api";
 import { num } from "../../lib/format";
 import { accountTone } from "../../lib/accountColor";
 import { setSectionHidden, toggleSection, useLayout, type SidebarSection } from "../../lib/layout";
-import { Icon, type IconName } from "../../components/Icon";
+import { Icon } from "../../components/Icon";
 import { Kbd, Keys } from "../../components/Kbd";
 import { AccountAvatar, AccountBar, Avatar, accountName } from "../../components/Identity";
 import { useAccountPhoto } from "../../lib/accountPhotos";
@@ -35,30 +35,11 @@ import { useDismiss } from "../../lib/dismiss";
 import { useSnoozedCount } from "../snooze/state";
 import { useSetting } from "../../lib/settings";
 import { mailScope } from "../../app/allInboxes";
-import { isFolderId } from "../../lib/capabilities";
 import { moveAccountTo } from "../../app/accountActions";
 import { useDragReorder } from "../../components/useDragReorder";
 import { SmartNav } from "../smart/SmartNav";
+import { hasSpamFolder, labelsTitle, serviceTag, sidebarMailboxes } from "../../lib/mailboxes";
 
-interface ViewItem {
-  view: MailboxView;
-  label: string;
-  icon: IconName;
-  keys?: string;
-  disabled?: string;
-}
-
-const VIEWS: ViewItem[] = [
-  { view: { kind: "inbox" }, label: "Inbox", icon: "inbox", keys: "g i" },
-  { view: { kind: "replyLater" }, label: "Reply Later", icon: "replyLater", keys: "g y" },
-  { view: { kind: "followUp" }, label: "Follow up", icon: "followUp", keys: "g f" },
-  { view: { kind: "starred" }, label: "Starred", icon: "star", keys: "g s" },
-  { view: { kind: "snoozed" }, label: "Snoozed", icon: "snooze", keys: "g h" },
-  { view: { kind: "sent" }, label: "Sent", icon: "send", keys: "g t" },
-  { view: { kind: "drafts" }, label: "Drafts", icon: "draft", keys: "g d" },
-  { view: { kind: "done" }, label: "Done", icon: "done", keys: "g e" },
-  { view: { kind: "trash" }, label: "Trash", icon: "trash", keys: "g #" },
-];
 
 /** Conversations (not unread) in Reply Later / Follow up: an outlined capsule. */
 function ItemsBadge({ n, what }: { n: number; what: string }) {
@@ -77,6 +58,13 @@ function sameView(a: MailboxView, b: MailboxView) {
 function sumUnread(labels: Label[], id: string, accountId: string | null): number {
   let n = 0;
   for (const l of labels) if (l.id === id && (!accountId || l.accountId === accountId)) n += l.unreadCount ?? 0;
+  return n;
+}
+
+/** Unread in label `id` across a set of accounts (null = all). */
+function sumUnreadIn(labels: Label[], id: string, accountIds: readonly string[] | null): number {
+  let n = 0;
+  for (const l of labels) if (l.id === id && (!accountIds || accountIds.includes(l.accountId))) n += l.unreadCount ?? 0;
   return n;
 }
 
@@ -142,13 +130,21 @@ export const Sidebar = memo(function Sidebar() {
   const tip = useKeyTip();
 
   const triage = useTriageCounts(accountFilter, mailIds);
+  // The accounts whose mailboxes the views list: the picked one, else those in view.
+  const viewIds = accountFilter ? [accountFilter] : mailIds;
   const counts: Partial<Record<MailboxView["kind"], number>> = {
     inbox: accountFilter ? sumUnread(labels, "INBOX", accountFilter) : inboxUnread(labels, mailIds),
     replyLater: triage.replyLater,
     followUp: triage.followUp,
     drafts: undefined,
     snoozed: useSnoozedCount(accountFilter, mailIds),
+    spam: sumUnreadIn(labels, "SPAM", viewIds),
   };
+  // One account picked (a click in Accounts, ⌥1–⌥9): its own mailboxes, named as its provider names them.
+  const scoped = accountFilter ? (accounts.find((a) => a.id === accountFilter) ?? null) : null;
+  // Every account lists INBOX, so an empty list means the labels haven't loaded yet.
+  const hasSpam = hasSpamFolder(labels, viewIds, labels.length > 0);
+  const views = useMemo(() => sidebarMailboxes(scoped, hasSpam), [scoped, hasSpam]);
 
   return (
     <aside className="sidebar">
@@ -188,33 +184,31 @@ export const Sidebar = memo(function Sidebar() {
       </div>
 
       <div className="sb-scroll">
-        <nav className="nav">
-          {VIEWS.map((v) => {
-            const active = !v.disabled && !onCalendar && sameView(view, v.view);
+        {scoped && <ScopeHeader account={scoped} accounts={accounts} profile={profile} />}
+        <nav className="nav" aria-label={scoped ? `${accountName(scoped, accounts)} mailboxes` : "Mailboxes"}>
+          {views.map((v) => {
+            const active = !onCalendar && sameView(view, v.view);
             const n = counts[v.view.kind];
             return (
               <button
-                key={v.label}
-                className={"nav-item" + (active ? " active" : "") + (v.disabled ? " is-disabled" : "")}
+                key={v.view.kind}
+                className={"nav-item" + (active ? " active" : "")}
                 // Shortcut coach: G then I for Inbox, … (only views with a key).
-                data-shortcut={v.disabled ? undefined : `go.${v.view.kind}`}
-                title={v.disabled ?? undefined}
-                aria-disabled={v.disabled ? true : undefined}
-                onClick={() => (v.disabled ? toast({ message: v.disabled }) : goTo(v.view))}
+                data-shortcut={`go.${v.view.kind}`}
+                onClick={() => goTo(v.view)}
               >
                 <Icon name={v.icon} />
                 {v.label}
-                {v.disabled ? (
-                  <span className="count soon">Soon</span>
-                ) : n ? (
-                  // The capsule means unread; Snoozed counts waiting threads, a plain number;
+                {n ? (
+                  // The capsule means unread; Snoozed counts waiting threads and Spam
+                  // its unread, plain numbers (spam shouldn't pull you in);
                   // Reply Later and Follow up count conversations, an outlined capsule.
                   v.view.kind === "inbox" ? (
                     <UnreadBadge n={n} />
                   ) : v.view.kind === "replyLater" || v.view.kind === "followUp" ? (
                     <ItemsBadge n={n} what={v.view.kind === "replyLater" ? "to reply to" : "waiting on a reply"} />
                   ) : (
-                    <span className="count">{n}</span>
+                    <span className="count">{num(n)}</span>
                   )
                 ) : v.keys ? (
                   <span className="hint">
@@ -261,8 +255,8 @@ export const Sidebar = memo(function Sidebar() {
           <>
             <SectionHead
               id="labels"
-              // IMAP accounts have folders, not labels.
-              label={userLabels.length > 0 && userLabels.every((l) => isFolderId(l.id)) ? "Folders" : "Labels"}
+              // IMAP accounts have folders, not labels; one picked account says what its provider has.
+              label={labelsTitle(scoped, userLabels)}
               collapsed={labelsCollapsed}
             />
             {!labelsCollapsed && (
@@ -295,6 +289,32 @@ export const Sidebar = memo(function Sidebar() {
     </aside>
   );
 });
+
+/**
+ * Over the views while one account is picked: its name and service, and a
+ * way back to All accounts (or the profile it was picked from).
+ */
+function ScopeHeader({ account, accounts, profile }: { account: Account; accounts: Account[]; profile: Profile | null }) {
+  const back = profile ? profile.name : "All accounts";
+  const name = accountName(account, accounts);
+  return (
+    <button
+      className="nav-item sb-scope"
+      title={`${account.email}\nBack to ${back}${profile ? "" : " (⌥0)"}`}
+      aria-label={`${name}, ${serviceTag(account)}. Back to ${back}`}
+      onClick={() => switchAccount(null)}
+    >
+      <Icon name="left" />
+      <span className="truncate">{name}</span>
+      <span className="sb-scope-svc">{serviceTag(account)}</span>
+      {!profile && (
+        <span className="hint">
+          <Keys keys="alt+0" />
+        </span>
+      )}
+    </button>
+  );
+}
 
 /**
  * The Accounts section: the accounts in the user's order (a profile's

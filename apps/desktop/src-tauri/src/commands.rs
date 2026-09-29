@@ -1149,6 +1149,18 @@ pub async fn person_summary(
     blocking(move || Ok(store.person_summary(&email)?)).await
 }
 
+/// Composer To/Cc/Bcc suggestions from everyone in your mail (local, indexed).
+#[tauri::command]
+pub async fn suggest_recipients(
+    state: AppStateRef<'_>,
+    query: String,
+    limit: Option<u32>,
+) -> CmdResult<Vec<penguin_core::Address>> {
+    let limit = limit.unwrap_or(8).clamp(1, 20) as usize;
+    let store = state.store.clone();
+    blocking(move || Ok(store.suggest_recipients(&query, limit)?)).await
+}
+
 /// In-app preview of one attachment (see attachments.rs for what renders).
 /// Unsupported types answer from metadata without touching the network;
 /// everything else is fetched once and cached for a later save_attachment.
@@ -1177,6 +1189,18 @@ pub async fn preview_attachment(
     }
     .await
     .inspect_err(|e| attachment_failed("preview", &account_id, &message_id, &attachment_id, e))
+}
+
+/// In-app preview of a file in the composer that isn't on a message yet
+/// (attachments.rs `outgoing_preview`). A saved draft's or a forward's
+/// files are previewed with preview_attachment.
+#[tauri::command]
+pub async fn preview_outgoing_file(
+    filename: String,
+    mime_type: String,
+    data_base64: String,
+) -> CmdResult<AttachmentPreview> {
+    blocking(move || attachments::outgoing_preview(filename, mime_type, &data_base64)).await
 }
 
 /// Opens only files this session saved; the UI can't open arbitrary paths.
@@ -1242,11 +1266,27 @@ pub async fn get_settings(state: AppStateRef<'_>) -> CmdResult<Settings> {
 
 #[tauri::command]
 pub async fn update_settings(state: AppStateRef<'_>, patch: SettingsPatch) -> CmdResult<Settings> {
-    let st = state.inner().clone();
+    save_settings(state.inner(), patch).await
+}
+
+/// Save a settings change and apply it everywhere (update_settings, and
+/// menu items that are settings, like Check Spelling While Typing).
+pub(crate) async fn save_settings(
+    state: &Arc<AppState>,
+    patch: SettingsPatch,
+) -> CmdResult<Settings> {
+    let st = state.clone();
     let sets_quota = patch.gmail_units_per_min.is_some();
     let sets_window = patch.sync_window_months.is_some() || patch.older_mail.is_some();
+    let before = state.settings.get().mcp.access;
+    if patch.mcp.as_ref().is_some_and(|m| m.raises_to_send(before)) {
+        return Err(CmdError::invalid(
+            "Allowing agents to send needs the confirmation in Settings → Developer → Agents",
+        ));
+    }
     let saved = blocking(move || Ok(st.settings.update(patch)?)).await?;
-    let saved = settings_view(&state, saved).await?;
+    crate::agent_app::level_changed(state, before, saved.mcp.access).await;
+    let saved = settings_view(state, saved).await?;
     tracing::info!("settings updated");
     if sets_quota {
         // Resizes every account's limiter in place (no-op under the env override).
@@ -1374,6 +1414,7 @@ pub async fn diagnostics(app: AppHandle, state: AppStateRef<'_>) -> CmdResult<Di
     let paths = &state.paths;
     Ok(Diagnostics {
         app_version: crate::VERSION.to_string(),
+        os_version: crate::diagnostics::os_version(),
         data_dir: paths.data_dir.display().to_string(),
         config_dir: paths.config_dir.display().to_string(),
         cache_dir: paths.cache_dir.display().to_string(),
@@ -1466,12 +1507,20 @@ pub async fn optimize_index(state: AppStateRef<'_>) -> CmdResult<()> {
 #[serde(rename_all = "camelCase")]
 pub struct McpInfo {
     pub enabled: bool,
+    /// The agent level (Settings → Developer → Agents).
+    pub access: crate::settings::AgentAccess,
     /// The penguin-cli binary next to this app's executable, if present.
     pub cli_path: Option<String>,
     /// `claude mcp add …` line for Claude Code.
     pub claude_code_command: String,
     /// Pretty JSON to merge into claude_desktop_config.json.
     pub claude_desktop_config: String,
+    /// `claude mcp add penguin -- ssh you@your-mac … mcp`, for an agent on
+    /// another machine (docs/CLI.md → Use from another machine).
+    pub ssh_command: String,
+    /// The `authorized_keys` options that pin that machine's key to the MCP
+    /// server and nothing else; the key itself follows them.
+    pub authorized_keys_prefix: String,
     pub audit_log_path: Option<String>,
 }
 
@@ -1480,35 +1529,48 @@ pub struct McpInfo {
 const BUNDLED_CLI_PATH: &str = "/Applications/Penguin.app/Contents/MacOS/penguin-cli";
 
 pub fn mcp_info_for(
-    enabled: bool,
+    access: crate::settings::AgentAccess,
     cli_path: Option<String>,
     audit_log_path: Option<String>,
 ) -> McpInfo {
     let command = cli_path
         .clone()
         .unwrap_or_else(|| BUNDLED_CLI_PATH.to_string());
-    let quoted = if command
+    let plain = command
         .chars()
-        .all(|c| c.is_ascii_alphanumeric() || "/._-+".contains(c))
-    {
+        .all(|c| c.is_ascii_alphanumeric() || "/._-+".contains(c));
+    let quoted = if plain {
         command.clone()
     } else {
         format!("'{}'", command.replace('\'', r"'\''"))
     };
+    // Over ssh the command line is split again by the Mac's shell, so a
+    // path with spaces needs its quotes to survive the local shell too.
+    let remote = if plain {
+        command.clone()
+    } else {
+        format!("\"{quoted}\"")
+    };
     let desktop =
         serde_json::json!({ "mcpServers": { "penguin": { "command": command, "args": ["mcp"] } } });
     McpInfo {
-        enabled,
+        enabled: access > crate::settings::AgentAccess::Off,
+        access,
         cli_path,
         claude_code_command: format!("claude mcp add penguin -- {quoted} mcp"),
         claude_desktop_config: serde_json::to_string_pretty(&desktop).unwrap_or_default(),
+        ssh_command: format!("claude mcp add penguin -- ssh you@your-mac {remote} mcp"),
+        authorized_keys_prefix: format!(
+            "command=\"{} mcp\",restrict",
+            command.replace('\\', "\\\\").replace('"', "\\\"")
+        ),
         audit_log_path,
     }
 }
 
 #[tauri::command]
 pub async fn mcp_info(state: AppStateRef<'_>) -> CmdResult<McpInfo> {
-    let enabled = state.settings.get().mcp.enabled;
+    let access = state.settings.get().mcp.access;
     let cli = std::env::current_exe()
         .ok()
         .and_then(|exe| exe.parent().map(|d| d.join("penguin-cli")))
@@ -1519,7 +1581,7 @@ pub async fn mcp_info(state: AppStateRef<'_>) -> CmdResult<McpInfo> {
             .display()
             .to_string()
     });
-    Ok(mcp_info_for(enabled, cli, audit))
+    Ok(mcp_info_for(access, cli, audit))
 }
 
 // ---------- command-line tool (Settings → Developer) ----------
@@ -1567,21 +1629,36 @@ mod tests {
 
     #[test]
     fn mcp_snippets_quote_paths() {
+        use crate::settings::AgentAccess;
         let info = mcp_info_for(
-            true,
+            AgentAccess::Draft,
             Some("/Users/ada/Code Projects/penguin/target/debug/penguin-cli".into()),
             None,
         );
+        assert!(info.enabled);
         assert_eq!(
             info.claude_code_command,
             "claude mcp add penguin -- '/Users/ada/Code Projects/penguin/target/debug/penguin-cli' mcp"
         );
+        assert_eq!(
+            info.ssh_command,
+            "claude mcp add penguin -- ssh you@your-mac \"'/Users/ada/Code Projects/penguin/target/debug/penguin-cli'\" mcp"
+        );
         let v: serde_json::Value = serde_json::from_str(&info.claude_desktop_config).unwrap();
         assert_eq!(v["mcpServers"]["penguin"]["args"][0], "mcp");
-        let bundled = mcp_info_for(false, None, None);
+        let bundled = mcp_info_for(AgentAccess::Off, None, None);
+        assert!(!bundled.enabled);
         assert_eq!(
             bundled.claude_code_command,
             format!("claude mcp add penguin -- {BUNDLED_CLI_PATH} mcp")
+        );
+        assert_eq!(
+            bundled.ssh_command,
+            format!("claude mcp add penguin -- ssh you@your-mac {BUNDLED_CLI_PATH} mcp")
+        );
+        assert_eq!(
+            bundled.authorized_keys_prefix,
+            format!("command=\"{BUNDLED_CLI_PATH} mcp\",restrict")
         );
     }
 

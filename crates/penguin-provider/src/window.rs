@@ -70,3 +70,35 @@ pub fn window_start_ms(now_ms: i64, months: u32) -> i64 {
     let start = now_ms - (months as f64 * MONTH_MS) as i64;
     (start.div_euclid(DAY_MS) * DAY_MS).max(0)
 }
+
+/// How far back the spam folder is synced (days). Gmail, Outlook.com, Yahoo
+/// and iCloud delete spam after about 30 days anyway; Spam is for checking
+/// what just arrived, and older spam would only bloat the index and the
+/// disk. Spam that arrives later always syncs.
+pub const SPAM_WINDOW_DAYS: i64 = 30;
+
+/// Unix ms where spam starts being synced: the later of the sync window's
+/// start and [`SPAM_WINDOW_DAYS`] ago, at UTC midnight. Spam older than
+/// this is never downloaded, not even as headers.
+pub fn spam_window_start_ms(now_ms: i64, months: u32) -> i64 {
+    let spam = (now_ms - SPAM_WINDOW_DAYS * DAY_MS).div_euclid(DAY_MS) * DAY_MS;
+    spam.max(window_start_ms(now_ms, months)).max(0)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn spam_is_bounded_by_the_window_and_thirty_days() {
+        let now = 1_790_000_000_000; // 2026-09-21
+        let thirty = (now - 30 * DAY_MS).div_euclid(DAY_MS) * DAY_MS;
+        // "Everything" and long windows: thirty days.
+        assert_eq!(spam_window_start_ms(now, 0), thirty);
+        assert_eq!(spam_window_start_ms(now, 12), thirty);
+        // The shortest window (a month) is a little longer than thirty days.
+        assert_eq!(spam_window_start_ms(now, 1), thirty);
+        assert!(spam_window_start_ms(now, 1) >= window_start_ms(now, 1));
+        assert_eq!(spam_window_start_ms(10 * DAY_MS, 0), 0);
+    }
+}

@@ -9,7 +9,8 @@ import type { MailboxView, ThreadSummary } from "../../lib/types";
 import { getUi, sameThread, setUi, subscribeUi, useUi } from "../../lib/ui";
 import { dayGroup } from "../../lib/format";
 import { Icon } from "../../components/Icon";
-import { accountInScope, list, listScope, loadMore, meta, selectThread, toggleUnreadOnly } from "../../app/store";
+import { accountById, accountInScope, list, listScope, loadMore, meta, selectThread, toggleUnreadOnly } from "../../app/store";
+import { mailboxName } from "../../lib/mailboxes";
 import { archive, openCompose, trash } from "../../app/actions";
 import { openSelected } from "../../app/shortcuts";
 import { openDraftForThread } from "../compose";
@@ -50,19 +51,12 @@ const FLOE_H = { compact: 64, comfortable: 72 } as const;
 
 type Item = { kind: "group"; label: string } | { kind: "row"; t: ThreadSummary };
 
+/** The list's title: Penguin's name for the view, or the provider's inside one picked account (lib/mailboxes.ts). */
 export function viewTitle(view: MailboxView): string {
+  const filter = getUi().accountFilter;
+  const named = mailboxName(view.kind, filter ? (accountById(filter) ?? null) : null);
+  if (named) return named;
   switch (view.kind) {
-    case "inbox": return "Inbox";
-    case "starred": return "Starred";
-    case "sent": return "Sent";
-    case "drafts": return "Drafts";
-    case "done": return "Done";
-    case "trash": return "Trash";
-    case "spam": return "Spam";
-    case "all": return "All mail";
-    case "snoozed": return "Snoozed";
-    case "replyLater": return "Reply Later";
-    case "followUp": return "Follow up";
     case "label": {
       const l = meta.get().labels.find((x) => x.id === view.labelId && accountInScope(x.accountId));
       return l?.name ?? "Label";
@@ -70,6 +64,8 @@ export function viewTitle(view: MailboxView): string {
     case "smart":
     case "query":
       return smartTitle(view, currentSettings().smartViews);
+    default:
+      return "Mail";
   }
 }
 
@@ -107,6 +103,8 @@ const handlers: RowHandlers = {
 export const ThreadList = memo(function ThreadList({ floe = false }: { floe?: boolean }) {
   const tip = useKeyTip();
   const view = useUi((s) => s.view);
+  // The title takes the picked account's names for its mailboxes ("Junk Email").
+  useUi((s) => s.accountFilter);
   const splits = useSplitBar().on;
   const sidebarCollapsed = useLayout((s) => s.sidebarCollapsed);
   // The header follows the mode itself (its Floe tools slide in at once);
@@ -492,6 +490,13 @@ function ListBody({ stacked, floe = false }: { stacked: boolean; floe?: boolean 
       const d = smartDef(view.labelId);
       if (d) return <EmptyState title={d.empty.title} body={d.empty.body} />;
     }
+    if (view.kind === "spam")
+      return (
+        <EmptyState
+          title={`No ${viewTitle(view).toLowerCase()}`}
+          body="Mail you or your provider mark as spam lands here. Its pictures never load on their own, and search leaves it out unless you add in:spam."
+        />
+      );
     if (view.kind === "query")
       return <EmptyState title="Nothing matches this search" body={`New mail that matches “${view.labelId}” shows up here.`} />;
     return <EmptyState title={`Nothing in ${viewTitle(view)}`} body="Conversations you move here show up in this list." />;

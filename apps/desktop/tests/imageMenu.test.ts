@@ -1,5 +1,5 @@
-// The picture menu (features/image-viewer/imageMenu.ts): which items each
-// kind of picture gets, in the viewer and on an attachment card.
+// The picture menu in the image viewer (features/image-viewer/imageMenu.ts):
+// which items each kind of picture gets. Attachment cards: attachmentMenu.test.ts.
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { imageMenu, type ImageMenuActions, type ImageMenuContext } from "../src/features/image-viewer/imageMenu.ts";
@@ -19,15 +19,16 @@ const picked: string[] = [];
 const act: ImageMenuActions = {
   copy: () => picked.push("copy"),
   copyAddress: () => picked.push("copyAddress"),
+  copyPath: () => picked.push("copyPath"),
+  copyShareLink: () => picked.push("copyShareLink"),
   save: () => picked.push("save"),
   saveAs: () => picked.push("saveAs"),
   openInPreview: () => picked.push("openInPreview"),
   reveal: () => picked.push("reveal"),
-  view: () => picked.push("view"),
   toggleZoom: () => picked.push("toggleZoom"),
   close: () => picked.push("close"),
 };
-const viewer: ImageMenuContext = { where: "viewer", saved: false, nativeFiles: true, zoomed: false, canZoom: true, openLabel: "Open in Preview" };
+const viewer: ImageMenuContext = { saved: false, nativeFiles: true, zoomed: false, canZoom: true, openLabel: "Open in Preview", shareReady: true };
 
 function labels(entries: ReturnType<typeof imageMenu>): string[] {
   return normalizeEntries(entries).map((e) => (e.type === "separator" ? "-" : String((e as MenuItem).label)));
@@ -49,10 +50,12 @@ const [embedded, remote] = buildItems([
 ]);
 const attached = attachmentItem(msg([shot]), shot);
 
-test("an embedded picture: no image address (its data: URL is the picture itself)", () => {
+test("an embedded picture: no image address (its data: URL is the picture itself), but a file path", () => {
   assert.equal(embedded.kind, "body");
   assert.deepEqual(labels(imageMenu(embedded, viewer, act)), [
     "Copy Image",
+    "Copy File Path",
+    "Copy Share Link",
     "-",
     "Save to Downloads",
     "Save As…",
@@ -63,12 +66,12 @@ test("an embedded picture: no image address (its data: URL is the picture itself
   ]);
 });
 
-test("a remote picture adds Copy Image Address", () => {
+test("a remote picture adds Copy Original Web Address, last in the copy group", () => {
   assert.ok(remote.kind === "body" && remote.remote);
   const l = labels(imageMenu(remote, viewer, act));
-  assert.deepEqual(l.slice(0, 3), ["Copy Image", "Copy Image Address", "-"]);
+  assert.deepEqual(l.slice(0, 5), ["Copy Image", "Copy File Path", "Copy Share Link", "Copy Original Web Address", "-"]);
   picked.length = 0;
-  item(imageMenu(remote, viewer, act), "Copy Image Address").onSelect!();
+  item(imageMenu(remote, viewer, act), "Copy Original Web Address").onSelect!();
   assert.deepEqual(picked, ["copyAddress"]);
 });
 
@@ -84,7 +87,7 @@ test("Save All Images: only with an action and two or more pictures in the messa
 });
 
 test("an attachment in the viewer, and Show in Finder only after a save", () => {
-  assert.ok(!labels(imageMenu(attached, viewer, act)).includes("Copy Image Address"));
+  assert.ok(!labels(imageMenu(attached, viewer, act)).includes("Copy Original Web Address"));
   assert.ok(!labels(imageMenu(attached, viewer, act)).includes("Show in Finder"));
   assert.ok(labels(imageMenu(attached, { ...viewer, saved: true }, act)).includes("Show in Finder"));
 });
@@ -103,16 +106,41 @@ test("viewer keys, zoom label and state", () => {
   assert.deepEqual(picked, ["toggleZoom", "close"]);
 });
 
-test("the attachment card: View first, no zoom or Close, no viewer keys", () => {
-  const card: ImageMenuContext = { where: "card", saved: true, nativeFiles: true, openLabel: "Open in Preview" };
-  const m = imageMenu(attached, card, act);
-  assert.deepEqual(labels(m), ["View", "-", "Copy Image", "-", "Save to Downloads", "Save As…", "Open in Preview", "Show in Finder"]);
-  assert.equal(item(m, "Copy Image").keys, undefined);
-});
-
 test("outside the Mac app: no Save As or Show in Finder, and Open instead of Preview", () => {
   const l = labels(imageMenu(attached, { ...viewer, nativeFiles: false, saved: true, openLabel: "Open" }, act));
   assert.ok(!l.includes("Save As…"));
   assert.ok(!l.includes("Show in Finder"));
   assert.ok(l.includes("Open"));
+});
+
+test("Copy File Path picks the path action, and only where files are native", () => {
+  picked.length = 0;
+  item(imageMenu(attached, viewer, act), "Copy File Path").onSelect!();
+  assert.deepEqual(picked, ["copyPath"]);
+  assert.ok(!labels(imageMenu(attached, { ...viewer, nativeFiles: false }, act)).includes("Copy File Path"));
+  assert.equal(item(imageMenu(remote, { ...viewer, broken: true }, act), "Copy File Path").disabled, "The image didn't load");
+});
+
+test("Copy Share Link is always offered; before setup it reads Copy Share Link… with a Set up hint", () => {
+  const notSetUp = { ...viewer, shareReady: false };
+  for (const it of [embedded, remote, attached]) {
+    const l = labels(imageMenu(it, notSetUp, act));
+    assert.ok(l.includes("Copy Share Link…"), `${it.kind}: ${l.join(", ")}`);
+    assert.ok(!l.includes("Copy Share Link"));
+  }
+  const setUp = item(imageMenu(attached, notSetUp, act), "Copy Share Link…");
+  assert.equal(setUp.text, "Copy Share Link", "type-ahead finds it by its name");
+  assert.equal(setUp.end, "Set up");
+  assert.equal(item(imageMenu(attached, viewer, act), "Copy Share Link").end, undefined);
+  picked.length = 0;
+  setUp.onSelect!();
+  item(imageMenu(attached, viewer, act), "Copy Share Link").onSelect!();
+  assert.deepEqual(picked, ["copyShareLink", "copyShareLink"]);
+});
+
+test("Copy Share Link doesn't need the Mac app's native files, and waits for the picture to load", () => {
+  assert.ok(labels(imageMenu(attached, { ...viewer, nativeFiles: false }, act)).includes("Copy Share Link"));
+  assert.equal(item(imageMenu(remote, { ...viewer, broken: true }, act), "Copy Share Link").disabled, "The image didn't load");
+  const { copyShareLink: _, ...without } = act;
+  assert.ok(!labels(imageMenu(attached, viewer, without)).some((l) => l.startsWith("Copy Share Link")), "no action, no item");
 });

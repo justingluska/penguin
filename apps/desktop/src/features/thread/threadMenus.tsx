@@ -10,11 +10,11 @@ import { setUi } from "../../lib/ui";
 import { copyText } from "../../lib/clipboard";
 import type { MenuEntries } from "../../components/ContextMenu";
 import { accountById } from "../../app/store";
-import { isUnread, markUnreadAndSay, toggleRead } from "../../app/actions";
+import { isUnread, markUnreadAndSay, notSpam, reportSpam, targetsInSpam, toggleRead } from "../../app/actions";
 import { openMessageDetails } from "./MessageDetails";
-import { downloadAttachment, openInDefaultApp, revealSaved, saveAttachmentAs, savedAttachmentPath } from "./AttachmentPreview";
-import { copyImage, nativeFiles, openInPreview, openLabel, revealImage, saveAllImages, saveImage, saveImageAs } from "../image-viewer/actions";
-import { imageMenu } from "../image-viewer/imageMenu";
+import { copyAttachmentFile, copyAttachmentPath, downloadAttachment, openInDefaultApp, revealSaved, saveAttachmentAs, savedAttachmentPath } from "./AttachmentPreview";
+import { copyImage, nativeFiles, openInPreview, openLabel, revealImage, saveAllImages, saveImage, saveImageAs, savedPath } from "../image-viewer/actions";
+import { attachmentCardMenu } from "./attachmentMenu";
 import { attachmentItem, canSaveAll, isViewableAttachment, onScreenMessageItems } from "../image-viewer/items";
 import { openAttachment } from "./openAttachment";
 import { currentSettings } from "../../lib/settings";
@@ -22,6 +22,9 @@ import { startUnsubscribe } from "../unsubscribe/actions";
 import { COPY_CONVERSATION_KEYS, copyConversation, copyMessage } from "./copy";
 import { openThreadWindow } from "../../app/windows";
 import { isMainWindow } from "../../lib/windowBus";
+import { copyShareLink } from "../share/actions";
+import { attachmentShare, pictureShare } from "../share/model";
+import { refreshShareStatus, shareReady as currentShareReady } from "../share/state";
 
 function gmailMessageUrl(email: string, messageId: string): string {
   return `https://mail.google.com/mail/u/${encodeURIComponent(email)}/#all/${encodeURIComponent(messageId)}`;
@@ -46,6 +49,12 @@ export function messageMenu(m: MessageView, opts: { expanded: boolean; onToggle?
       (isUnread(thread)
         ? { label: "Mark conversation read", icon: "mail", keys: "u", onSelect: () => toggleRead([thread]) }
         : { label: "Mark conversation unread", icon: "unread", keys: "shift+u", onSelect: () => markUnreadAndSay([thread]) }),
+    // The whole conversation, like ! (your own drafts and Trash have nothing to report).
+    !draft &&
+      !m.labelIds.includes("TRASH") &&
+      (targetsInSpam([thread])
+        ? { label: "Not spam", icon: "inbox", keys: "!", onSelect: () => void notSpam([thread]) }
+        : { label: "Report spam", icon: "shield", keys: "!", onSelect: () => void reportSpam([thread]) }),
     { type: "separator" },
     // With From/To/Date and attachment names, reply history cut; "Copy text" is the raw body.
     { label: "Copy message", icon: "copy", onSelect: () => copyMessage(m) },
@@ -77,35 +86,41 @@ export function messageMenu(m: MessageView, opts: { expanded: boolean; onToggle?
 }
 
 export function attachmentMenu(m: MessageView, a: AttachmentMeta): MenuEntries {
-  const copyName: MenuEntries = [{ type: "separator" }, { label: "Copy file name", icon: "copy", onSelect: () => void copyText(a.filename, "File name copied") }];
   const saved = savedAttachmentPath(m, a);
-  // Pictures get the image viewer's menu (Copy Image, Open in Preview…).
+  // "Copy Share Link" or "…": the last read; refresh it for the next menu.
+  const shareReady = currentShareReady();
+  void refreshShareStatus();
+  const shared = {
+    preview: () => openAttachment(m, a),
+    copy: () => void copyAttachmentFile(m, a),
+    copyPath: () => copyAttachmentPath(m, a),
+    copyName: () => void copyText(a.filename, "File name copied"),
+  };
+  // Pictures: the image viewer's actions (Copy Image, Open in Preview…).
   if (!a.inline && isViewableAttachment(a)) {
     const it = attachmentItem(m, a);
-    return [
-      ...imageMenu(
-        it,
-        { where: "card", saved: saved !== null, nativeFiles, openLabel },
-        {
-          view: () => openAttachment(m, a),
-          copy: () => void copyImage(it),
-          copyAddress: () => undefined,
-          save: () => void saveImage(it),
-          saveAs: () => void saveImageAs(it),
-          openInPreview: () => void openInPreview(it),
-          reveal: () => revealImage(it),
-        },
-      ),
-      ...copyName,
-    ];
+    return attachmentCardMenu(
+      { image: true, nativeFiles, saved: savedPath(it) !== null, openLabel, shareReady },
+      {
+        ...shared,
+        open: () => void openInPreview(it),
+        copyImage: () => void copyImage(it),
+        copyShareLink: () => void copyShareLink(pictureShare(it)),
+        save: () => void saveImage(it),
+        saveAs: () => void saveImageAs(it),
+        reveal: () => revealImage(it),
+      },
+    );
   }
-  return [
-    { label: "Preview", icon: "eye", onSelect: () => openAttachment(m, a) },
-    { label: "Open", icon: "external", onSelect: () => void openInDefaultApp(m, a) },
-    { type: "separator" },
-    { label: "Save to Downloads", icon: "download", onSelect: () => void downloadAttachment(m, a) },
-    nativeFiles && { label: "Save As…", text: "Save As", icon: "folder", onSelect: () => void saveAttachmentAs(m, a) },
-    nativeFiles && saved && { label: "Show in Finder", icon: "folder", onSelect: () => void revealSaved(saved, a.filename) },
-    ...copyName,
-  ];
+  return attachmentCardMenu(
+    { image: false, nativeFiles, saved: saved !== null, openLabel: "Open", shareReady },
+    {
+      ...shared,
+      open: () => void openInDefaultApp(m, a),
+      copyShareLink: () => void copyShareLink(attachmentShare(m, a)),
+      save: () => void downloadAttachment(m, a),
+      saveAs: () => void saveAttachmentAs(m, a),
+      reveal: () => saved && void revealSaved(saved, a.filename),
+    },
+  );
 }

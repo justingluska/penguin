@@ -24,3 +24,8 @@
 .sw-details { margin-top: 12px; font-size: var(--text-xs); }
 .sw-details summary { cursor: pointer; color: var(--text-muted); }
 .sw-details .sw-table td:last-child { width: auto; }
+
+/* Sync alerts: the hidden ones, each with "Show again". */
+.sw-hidden-list { list-style: none; margin: 8px 0 0; padding: 0; display: flex; flex-direction: column; gap: 2px; }
+.sw-hidden-list li { gap: 8px; min-height: 28px; }
+.sw-hidden-none { margin-top: 6px; }

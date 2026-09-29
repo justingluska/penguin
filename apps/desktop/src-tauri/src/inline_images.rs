@@ -78,6 +78,24 @@ fn cid_file_name(cid: &str) -> String {
     format!("{}-{:016x}", &hex[..96], h.finish())
 }
 
+fn cache_file(paths: &Paths, account_id: &str, message_id: &str, cid: &str) -> PathBuf {
+    paths
+        .inline_cache_dir(account_id)
+        .join(safe_component(message_id))
+        .join(cid_file_name(cid))
+}
+
+/// An inline image already in this cache (the message was shown), without
+/// touching the network. For agent reads (penguin-cli's get_attachment).
+pub fn cached_bytes(
+    paths: &Paths,
+    account_id: &str,
+    message_id: &str,
+    cid: &str,
+) -> Option<Vec<u8>> {
+    std::fs::read(cache_file(paths, account_id, message_id, cid)).ok()
+}
+
 impl InlineImages {
     pub fn new(paths: Paths) -> Self {
         InlineImages {
@@ -88,10 +106,7 @@ impl InlineImages {
     }
 
     fn file(&self, account_id: &str, message_id: &str, cid: &str) -> PathBuf {
-        self.paths
-            .inline_cache_dir(account_id)
-            .join(safe_component(message_id))
-            .join(cid_file_name(cid))
+        cache_file(&self.paths, account_id, message_id, cid)
     }
 
     /// cid → data: URL for everything already cached, plus the referenced

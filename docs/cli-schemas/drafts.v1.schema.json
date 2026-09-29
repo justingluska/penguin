@@ -1,0 +1,171 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Envelope",
+  "description": "Every payload: `{\"schemaVersion\": 1, \"kind\": \"...\", \"data\": {...}}`.",
+  "type": "object",
+  "properties": {
+    "data": {
+      "$ref": "#/$defs/DraftsOut"
+    },
+    "kind": {
+      "description": "\"search\" | \"thread\" | \"threads\" | \"labels\" | \"people\" | \"accounts\" | \"attachmentText\" | \"attachments\" | \"attachment\" | \"ask\" | \"draft\" | \"drafts\" | \"draftDeleted\" | \"sendQueued\" | \"shareLink\" | \"ruleMatch\" | \"error\"",
+      "type": "string"
+    },
+    "schemaVersion": {
+      "type": "integer",
+      "format": "uint32",
+      "minimum": 0
+    }
+  },
+  "required": [
+    "schemaVersion",
+    "kind",
+    "data"
+  ],
+  "$defs": {
+    "DraftFileOut": {
+      "type": "object",
+      "properties": {
+        "filename": {
+          "type": "string"
+        },
+        "mimeType": {
+          "type": "string"
+        },
+        "size": {
+          "type": "integer",
+          "format": "uint64",
+          "minimum": 0
+        }
+      },
+      "required": [
+        "filename",
+        "mimeType",
+        "size"
+      ]
+    },
+    "DraftOut": {
+      "description": "`draft` (create_draft, update_draft) and each of `drafts`.",
+      "type": "object",
+      "properties": {
+        "accountId": {
+          "type": "string"
+        },
+        "attachments": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/DraftFileOut"
+          }
+        },
+        "bcc": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "cc": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "createdBy": {
+          "description": "`mcp` or `cli`.",
+          "type": "string"
+        },
+        "draftId": {
+          "type": "string"
+        },
+        "messageId": {
+          "type": "string"
+        },
+        "queuedSend": {
+          "description": "Set while a send an agent queued is waiting in the outbox.",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/QueuedSendOut"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "replyToMessageId": {
+          "description": "The message it replies to, if any.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "subject": {
+          "type": "string"
+        },
+        "threadId": {
+          "type": "string"
+        },
+        "to": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "updatedAt": {
+          "type": "integer",
+          "format": "int64"
+        },
+        "updatedAtIso": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "accountId",
+        "draftId",
+        "messageId",
+        "threadId",
+        "to",
+        "cc",
+        "bcc",
+        "subject",
+        "attachments",
+        "createdBy",
+        "updatedAt",
+        "updatedAtIso"
+      ]
+    },
+    "DraftsOut": {
+      "type": "object",
+      "properties": {
+        "drafts": {
+          "description": "Drafts agents created that still exist, newest first. Drafts the\nuser wrote are not listed (list_threads view \"drafts\" reads those).",
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/DraftOut"
+          }
+        }
+      },
+      "required": [
+        "drafts"
+      ]
+    },
+    "QueuedSendOut": {
+      "type": "object",
+      "properties": {
+        "scheduleId": {
+          "type": "string"
+        },
+        "sendAt": {
+          "type": "integer",
+          "format": "int64"
+        },
+        "sendAtIso": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "scheduleId",
+        "sendAt",
+        "sendAtIso"
+      ]
+    }
+  }
+}

@@ -437,6 +437,10 @@ const MIGRATIONS: &[&str] = &[
 #[path = "store_drafts.rs"]
 mod drafts;
 
+#[path = "store_agent.rs"]
+mod agent;
+pub use agent::{AgentDraft, AGENT_SCHEMA};
+
 #[path = "store_checkpoint.rs"]
 mod checkpoint;
 

@@ -1,16 +1,31 @@
-//! Agent access to the local index: `penguin-cli search/thread --json|--md`
-//! and the read-only MCP server (`penguin-cli mcp`). Tauri-free.
+//! Agent access to Penguin: `penguin-cli search/thread/draft/send …` and
+//! the MCP server (`penguin-cli mcp`). Tauri-free.
 //!
-//! Everything here opens the database with `Store::open_read_only`, so no
-//! code path in this module can change mail, and nothing here talks to
-//! Gmail. Output shapes are versioned (`output::SCHEMA_VERSION`) and
-//! documented in docs/CLI.md.
+//! Two halves, in two processes:
+//! - **Reads** (the CLI process): the database opened with
+//!   `Store::open_read_only`; nothing on this side can change mail or holds
+//!   credentials ([`AgentCtx`], queries, output, context, mcp).
+//! - **Writes** (the Penguin app): drafts, sends, attachment downloads and
+//!   share links are requests over a private local socket ([`ipc`]) that
+//!   the running app answers after checking the agent level in Settings →
+//!   Developer ([`permission`], [`writes`], [`attach`], [`markdown`],
+//!   [`sharing`]).
+//!
+//! Output shapes are versioned (`output::SCHEMA_VERSION`) and documented in
+//! docs/CLI.md.
 
+pub mod attach;
 pub mod audit;
 pub mod context;
+pub mod files;
+pub mod ipc;
+pub mod markdown;
 pub mod mcp;
 pub mod output;
+pub mod permission;
 pub mod queries;
+pub mod sharing;
+pub mod writes;
 
 use std::path::PathBuf;
 
@@ -58,6 +73,13 @@ impl AgentCtx {
     /// without restarting a long-lived MCP server.
     pub fn settings(&self) -> Settings {
         Settings::load(&self.paths.config_dir.join(SETTINGS_FILE))
+    }
+
+    /// Whether agents may create share links (Settings → Share links: set
+    /// up, and the agent switch on). From share-links.json, fresh each call
+    /// like the settings; never the Keychain.
+    pub fn share_links_allowed(&self) -> CmdResult<()> {
+        crate::share::agent_gate(&crate::share::config::load(&self.paths.config_dir))
     }
 
     pub fn accounts(&self) -> CmdResult<Vec<Account>> {
@@ -167,9 +189,11 @@ pub(crate) mod testkit {
             .duration_since(std::time::UNIX_EPOCH)
             .unwrap()
             .as_nanos();
+        // Short: an agent socket under it must fit macOS's 103-byte limit.
         let root = std::env::temp_dir().join(format!(
-            "penguin-agent-{tag}-{}-{nanos}",
-            std::process::id()
+            "pg-agent-{tag}-{}-{}",
+            std::process::id() % 100_000,
+            nanos % 1_000_000_000
         ));
         let paths = Paths {
             data_dir: root.clone(),

@@ -17,7 +17,11 @@
 //!   body-pending; `full` downloads them in full; `none` skips it. Each
 //!   chunk yields to due history polls, and a policy change that needs a
 //!   fill takes over at the next page.
-//! - New mail from history.list is always fetched in full.
+//! - **Spam, once** (`spam_fill`, between A and B): messages.list skips
+//!   Spam unless asked, so A and B never see it; `in:spam` back to the spam
+//!   window (30 days) is listed and at most `SPAM_FILL_MAX` of the newest
+//!   downloaded in full. `GmailCursor::spam_filled` records that it ran.
+//! - New mail from history.list is always fetched in full (spam included).
 //!
 //! Everything is resumable: `WindowCursor` is saved after every page, and
 //! the fill reuses `GmailCursor::backfill_page_token` and
@@ -28,8 +32,8 @@
 //! for mail outside the window ([`search_server`]) and the per-window
 //! message estimates for Settings ([`window_estimate`]).
 
-use std::collections::HashSet;
-use std::sync::{Mutex, OnceLock};
+use std::collections::{HashMap, HashSet};
+use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
 /// Penguin queries in Gmail syntax live in penguin-core (the IMAP provider
@@ -43,11 +47,14 @@ use crate::api::IdPage;
 use crate::{Error, Result};
 
 // The policy types are provider-neutral (penguin-provider `window`).
-use penguin_provider::window::DAY_MS;
+use penguin_provider::window::{spam_window_start_ms, DAY_MS};
 pub use penguin_provider::window::{
     window_start_ms, OlderMail, WindowPolicy, WINDOW_MONTHS_DEFAULT, WINDOW_MONTH_CHOICES,
 };
 pub use penguin_provider::{ServerSearch, SERVER_SEARCH_FETCH_CAP};
+
+/// The most spam the one-time spam fill downloads (the newest first).
+pub(crate) const SPAM_FILL_MAX: usize = 200;
 
 /// A fill in progress is restarted only when the target moves by more than
 /// this (the window start slides forward a day at a time).
@@ -298,6 +305,45 @@ impl<C: GmailApi> AccountSync<C> {
         Ok(true)
     }
 
+    /// Spam, once, after the window fill: messages.list leaves Spam out
+    /// unless the query asks for it, so neither the fill nor the older pass
+    /// ever lists it. This lists `in:spam` back to the spam window (30
+    /// days, or the window if shorter; Gmail deletes spam after 30 days)
+    /// and downloads at most [`SPAM_FILL_MAX`] of the newest in full. Spam
+    /// that arrives later comes through history like any new mail. Returns
+    /// false when there's nothing to do.
+    pub(super) async fn spam_fill(&mut self) -> Result<bool> {
+        if self.gmail.spam_filled || !self.cursor.backfill_done {
+            return Ok(false);
+        }
+        let start = spam_window_start_ms(super::now_ms(), self.policy().months);
+        let q = match range_query(Some(start), None) {
+            Some(r) => format!("in:spam {r}"),
+            None => "in:spam".to_string(),
+        };
+        let page = self.client.list_message_ids(None, Some(&q)).await?;
+        let listed: Vec<String> = page
+            .ids
+            .into_iter()
+            .map(|(m, _)| m)
+            .take(SPAM_FILL_MAX)
+            .collect();
+        let todo = self.needing_body(listed).await?;
+        let mut stored = 0;
+        for chunk in todo.chunks(FETCH_CHUNK) {
+            stored += self.fetch_and_store(chunk, FetchMode::Fresh).await?.stored;
+            if self.poll_due() {
+                self.poll_history().await?;
+            }
+        }
+        self.gmail.spam_filled = true;
+        self.save_cursor().await?;
+        let indexed = self.count().await?;
+        self.shared.update(|s| s.indexed = indexed);
+        tracing::info!(account = %self.account_id, stored, "spam fill complete");
+        Ok(true)
+    }
+
     /// Ids from `ids` without a full body (unknown or headers-only).
     pub(super) async fn needing_body(&self, ids: Vec<String>) -> Result<Vec<String>> {
         let acct = self.account_id.clone();
@@ -392,27 +438,86 @@ impl WindowApi for crate::api::GmailClient {
     }
 }
 
-fn in_flight() -> &'static Mutex<HashSet<(String, String)>> {
-    static SET: OnceLock<Mutex<HashSet<(String, String)>>> = OnceLock::new();
-    SET.get_or_init(|| Mutex::new(HashSet::new()))
+/// One account's state for the interactive helpers, kept by the backend
+/// (Gmail clients are made per call) rather than the process: it only
+/// speaks for the mailbox and store it was made with, and signing the
+/// account out forgets it.
+#[derive(Default)]
+pub struct AccountState {
+    pub estimates: EstimateCache,
+    pub bodies: BodyClaims,
+}
+
+/// The `AccountState` of each of one backend's accounts.
+#[derive(Default)]
+pub struct AccountStates(Mutex<HashMap<String, Arc<AccountState>>>);
+
+impl AccountStates {
+    /// `account_id`'s state, created on first use.
+    pub fn for_account(&self, account_id: &str) -> Arc<AccountState> {
+        self.0
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .entry(account_id.to_string())
+            .or_default()
+            .clone()
+    }
+
+    /// Drop `account_id`'s state (on sign-out).
+    pub fn forget(&self, account_id: &str) {
+        self.0
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .remove(account_id);
+    }
+}
+
+/// Messages whose bodies one account is downloading right now.
+#[derive(Default)]
+pub struct BodyClaims(Mutex<HashSet<String>>);
+
+/// The ids a body download claimed; released when dropped, including when
+/// the download is cancelled.
+struct BodyClaim<'a> {
+    claims: &'a BodyClaims,
+    ids: Vec<String>,
+}
+
+impl BodyClaims {
+    /// Claim the `ids` no other download of this account has claimed.
+    fn claim(&self, ids: &[String]) -> BodyClaim<'_> {
+        let mut set = self.0.lock().unwrap_or_else(|e| e.into_inner());
+        let ids = ids
+            .iter()
+            .filter(|id| set.insert((*id).clone()))
+            .cloned()
+            .collect();
+        BodyClaim { claims: self, ids }
+    }
+}
+
+impl Drop for BodyClaim<'_> {
+    fn drop(&mut self) {
+        let mut set = self.claims.0.lock().unwrap_or_else(|e| e.into_inner());
+        for id in &self.ids {
+            set.remove(id);
+        }
+    }
 }
 
 /// Download the full bodies of `ids` (headers-only messages of an opened
-/// thread) and store them. Ids already being fetched by another call are
-/// skipped. Returns the thread ids that changed.
+/// thread) and store them. Ids another call is already fetching (per
+/// `claims`, the account's) are skipped. Returns the thread ids that
+/// changed.
 pub async fn fetch_pending_bodies<A: WindowApi>(
     api: &A,
     store: &Store,
+    claims: &BodyClaims,
     account_id: &str,
     ids: &[String],
 ) -> Result<Vec<String>> {
-    let claimed: Vec<String> = {
-        let mut set = in_flight().lock().unwrap_or_else(|e| e.into_inner());
-        ids.iter()
-            .filter(|id| set.insert((account_id.to_string(), (*id).clone())))
-            .cloned()
-            .collect()
-    };
+    let claim = claims.claim(ids);
+    let claimed = claim.ids.clone();
     if claimed.is_empty() {
         return Ok(vec![]);
     }
@@ -461,10 +566,7 @@ pub async fn fetch_pending_bodies<A: WindowApi>(
         }
     }
     .await;
-    let mut set = in_flight().lock().unwrap_or_else(|e| e.into_inner());
-    for id in &claimed {
-        set.remove(&(account_id.to_string(), id.clone()));
-    }
+    drop(claim);
     result
 }
 
@@ -578,30 +680,40 @@ fn escape_html(s: &str) -> String {
     out
 }
 
+/// How long a window estimate is reused before Gmail is asked again.
+const ESTIMATE_TTL: Duration = Duration::from_secs(30 * 60);
+
+/// One account's cached window estimates (months → count, fetched at).
+#[derive(Default)]
+pub struct EstimateCache(Mutex<HashMap<u32, (u64, Instant)>>);
+
 /// Gmail's estimate of messages in the last `months` (0 = the mailbox),
-/// cached per account and window for `ESTIMATE_TTL` (one list call, ~1 unit).
+/// cached in the account's `cache` for `ESTIMATE_TTL` (one list call, ~1
+/// unit).
 pub async fn window_estimate<A: WindowApi>(
     api: &A,
-    account_id: &str,
+    cache: &EstimateCache,
     months: u32,
     now_ms: i64,
 ) -> Result<u64> {
-    const ESTIMATE_TTL: Duration = Duration::from_secs(30 * 60);
-    type Cache = Mutex<std::collections::HashMap<(String, u32), (u64, Instant)>>;
-    static CACHE: OnceLock<Cache> = OnceLock::new();
-    let cache = CACHE.get_or_init(Default::default);
-    let key = (account_id.to_string(), months);
-    if let Some((n, at)) = cache.lock().unwrap_or_else(|e| e.into_inner()).get(&key) {
+    let cached = cache
+        .0
+        .lock()
+        .unwrap_or_else(|e| e.into_inner())
+        .get(&months)
+        .copied();
+    if let Some((n, at)) = cached {
         if at.elapsed() < ESTIMATE_TTL {
-            return Ok(*n);
+            return Ok(n);
         }
     }
     let q = range_query(Some(window_start_ms(now_ms, months)), None).unwrap_or_default();
     let n = api.search_ids(&q, 1).await?.result_size_estimate;
     cache
+        .0
         .lock()
         .unwrap_or_else(|e| e.into_inner())
-        .insert(key, (n, Instant::now()));
+        .insert(months, (n, Instant::now()));
     Ok(n)
 }
 

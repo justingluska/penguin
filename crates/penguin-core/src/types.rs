@@ -788,6 +788,75 @@ pub struct SyncStatus {
     /// bodies inside the sync window, or older mail after it. None otherwise.
     #[serde(default)]
     pub stage: Option<SyncStage>,
+    /// The failed attempts in a row since sync last made progress; None
+    /// while healthy. Set by `record_failure`, closed by `record_progress`
+    /// (sync_health.rs), which decides when a failure is worth an alert.
+    #[serde(default)]
+    pub failure: Option<SyncFailure>,
+    /// The last failure streak that ended by itself (sync made progress
+    /// again), so the UI can say it recovered. Cleared by the next failure.
+    #[serde(default)]
+    pub recovered: Option<SyncRecovery>,
+}
+
+/// What stopped a sync attempt, for how loudly the UI says so.
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub enum SyncErrorKind {
+    /// Couldn't connect, timed out, or the connection dropped.
+    Network,
+    /// The server answered with an error of its own (HTTP 5xx, IMAP NO/BAD).
+    Server,
+    /// The server is limiting requests.
+    RateLimited,
+    /// The server refused the credentials: sign in again.
+    Auth,
+    /// The Keychain refused to hand over the saved credentials.
+    Keychain,
+    /// The local mail database failed.
+    Storage,
+    /// The sync task crashed (a panic).
+    Internal,
+    /// The account's settings or the app's client setup are missing or wrong.
+    Config,
+    Other,
+}
+
+/// A run of failed sync attempts with nothing synced in between.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct SyncFailure {
+    /// The latest attempt's kind (the message is `SyncStatus.error`).
+    pub kind: SyncErrorKind,
+    /// Failed attempts in a row (1 = the first).
+    pub count: u32,
+    /// When the first of them failed (ms).
+    pub first_at: i64,
+    /// When the latest failed (ms).
+    pub last_at: i64,
+    /// When sync tries again on its own (ms); None = it won't until someone
+    /// acts (signed out, crashed, bad settings).
+    pub next_retry_at: Option<i64>,
+    /// Worth telling the user: it needs them, or it has lasted
+    /// (`SYNC_ALERT_FAILURES` attempts or `SYNC_ALERT_AFTER_MS`). Until
+    /// then the UI says "Retrying…" quietly.
+    pub alert: bool,
+}
+
+/// A failure streak that ended because sync made progress again.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct SyncRecovery {
+    /// When sync made progress again (ms).
+    pub at: i64,
+    /// The streak's first failure (ms).
+    pub since: i64,
+    /// How many attempts had failed.
+    pub failures: u32,
+    /// The last failure's kind.
+    pub kind: SyncErrorKind,
+    /// Whether the streak had been alerted (the user saw it).
+    pub alerted: bool,
 }
 
 /// Backfill stages (see `WindowCursor`).

@@ -10,6 +10,8 @@
 pub const VERSION: &str = env!("PENGUIN_APP_VERSION");
 
 pub mod agent;
+/// The app side of agent access: the agent socket, Settings → Developer → Agents.
+pub mod agent_app;
 /// The macOS menu bar.
 pub mod app_menu;
 pub mod applog;
@@ -26,6 +28,8 @@ pub mod file_export;
 pub mod image_viewer;
 pub mod inline_images;
 pub mod logging;
+#[cfg(target_os = "macos")]
+mod mac;
 pub mod me;
 pub mod memory;
 pub mod message_details;
@@ -40,10 +44,13 @@ pub mod reply_later;
 pub mod rules;
 pub mod semantic;
 pub mod settings;
+/// Share links: upload to the user's own S3-compatible storage, copy a presigned link.
+pub mod share;
 pub mod sign_in;
 pub mod smart_views;
 pub mod snippet_files;
 pub mod snooze;
+pub mod spelling;
 pub mod startup;
 pub mod state;
 pub mod summary;
@@ -176,6 +183,8 @@ fn link_guard() -> tauri::plugin::TauriPlugin<tauri::Wry> {
 
 pub fn run() {
     startup::begin();
+    // Before the first web view: WebKit reads its spell-checking state once.
+    spelling::prime();
     let context = tauri::generate_context!();
     // Only builds given an update channel (the release workflow) get the
     // updater plugin; see src/updater.rs.
@@ -213,10 +222,19 @@ pub fn run() {
             if let Err(e) = app_menu::install(app.handle(), &state.settings.get()) {
                 tracing::error!(error = %e, "could not build the menu bar");
             }
+            // Spell checking as the settings say (a no-op unless they
+            // disagree with what WebKit stored; src/spelling.rs).
+            spelling::apply(app.handle(), &state.settings.get());
             // Before any sync starts, so the first requests pace at the setting.
             penguin_gmail::api::set_units_per_min(state.settings.get().gmail_units_per_min);
             app.manage(state.clone());
             outbox::spawn(app.handle().clone(), state.clone());
+            // Share links (src/share/): settings, uploads, expiry cleanup.
+            let share = share::Share::init(&state);
+            app.manage(share.clone());
+            share::spawn_cleanup(share.clone());
+            // The agent socket (penguin-cli draft/send/share-link, MCP write tools).
+            agent_app::start(app.handle(), state.clone(), share);
             let rules = rules::Rules::init(app.handle(), &state);
             app.manage(rules.clone());
             rules::spawn(app.handle().clone(), state.clone(), rules);
@@ -262,9 +280,10 @@ pub fn run() {
             startup::mark("setup done");
             Ok(())
         })
-        .on_page_load(|_, payload| {
+        .on_page_load(|webview, payload| {
             if payload.event() == tauri::webview::PageLoadEvent::Finished {
                 startup::mark("page loaded");
+                spelling::page_loaded(webview);
             }
         })
         // Cached sender avatars (src/avatars/protocol.rs); the app CSP allows
@@ -350,9 +369,11 @@ pub fn run() {
             commands::sanitize_compose_html,
             commands::save_attachment,
             commands::preview_attachment,
+            commands::preview_outgoing_file,
             commands::get_message_details,
             commands::get_message_source,
             commands::person_summary,
+            commands::suggest_recipients,
             ask::ask,
             ask::ask_understand,
             ask::ask_query,
@@ -362,10 +383,17 @@ pub fn run() {
             image_viewer::save_message_images,
             file_export::prepare_image_drag,
             file_export::prepare_attachment_drag,
+            file_export::copy_attachment_file,
             file_export::start_file_drag,
             file_export::save_image_as,
             file_export::save_attachment_as,
             file_export::reveal_saved_path,
+            share::share_link_config_get,
+            share::share_link_config_set,
+            share::share_link_config_clear,
+            share::share_link_config_test,
+            share::share_file,
+            share::share_delete,
             commands::save_draft,
             commands::quote_sources,
             commands::delete_draft,
@@ -381,6 +409,9 @@ pub fn run() {
             commands::mcp_info,
             commands::cli_install_status,
             commands::install_cli,
+            agent_app::enable_agent_send,
+            agent_app::agent_activity,
+            agent_app::agent_pending_sends,
             sync_window::sync_window_estimate,
             sync_window::sync_coverage,
             sync_window::free_up_space,

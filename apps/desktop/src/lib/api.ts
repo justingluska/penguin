@@ -10,6 +10,7 @@ import { isDemo } from "./demo";
 import { isMainWindow, thisWindowLabel } from "./thisWindow";
 import type { MockLike } from "./mockBridge";
 import type {
+  Address,
   SmartCount,
   SplitCounts,
   SmartViewInfo,
@@ -21,12 +22,20 @@ import type {
   PersonSummary,
   MessageDetails,
   McpInfo,
+  AgentActivity,
+  AgentPendingSend,
+  AgentSendQueued,
   SemanticIndexStatus,
   CliLinkStatus,
   AttachmentPreview,
   ImageBytes,
   SaveAllItem,
   SavedImages,
+  ShareLinkConfig,
+  ShareLinkConfigInput,
+  ShareRequest,
+  ShareTestReport,
+  SharedLink,
   DragFile,
   Account,
   AccountPatch,
@@ -124,6 +133,7 @@ export const EVENTS = {
   settingsChanged: "penguin://settings-changed",
   scheduledSent: "penguin://scheduled-sent",
   reminderDue: "penguin://reminder-due",
+  agentSendQueued: "penguin://agent-send-queued",
   snoozeWoke: "penguin://snooze-woke",
   avatarsChanged: "penguin://avatars-changed",
   rulesChanged: "penguin://rules-changed",
@@ -261,7 +271,7 @@ function call<T>(cmd: string, args?: Record<string, unknown>): Promise<T> {
 }
 
 /** Commands whose rejection is an answer ("no photo", "nothing to unsubscribe"), not a failure. */
-const QUIET_COMMANDS = new Set(["me_photo", "avatar_lookup", "account_photo", "unsubscribe_check", "log_client_event"]);
+const QUIET_COMMANDS = new Set(["suggest_recipients", "me_photo", "avatar_lookup", "account_photo", "unsubscribe_check", "log_client_event"]);
 /** The user backed out (closed the sign-in tab, cancelled a dialog). */
 const QUIET_CODES = new Set(["cancelled"]);
 
@@ -343,7 +353,8 @@ export const api = {
   syncNow: () => call<void>("sync_now"),
   /**
    * Fix a stuck account: restarts its sync task if it died, otherwise wakes it
-   * from error backoff; clears the error and emits a sync-status.
+   * from error backoff. The failure stays on its status until the retry syncs
+   * (failure null, recovered set) or fails again (failure.count grows).
    */
   retrySyncAccount: (accountId: string) => call<void>("retry_account_sync", { accountId }),
   /** Set the nickname (null/blank clears) and/or #rrggbb color; resolves with the updated account. */
@@ -438,6 +449,8 @@ export const api = {
   /** Download one attachment to ~/Downloads (unique filename) and return the saved path. */
   /** Person card: one correspondent's mail at a glance (local, indexed). */
   personSummary: (email: string) => call<PersonSummary>("person_summary", { email }),
+  /** To/Cc/Bcc suggestions from everyone in your mail (local, indexed): people you wrote to first. */
+  suggestRecipients: (query: string, limit = 8) => call<Address[]>("suggest_recipients", { query, limit }),
   /** Ask your inbox: a deterministic, cited answer from the local index (no model, no network). */
   ask: (question: string, scope: AskScope | null = null) => call<AskAnswer>("ask", { question, scope }),
   /**
@@ -480,6 +493,9 @@ export const api = {
   /** In-app preview (image / PDF / text, else unsupported). Fetches once, cached for saveAttachment. */
   previewAttachment: (accountId: string, messageId: string, attachmentId: string) =>
     call<AttachmentPreview>("preview_attachment", { accountId, messageId, attachmentId }),
+  /** The same preview for a composer file not on any message yet (its base64 bytes; Rust sniffs them). */
+  previewOutgoingFile: (filename: string, mimeType: string, dataBase64: string) =>
+    call<AttachmentPreview>("preview_outgoing_file", { filename, mimeType, dataBase64 }),
   saveAttachment: (accountId: string, messageId: string, attachmentId: string) =>
     call<string>("save_attachment", { accountId, messageId, attachmentId }),
   /** Open a saved file (path returned by saveAttachment) with the default app, or in Preview (macOS). */
@@ -504,6 +520,9 @@ export const api = {
   /** An attachment written as a drag-out file under its own name. */
   prepareAttachmentDrag: (accountId: string, messageId: string, attachmentId: string) =>
     call<DragFile>("prepare_attachment_drag", { accountId, messageId, attachmentId }),
+  /** Copy an attachment to the clipboard as a file (a file URL, as Finder copies), so a paste anywhere gives the file. */
+  copyAttachmentFile: (accountId: string, messageId: string, attachmentId: string) =>
+    call<DragFile>("copy_attachment_file", { accountId, messageId, attachmentId }),
   /** Start a native file drag of a prepared file (call from dragstart, button still down). */
   startFileDrag: (path: string) => call<void>("start_file_drag", { path }),
   /** Save As… panel for a message-body picture; the saved path, or null when cancelled. */
@@ -513,6 +532,19 @@ export const api = {
     call<string | null>("save_attachment_as", { accountId, messageId, attachmentId }),
   /** Show in Finder: a path this session saved (saveAttachment, saveMessageImage, Save As). */
   revealSavedPath: (path: string) => call<void>("reveal_saved_path", { path }),
+
+  // Share links (src-tauri/src/share/, docs/SHARE-LINKS.md). Config set,
+  // clear and test are main-window only (Settings).
+  shareLinkConfigGet: () => call<ShareLinkConfig>("share_link_config_get"),
+  shareLinkConfigSet: (config: ShareLinkConfigInput) => call<ShareLinkConfig>("share_link_config_set", { config }),
+  /** Forget the storage: settings back to defaults, the secret out of the Keychain. */
+  shareLinkConfigClear: () => call<ShareLinkConfig>("share_link_config_clear"),
+  /** Upload a small file, fetch it through a link, check the bucket is private, delete it. */
+  shareLinkConfigTest: (config: ShareLinkConfigInput) => call<ShareTestReport>("share_link_config_test", { config }),
+  /** Upload an attachment or body picture and presign a link (notConfigured until set up). */
+  shareFile: (request: ShareRequest) => call<SharedLink>("share_file", { request }),
+  /** Delete an upload now (only keys Penguin recorded). */
+  shareDelete: (key: string) => call<void>("share_delete", { key }),
 
   // search
   search: (request: SearchRequest) => call<SearchResponse>("search", { request }),
@@ -568,8 +600,14 @@ export const api = {
   getSettings: () => call<Settings>("get_settings"),
   /** Merge `patch` into the stored settings; resolves with the full result. */
   updateSettings: (patch: SettingsPatch) => call<Settings>("update_settings", { patch }),
-  /** MCP server status + copyable client config for Settings → Developer. Toggle via updateSettings({ mcp }). */
+  /** Agents (MCP server + CLI) status and copyable client config for Settings → Developer. Change the level via updateSettings({ mcp }). */
   mcpInfo: () => call<McpInfo>("mcp_info"),
+  /** Let agents send, after the confirmation: `acknowledgement` is what the user typed ("I understand"). */
+  enableAgentSend: (acknowledgement: string) => call<Settings>("enable_agent_send", { acknowledgement }),
+  /** The newest agent calls from the audit log, newest first (counts and ids, never content). */
+  agentActivity: (limit = 30) => call<AgentActivity[]>("agent_activity", { limit }),
+  /** Sends agents queued that haven't gone yet, soonest first. Cancel with cancelScheduledSend. */
+  agentPendingSends: () => call<AgentPendingSend[]>("agent_pending_sends"),
   /** Search by meaning: model download and indexing progress (local, instant). */
   semanticStatus: () => call<SemanticIndexStatus>("semantic_status"),
   /** Welcome setup: search by meaning confirmed on, so the one-time model download may start now (docs/ONBOARDING.md). */
@@ -790,6 +828,12 @@ export function onScheduledSent(cb: (e: ScheduledSentBatch) => void): Promise<Un
 export function onReminderDue(cb: (e: ReminderDue) => void): Promise<UnlistenFn> {
   if (isMock) return mockBackend().then((m) => m.listen(EVENTS.reminderDue, cb as (p: unknown) => void));
   return listenHere<ReminderDue>(EVENTS.reminderDue, (e) => cb(e.payload));
+}
+
+/** An agent's send is waiting in the outbox (src-tauri/src/agent_app.rs). */
+export function onAgentSendQueued(cb: (e: AgentSendQueued) => void): Promise<UnlistenFn> {
+  if (isMock) return mockBackend().then((m) => m.listen(EVENTS.agentSendQueued, cb as (p: unknown) => void));
+  return listenHere<AgentSendQueued>(EVENTS.agentSendQueued, (e) => cb(e.payload));
 }
 
 /** A new-mail notification was clicked (src-tauri/src/notify.rs). */

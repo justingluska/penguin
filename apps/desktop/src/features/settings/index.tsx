@@ -25,7 +25,9 @@ import { closeSettings, takeFocusSection, useSettingsRequest, type SettingsSecti
 import { openWelcome } from "../welcome/state";
 import { SETTINGS_PAGES, flattenResults, labelMatches, searchSettings, type SettingEntry } from "./catalog";
 import { DiagnosticsPanel } from "./Diagnostics";
-import { SyncFixButton, syncFixFor } from "./syncFix";
+import { SyncActions, isHidden, syncFixFor } from "./syncFix";
+import { retryingText, syncHealth } from "../../lib/syncHealth";
+import { useSyncHides } from "../../lib/syncHides";
 import { SignInSheetRow } from "./SignInSheet";
 import { openAddAccount } from "../onboarding/AddAccountModal";
 import { clearPendingSetup, providerName, usePendingSetups } from "../onboarding/pending";
@@ -45,6 +47,7 @@ import { SignaturesSection } from "../compose/SignatureSettings";
 import { RulesSection } from "../rules/RulesSection";
 import { SyncSection } from "./Sync";
 import { CalendarSection } from "../calendar/CalendarSettings";
+import { ShareLinksSettings } from "../share/ShareLinksSettings";
 import { AccountColorPicker, AccountNickname } from "./AccountIdentity";
 import { AccountAvatar, accountName } from "../../components/Identity";
 import { mailboxUnaffected } from "../../lib/capabilities";
@@ -334,6 +337,8 @@ function SettingsPage({
       return <SignaturesSection />;
     case "privacy":
       return <PrivacySection diag={diag} />;
+    case "sharing":
+      return <ShareLinksSettings />;
     case "search":
       return <SearchSection diag={diag} onChanged={refresh} />;
     case "ai":
@@ -512,6 +517,7 @@ function save(patch: Parameters<typeof updateSettings>[0]) {
 function AccountsSection({ diag, onChanged }: { diag: Diagnostics | null; onChanged: () => void }) {
   const accounts = meta.use((m) => m.accounts);
   const sync = meta.use((m) => m.sync);
+  useSyncHides(); // re-render when a sync alert is hidden or shown again
   const [confirming, setConfirming] = useState<Account | null>(null);
   // Drag the handle to reorder; ⌥↑/⌥↓ with focus in a row moves it one place.
   const ids = accounts.map((a) => a.id);
@@ -582,12 +588,12 @@ function AccountsSection({ diag, onChanged }: { diag: Diagnostics | null; onChan
               <div className="account-mail truncate">{a.email}</div>
             </div>
             <div className="account-meta tnum">
-              <span className={"st-phase" + (fix ? " is-bad" : "")} title={fix?.detail ?? undefined}>
-                {fix ? fix.message : s ? phaseLabel(s.phase) : "Idle"}
+              <span className={"st-phase" + (fix && !isHidden(s) ? " is-bad" : "")} title={fix?.detail ?? s?.error ?? undefined}>
+                {fix ? fix.message : s && syncHealth(s) === "retrying" ? retryingText(s) : s ? phaseLabel(s.phase) : "Idle"}
               </span>
               <span className="st-muted">{num(stored)} messages</span>
             </div>
-            <SyncFixButton status={s} />
+            <SyncActions status={s} hide={false} />
             <button
               className="btn btn-ghost btn-sm btn-icon account-remove"
               aria-label={`Remove ${a.email}`}

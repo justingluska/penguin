@@ -396,7 +396,7 @@ fn open(app: &AppHandle, target: &NotificationOpen) {
     }
 }
 
-fn show(app: &AppHandle, note: Note) {
+pub(crate) fn show(app: &AppHandle, note: Note) {
     #[cfg(any(target_os = "macos", target_os = "linux"))]
     let note = match show_clickable(app, note) {
         Ok(()) => return,

@@ -19,6 +19,9 @@ import { accountName } from "../../components/Identity";
 import { toast } from "../../components/Toast";
 import { Choice, ConfirmDialog, Section } from "./parts";
 import { SyncConfirm, windowLabel, windowPhrase, windowRank, type PendingChange } from "./SyncConfirm";
+import { syncClock } from "./syncFix";
+import { unhideSync, useSyncHides } from "../../lib/syncHides";
+import type { SyncErrorKind } from "../../lib/types";
 import "./sync.css";
 
 export { windowLabel, windowPhrase } from "./SyncConfirm";
@@ -296,6 +299,8 @@ export function SyncSection() {
         </button>
       </div>
 
+      <HiddenAlerts />
+
       {pending ? (
         <SyncConfirm
           change={pending}
@@ -325,4 +330,58 @@ export function SyncSection() {
 function inAccountOrder<T extends { accountId: string }>(rows: T[], accounts: { id: string }[]): T[] {
   const pos = new Map(accounts.map((a, i) => [a.id, i]));
   return [...rows].sort((x, y) => (pos.get(x.accountId) ?? Infinity) - (pos.get(y.accountId) ?? Infinity));
+}
+
+const KIND_LABEL: Record<SyncErrorKind, string> = {
+  network: "can't reach the server",
+  server: "server errors",
+  rateLimited: "rate limiting",
+  auth: "sign-in",
+  keychain: "Keychain",
+  storage: "local database",
+  internal: "sync stopped",
+  config: "settings",
+  other: "sync errors",
+};
+
+/**
+ * Sync alerts hidden on this Mac ("Hide 6 h" on a sync problem), with a way
+ * to show each again. Nothing is synced between devices.
+ */
+function HiddenAlerts() {
+  const hides = useSyncHides();
+  const accounts = meta.use((m) => m.accounts);
+  const now = Date.now();
+  const live = hides.filter((h) => h.until > now);
+  return (
+    <div className="setting-row setting-tall sw-hidden-alerts" data-setting="hidden-sync-alerts">
+      <div className="grow min0">
+        <span className="setting-label">Sync alerts</span>
+        <p className="st-muted">
+          A problem shows once sync has failed 3 times in a row or for a minute; sign-in problems show at once. Hidden
+          alerts stay hidden on this Mac until their time is up or a different problem comes up.
+        </p>
+        {live.length === 0 ? (
+          <p className="st-muted sw-hidden-none">No alerts hidden.</p>
+        ) : (
+          <ul className="sw-hidden-list">
+            {live.map((h) => {
+              const a = accounts.find((x) => x.id === h.accountId);
+              return (
+                <li key={`${h.accountId}:${h.kind}`} className="row-flex">
+                  <span className="grow truncate">
+                    {a ? accountName(a, accounts) : h.accountId}
+                    <span className="st-muted"> · {KIND_LABEL[h.kind]} · hidden until {syncClock(h.until)}</span>
+                  </span>
+                  <button className="btn btn-ghost btn-sm" onClick={() => unhideSync(h.accountId, h.kind)}>
+                    Show again
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
+        )}
+      </div>
+    </div>
+  );
 }

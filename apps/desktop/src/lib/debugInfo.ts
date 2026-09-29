@@ -27,6 +27,7 @@ export async function debugInfo(): Promise<string> {
   ]);
   const lines: string[] = ["Penguin debug info", `when: ${new Date().toISOString()}`];
   lines.push(`app: ${typeof diag === "string" ? diag : diag.appVersion}`);
+  if (typeof diag !== "string" && diag.osVersion) lines.push(`os: ${diag.osVersion}`);
   lines.push(`platform: ${navigator.platform} · ${navigator.userAgent}`);
   lines.push(`screen: ${window.innerWidth}x${window.innerHeight} @${window.devicePixelRatio}x`);
   if (typeof oauth === "string") lines.push(`google clients: ${oauth}`);
@@ -40,7 +41,7 @@ export async function debugInfo(): Promise<string> {
     const phases = typeof sync === "string" ? [] : sync;
     for (const a of accounts) {
       const s = phases.find((x) => x.accountId === a.id);
-      lines.push(`  - ${a.email} · ${a.provider ?? "gmail"} · ${s ? `${s.phase}, ${s.indexed} indexed${s.error ? `, error: ${s.error}` : ""}` : "no sync status"}`);
+      lines.push(`  - ${a.email} · ${a.provider ?? "gmail"} · ${s ? `${s.phase}, ${s.indexed} indexed${s.failure ? `, ${s.failure.count} failed tries since ${new Date(s.failure.firstAt).toISOString()} (${s.failure.kind}${s.failure.alert ? ", shown" : ", retrying quietly"})` : ""}${s.error ? `, error: ${s.error}` : ""}` : "no sync status"}`);
     }
   }
   lines.push(`search by meaning: ${semanticDebugLine(semantic)}`);

@@ -88,6 +88,22 @@ export function ComposeSection() {
         </div>
         <Switch label="Reply from the account it came to" on={s.lockReplyAccount} onChange={(v) => save({ lockReplyAccount: v })} />
       </div>
+      <div className="setting-row">
+        <div>
+          <span className="setting-label">Check spelling while typing</span>
+          <p className="st-muted">
+            Underlines misspelled words in the message and subject, in every window. Right-click one for suggestions. Also in Edit → Spelling and Grammar.
+          </p>
+        </div>
+        <Switch label="Check spelling while typing" on={s.checkSpelling} onChange={(v) => save({ checkSpelling: v })} />
+      </div>
+      <div className="setting-row">
+        <div>
+          <span className="setting-label">Check grammar with spelling</span>
+          <p className="st-muted">Also underlines likely grammar mistakes.</p>
+        </div>
+        <Switch label="Check grammar with spelling" on={s.checkGrammar} onChange={(v) => save({ checkGrammar: v })} />
+      </div>
       <UndoSendSetting />
       <SendLaterHourSetting />
       <InstantRepliesSettings />

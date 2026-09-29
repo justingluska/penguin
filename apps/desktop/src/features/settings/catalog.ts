@@ -34,6 +34,7 @@ export const SETTINGS_PAGES: SettingsPage[] = [
   { id: "compose", label: "Compose", icon: "compose", keywords: ["write", "writing", "editor", "reply", "send"] },
   { id: "signatures", label: "Signatures", icon: "pencil", keywords: ["sig", "sign off", "footer"] },
   { id: "privacy", label: "Privacy", icon: "shield", keywords: ["tracking", "security"] },
+  { id: "sharing", label: "Share links", icon: "cloud", keywords: ["share", "upload", "r2", "cloudflare", "s3", "bucket", "storage", "link", "agents"] },
   { id: "search", label: "Search", icon: "search", keywords: ["index", "find"] },
   { id: "ai", label: "AI", icon: "sparkles", keywords: ["jev", "llm", "assistant", "machine learning"] },
   { id: "views", label: "Views", icon: "list", keywords: ["smart views", "sidebar", "receipts", "travel", "packages", "bills", "filtered lists", "saved searches"] },
@@ -109,6 +110,7 @@ export const SETTINGS_INDEX: SettingEntry[] = [
   { page: "sync", label: "Older mail", keywords: ["headers", "metadata", "archive"] },
   { page: "sync", label: "Downloaded", keywords: ["coverage", "progress", "storage"] },
   { page: "sync", label: "Free up space", keywords: ["disk", "storage", "clean up", "delete bodies", "size"] },
+  { page: "sync", label: "Sync alerts", desc: "Hidden sync problems, and showing them again", keywords: ["hidden", "hide", "can't reach", "error", "retry", "unhide", "banner"] },
 
   // Calendar
   { page: "calendar", label: "Google Calendar", desc: "Connect each account's calendar", keywords: ["connect calendar", "events"] },
@@ -123,6 +125,8 @@ export const SETTINGS_INDEX: SettingEntry[] = [
   { page: "compose", label: "Size", desc: "Composer font size", keywords: ["font size", "text size", "bigger", "smaller"] },
   { page: "compose", label: "Preview", keywords: ["font preview"] },
   { page: "compose", label: "Reply from the account it came to", keywords: ["from address", "send as", "alias", "reply from"] },
+  { page: "compose", label: "Check spelling while typing", desc: "Underline misspelled words", keywords: ["spell check", "spellcheck", "spelling", "typos", "red underline", "misspelled", "autocorrect"] },
+  { page: "compose", label: "Check grammar with spelling", keywords: ["grammar", "green underline", "proofread"] },
   { page: "compose", label: "Undo send", desc: "How long a sent message waits", keywords: ["unsend", "cancel send", "delay", "recall", "off"] },
   { page: "compose", label: "Morning send time", desc: "When Send later's morning choices go out", keywords: ["send later", "schedule", "scheduled send", "tomorrow morning", "8 am"] },
   { page: "compose", label: "Instant replies", desc: "One-liners offered when you reply", keywords: ["quick replies", "canned responses", "one-liners", "smart reply", "short replies"] },
@@ -164,6 +168,18 @@ export const SETTINGS_INDEX: SettingEntry[] = [
   { page: "privacy", label: "Gravatar", keywords: ["avatars"] },
   { page: "privacy", label: "Photo cache", keywords: ["clear cache", "images"] },
   { page: "privacy", label: "Show unsubscribe button", keywords: ["unsubscribe", "mailing list", "newsletters", "opt out"] },
+
+  // Share links (features/share/ShareLinksSettings.tsx)
+  { page: "sharing", label: "Your storage", desc: "Where Copy Share Link uploads files", keywords: ["r2", "cloudflare", "s3", "minio", "bucket", "upload", "share link"] },
+  { page: "sharing", label: "Endpoint", keywords: ["r2", "s3", "url", "server"] },
+  { page: "sharing", label: "Bucket", keywords: ["r2", "s3"] },
+  { page: "sharing", label: "Region", keywords: ["auto", "aws"] },
+  { page: "sharing", label: "Access key ID", keywords: ["api token", "credentials", "key"] },
+  { page: "sharing", label: "Secret access key", keywords: ["api token", "credentials", "password", "keychain"] },
+  { page: "sharing", label: "Links", desc: "How long share links work", keywords: ["share link", "expiry"] },
+  { page: "sharing", label: "Link lifetime", desc: "1 hour, 24 hours or 7 days", keywords: ["expire", "expiry", "presigned", "how long"] },
+  { page: "sharing", label: "Delete uploads when their links expire", keywords: ["cleanup", "remove", "expired", "lifecycle"] },
+  { page: "sharing", label: "Let agents (CLI and MCP) create share links", keywords: ["mcp", "ai", "claude", "cli", "agent", "automation"] },
 
   // Search
   { page: "search", label: "Search by meaning", desc: "Finds mail that says the same thing in other words", keywords: ["semantic", "embeddings", "similar", "meaning", "ai", "vector", "model", "indexing"] },
@@ -208,8 +224,13 @@ export const SETTINGS_INDEX: SettingEntry[] = [
   // Developer
   { page: "diagnostics", label: "Demo mode", desc: "Fictional accounts and mail", keywords: ["demo", "screenshots", "fake", "sample data", "fictional"] },
   { page: "diagnostics", label: "Gmail quota (units per minute per account)", keywords: ["quota", "rate limit", "api", "throttle", "google cloud"] },
-  { page: "diagnostics", label: "AI tools (MCP)", keywords: ["mcp", "model context protocol", "claude"] },
-  { page: "diagnostics", label: "Enable MCP server", keywords: ["mcp", "claude", "ai tools"] },
+  { page: "diagnostics", label: "Agents (CLI and MCP)", keywords: ["mcp", "model context protocol", "claude", "ai tools", "agent"] },
+  { page: "diagnostics", label: "What agents may do", desc: "Off, read, draft or send", keywords: ["mcp", "claude", "agent", "draft", "send", "permission", "access"] },
+  { page: "diagnostics", label: "Let agents send", keywords: ["agent", "send", "mcp", "outbox", "delay"] },
+  { page: "diagnostics", label: "Wait before an agent's email goes", keywords: ["agent", "send", "delay", "outbox", "cancel"] },
+  { page: "diagnostics", label: "Only to people I've emailed", desc: "Agents send only to people you've written to", keywords: ["agent", "send", "recipients", "known"] },
+  { page: "diagnostics", label: "Waiting to send", desc: "Sends agents queued", keywords: ["agent", "outbox", "queued", "cancel"] },
+  { page: "diagnostics", label: "Recent agent activity", keywords: ["agent", "audit", "log", "mcp", "cli"] },
   { page: "diagnostics", label: "Command-line tool: penguin", keywords: ["cli", "terminal", "shell"] },
   { page: "diagnostics", label: "Rule hooks", keywords: ["webhooks", "scripts", "programs"] },
   { page: "diagnostics", label: "Allow hooks", keywords: ["webhooks", "scripts", "programs"] },

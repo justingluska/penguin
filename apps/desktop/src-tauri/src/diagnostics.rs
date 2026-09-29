@@ -60,6 +60,8 @@ pub struct AccountDiagnostics {
 #[serde(rename_all = "camelCase")]
 pub struct Diagnostics {
     pub app_version: String,
+    /// "macOS 26.0.1" (None where it can't be read).
+    pub os_version: Option<String>,
     pub data_dir: String,
     pub config_dir: String,
     pub cache_dir: String,
@@ -99,6 +101,36 @@ pub enum RevealTarget {
     Config,
     Cache,
     Log,
+}
+
+/// The OS name and version for bug reports: "macOS 26.0.1". The web
+/// view's user agent can't tell (WebKit freezes it at 10.15.7).
+#[cfg(target_os = "macos")]
+pub fn os_version() -> Option<String> {
+    let mut buf = [0u8; 64];
+    let mut len = buf.len();
+    // SAFETY: a NUL-terminated name, a buffer of `len` bytes that sysctl
+    // fills and shortens `len` to, and no new value.
+    let rc = unsafe {
+        libc::sysctlbyname(
+            c"kern.osproductversion".as_ptr(),
+            buf.as_mut_ptr().cast(),
+            &mut len,
+            std::ptr::null_mut(),
+            0,
+        )
+    };
+    if rc != 0 {
+        return None;
+    }
+    let text = std::str::from_utf8(&buf[..len.min(buf.len())]).ok()?;
+    let version = text.trim_end_matches('\0').trim();
+    (!version.is_empty()).then(|| format!("macOS {version}"))
+}
+
+#[cfg(not(target_os = "macos"))]
+pub fn os_version() -> Option<String> {
+    None
 }
 
 /// Session-lifetime counters feeding diagnostics.

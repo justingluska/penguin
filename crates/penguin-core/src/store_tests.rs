@@ -653,6 +653,88 @@ fn search_operators() {
     assert_eq!(ids("café"), Vec::<String>::new());
 }
 
+/// Report spam (+SPAM −INBOX) and Not spam (−SPAM +INBOX), the deltas the
+/// app sends: the thread moves between the Inbox and Spam, leaves every
+/// other view and search while it's spam, its unread count moves to SPAM,
+/// and the Spam view honors the account scope.
+#[test]
+fn report_spam_and_not_spam_move_views_counts_and_search() {
+    let s = store_with_accounts(&[A, B]);
+    let t = now();
+    s.upsert_messages(&[
+        M::new(A, "a1", "prize", t - 1)
+            .body("claim your platypus prize")
+            .labels(&["INBOX", "UNREAD", "Label_1"])
+            .done(),
+        M::new(A, "a2", "memo", t - 2).body("platypus memo").done(),
+        M::new(B, "b1", "junk", t - 3)
+            .body("platypus deals")
+            .labels(&["SPAM", "UNREAD"])
+            .done(),
+    ])
+    .unwrap();
+    let system = |account: &str, id: &str| Label {
+        account_id: account.into(),
+        id: id.into(),
+        name: id.into(),
+        kind: "system".into(),
+        color: None,
+        unread_count: None,
+        hidden: false,
+    };
+    for acct in [A, B] {
+        s.replace_labels(acct, &[system(acct, "INBOX"), system(acct, "SPAM")])
+            .unwrap();
+    }
+    let unread = |acct: &str, id: &str| {
+        s.list_labels(Some(acct))
+            .unwrap()
+            .into_iter()
+            .find(|l| l.id == id)
+            .and_then(|l| l.unread_count)
+    };
+    let found = |q: &str| {
+        let mut v = hit_ids(&search(&s, q));
+        v.sort();
+        v
+    };
+    use MailboxView as V;
+    assert_eq!(list(&s, V::Spam, None, None), vec!["junk"]);
+    assert_eq!((unread(A, "INBOX"), unread(A, "SPAM")), (Some(1), Some(0)));
+
+    // Report spam.
+    s.modify_thread_labels(A, "prize", &["SPAM".into()], &["INBOX".into()])
+        .unwrap();
+    assert_eq!(list(&s, V::Spam, None, None), vec!["prize", "junk"]);
+    assert_eq!(list(&s, V::Spam, None, Some(A)), vec!["prize"]);
+    assert_eq!(list(&s, V::Spam, None, Some(B)), vec!["junk"]);
+    assert_eq!(list(&s, V::Inbox, None, None), vec!["memo"]);
+    for view in [V::All, V::Done, V::Label("Label_1".into())] {
+        assert!(
+            !list(&s, view.clone(), None, None).contains(&"prize".into()),
+            "{view:?}"
+        );
+    }
+    assert_eq!((unread(A, "INBOX"), unread(A, "SPAM")), (Some(0), Some(1)));
+    assert_eq!(unread(B, "SPAM"), Some(1));
+    // Search leaves Spam out unless asked.
+    assert_eq!(found("platypus"), vec!["a2"]);
+    assert_eq!(found("platypus in:spam"), vec!["a1", "b1"]);
+    assert_eq!(found("platypus in:anywhere"), vec!["a1", "a2", "b1"]);
+
+    // Not spam: back in the inbox and its label, and in search.
+    s.modify_thread_labels(A, "prize", &["INBOX".into()], &["SPAM".into()])
+        .unwrap();
+    assert_eq!(list(&s, V::Spam, None, None), vec!["junk"]);
+    assert_eq!(list(&s, V::Inbox, None, None), vec!["prize", "memo"]);
+    assert_eq!(
+        list(&s, V::Label("Label_1".into()), None, None),
+        vec!["prize"]
+    );
+    assert_eq!((unread(A, "INBOX"), unread(A, "SPAM")), (Some(1), Some(0)));
+    assert_eq!(found("platypus"), vec!["a1", "a2"]);
+}
+
 #[test]
 fn search_scope_rules() {
     let s = store_with_accounts(&[A, B]);

@@ -21,7 +21,7 @@ export interface RemoteUndo {
   steps: UndoOp[][];
 }
 
-const ACTIONS = new Set(["archive", "moveToInbox", "trash", "untrash", "markRead", "markUnread", "star", "unstar", "addLabel", "removeLabel", "replyLater"]);
+const ACTIONS = new Set(["archive", "moveToInbox", "trash", "untrash", "reportSpam", "notSpam", "markRead", "markUnread", "star", "unstar", "addLabel", "removeLabel", "replyLater"]);
 
 const isObj = (x: unknown): x is Record<string, unknown> => !!x && typeof x === "object" && !Array.isArray(x);
 const isRefs = (x: unknown): x is ThreadRef[] =>

@@ -1,0 +1,62 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Envelope",
+  "description": "Every payload: `{\"schemaVersion\": 1, \"kind\": \"...\", \"data\": {...}}`.",
+  "type": "object",
+  "properties": {
+    "data": {
+      "$ref": "#/$defs/ShareLinkOut"
+    },
+    "kind": {
+      "description": "\"search\" | \"thread\" | \"threads\" | \"labels\" | \"people\" | \"accounts\" | \"attachmentText\" | \"attachments\" | \"attachment\" | \"ask\" | \"draft\" | \"drafts\" | \"draftDeleted\" | \"sendQueued\" | \"shareLink\" | \"ruleMatch\" | \"error\"",
+      "type": "string"
+    },
+    "schemaVersion": {
+      "type": "integer",
+      "format": "uint32",
+      "minimum": 0
+    }
+  },
+  "required": [
+    "schemaVersion",
+    "kind",
+    "data"
+  ],
+  "$defs": {
+    "ShareLinkOut": {
+      "description": "`shareLink` (create_share_link, `penguin-cli share-link --json`).",
+      "type": "object",
+      "properties": {
+        "expiresAt": {
+          "description": "Unix ms when the link stops working.",
+          "type": "integer",
+          "format": "int64"
+        },
+        "expiresAtIso": {
+          "type": "string"
+        },
+        "name": {
+          "description": "The file's name (what a download is called).",
+          "type": "string"
+        },
+        "size": {
+          "description": "Bytes.",
+          "type": "integer",
+          "format": "uint64",
+          "minimum": 0
+        },
+        "url": {
+          "description": "The link. Anyone who has it can download the file until it expires:\ntreat it like a password to that one file.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "url",
+        "expiresAt",
+        "expiresAtIso",
+        "name",
+        "size"
+      ]
+    }
+  }
+}

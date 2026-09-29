@@ -5,7 +5,7 @@ import { useEffect, useState } from "react";
 import { setUi, useUi } from "../../lib/ui";
 import { num } from "../../lib/format";
 import { Icon, type IconName } from "../../components/Icon";
-import { archive, markRead, markUnread, moveToInbox, onTargets, targetAbilities, toggleStar, trash } from "../../app/actions";
+import { archive, markRead, markUnread, moveToInbox, notSpam, onTargets, reportSpam, targetAbilities, targetsInSpam, toggleStar, trash } from "../../app/actions";
 import { list, listAllInView, meta } from "../../app/store";
 import { clearSelection, selectAllMatching, useSelection } from "../../app/selection";
 import { toast } from "../../components/Toast";
@@ -35,8 +35,11 @@ export function SelectionBar() {
   const inInbox = view.kind === "inbox";
   // Label and Move to follow what every selected conversation's account can do.
   const can = targetAbilities();
+  const spam = targetsInSpam();
   const actions: (BarAction | false)[] = [
-    view.kind === "followUp"
+    spam
+      ? { icon: "inbox", label: "Not spam", keys: "!", run: () => onTargets(notSpam) }
+      : view.kind === "followUp"
       ? { icon: "x", label: "Dismiss", keys: "e", run: () => onTargets(dismissFollowUps) }
       : view.kind === "replyLater"
         ? { icon: "done", label: "Done: out of Reply Later", keys: "e", run: () => onTargets(leaveReplyLater) }
@@ -47,6 +50,7 @@ export function SelectionBar() {
       ? { icon: "inbox", label: "Back to the inbox", keys: "y", run: () => onTargets(toggleReplyLater) }
       : { icon: "replyLater", label: "Reply later", keys: "y", run: () => onTargets(toggleReplyLater) },
     { icon: "trash", label: view.kind === "trash" ? "Restore" : "Trash", keys: "#", run: () => onTargets(trash) },
+    !spam && view.kind !== "trash" && view.kind !== "drafts" && { icon: "shield", label: "Report spam", keys: "!", run: () => onTargets(reportSpam) },
     { icon: "eye", label: "Mark read", run: () => onTargets((r) => (markRead(r), toast({ message: `Marked ${num(r.length)} as read` }))) },
     { icon: "unread", label: "Mark unread", keys: "shift+u", run: () => onTargets((r) => (markUnread(r), toast({ message: `Marked ${num(r.length)} as unread` }))) },
     { icon: "star", label: "Star / unstar", keys: "s", run: () => onTargets(toggleStar) },

@@ -10,7 +10,7 @@ use penguin_core::{
     ThreadSummary,
 };
 use rmcp::schemars::JsonSchema;
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 
 use super::Scope;
 
@@ -22,7 +22,7 @@ pub const SCHEMA_VERSION: u32 = 1;
 #[schemars(crate = "rmcp::schemars")]
 pub struct Envelope<T> {
     pub schema_version: u32,
-    /// "search" | "thread" | "threads" | "labels" | "people" | "accounts" | "attachmentText" | "ask" | "ruleMatch" | "error"
+    /// "search" | "thread" | "threads" | "labels" | "people" | "accounts" | "attachmentText" | "attachments" | "attachment" | "ask" | "draft" | "drafts" | "draftDeleted" | "sendQueued" | "shareLink" | "ruleMatch" | "error"
     pub kind: String,
     pub data: T,
 }
@@ -55,7 +55,7 @@ fn addrs(v: &[Address]) -> Vec<AddressOut> {
     v.iter().map(AddressOut::from).collect()
 }
 
-#[derive(Debug, Clone, Serialize, JsonSchema, PartialEq)]
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
 #[serde(rename_all = "camelCase")]
 #[schemars(crate = "rmcp::schemars")]
 pub struct AttachmentOut {
@@ -259,6 +259,9 @@ pub struct MessageOut {
     pub unread: bool,
     pub starred: bool,
     pub attachments: Vec<AttachmentOut>,
+    /// Pictures embedded in the body (cid:), apart from `attachments`;
+    /// get_attachment returns them as images.
+    pub inline_images: Vec<AttachmentOut>,
     /// Plain text the sender wrote, with quoted reply history removed.
     pub text: String,
     /// Characters of quoted history removed from `text`.
@@ -318,6 +321,12 @@ pub fn message_out(m: &Message, opts: ThreadOptions, body_pending: bool) -> Mess
             .attachments
             .iter()
             .filter(|a| !a.inline)
+            .map(AttachmentOut::from)
+            .collect(),
+        inline_images: m
+            .attachments
+            .iter()
+            .filter(|a| a.inline)
             .map(AttachmentOut::from)
             .collect(),
         text,
@@ -591,6 +600,34 @@ mod tests {
                 rmcp::schemars::schema_for!(Envelope<AttachmentTextOut>),
             ),
             ("ask", rmcp::schemars::schema_for!(Envelope<AskOut>)),
+            (
+                "attachments",
+                rmcp::schemars::schema_for!(Envelope<crate::agent::files::AttachmentsOut>),
+            ),
+            (
+                "attachment",
+                rmcp::schemars::schema_for!(Envelope<crate::agent::mcp::AttachmentPayloadOut>),
+            ),
+            (
+                "draft",
+                rmcp::schemars::schema_for!(Envelope<crate::agent::writes::DraftOut>),
+            ),
+            (
+                "drafts",
+                rmcp::schemars::schema_for!(Envelope<crate::agent::writes::DraftsOut>),
+            ),
+            (
+                "draftDeleted",
+                rmcp::schemars::schema_for!(Envelope<crate::agent::writes::DraftDeletedOut>),
+            ),
+            (
+                "sendQueued",
+                rmcp::schemars::schema_for!(Envelope<crate::agent::writes::SendQueuedOut>),
+            ),
+            (
+                "shareLink",
+                rmcp::schemars::schema_for!(Envelope<crate::agent::sharing::ShareLinkOut>),
+            ),
         ];
         let update = std::env::var_os("UPDATE_SCHEMAS").is_some();
         for (kind, schema) in schemas {

@@ -27,6 +27,7 @@ import { hintActionExit } from "../features/inbox/rowExit";
 import { inboxLikeView } from "../features/smart/catalog";
 import { noteCleared } from "../features/zero/zero";
 import { single, type RemoteUndo, type UndoOp } from "./remoteUndo";
+import { reportSpamUndo, targetsAreSpam } from "./spam";
 import {
   accountById,
   accountInScope,
@@ -153,6 +154,8 @@ function labelDelta(action: ThreadAction): [string[], string[]] {
     case "moveToInbox": return [["INBOX"], []];
     case "trash": return [["TRASH"], ["INBOX"]];
     case "untrash": return [["INBOX"], ["TRASH"]];
+    case "reportSpam": return [["SPAM"], ["INBOX"]];
+    case "notSpam": return [["INBOX"], ["SPAM"]];
     case "markRead": return [[], ["UNREAD"]];
     case "markUnread": return [["UNREAD"], []];
     case "star": return [["STARRED"], []];
@@ -166,13 +169,15 @@ function labelDelta(action: ThreadAction): [string[], string[]] {
 async function removeWith(
   refs: ThreadRef[],
   action: ThreadAction,
-  inverse: ThreadAction,
+  /** What Undo sends: one action for every ref, or steps of calls (Report spam's per-conversation undo). */
+  inverse: ThreadAction | UndoOp[][],
   doneLabel: string,
   verb: string,
   /** The toast for a batch: "Archived 12". */
   many: (n: string) => string,
 ) {
   if (refs.length === 0) return;
+  const steps = Array.isArray(inverse) ? inverse : single({ cmd: "modify", refs, action: inverse });
   hintActionExit(refs, action.kind); // how the rows animate out (list motion only)
   const removal: Removal = removeLocal(refs, actionPatch(action));
   // The zero screen's "cleared today": conversations done or trashed from the inbox.
@@ -182,12 +187,12 @@ async function removeWith(
   const undoRun = () => {
     dismissToast(toastId);
     noteCleared(-cleared);
-    const back = api.modifyThreads(refs, inverse);
+    const back = runUndoSteps(steps);
     restoreLocal(removal, back);
     back.catch((e) => fail("undo", e, refs));
   };
   const message = refs.length > 1 ? many(num(refs.length)) : doneLabel;
-  setUndo(doneLabel, undoRun, { message, steps: single({ cmd: "modify", refs, action: inverse }) });
+  setUndo(doneLabel, undoRun, { message, steps });
   toastId = toast({
     kind: "action",
     key: `undo:${doneLabel}`,
@@ -218,8 +223,9 @@ export function archive(refs = targets()) {
   // Newsletters and People you know list inbox mail: done takes a row out, as in the inbox.
   if (view === "inbox" || inboxLikeView(getUi().view))
     return removeWith(refs, { kind: "archive" }, { kind: "moveToInbox" }, "Archived", "archive", (n) => `Archived ${n}`);
-  if (view === "done" || view === "trash" || view === "snoozed") {
-    // Already out of the inbox: E moves it back, like Superhuman's toggle.
+  if (view === "done" || view === "trash" || view === "snoozed" || view === "spam") {
+    // Already out of the inbox: E moves it back, like Superhuman's toggle
+    // (out of Spam, that's Not spam).
     return moveToInbox(refs);
   }
   // Elsewhere the rows stay; they just lose the inbox label.
@@ -237,7 +243,9 @@ export function moveToInbox(refs = targets()) {
   }
   // Snoozed (or a snoozed row anywhere): moving it to the inbox ends the snooze.
   if (view === "snoozed" || refs.every((r) => snoozedUntil(r) !== null)) return unsnooze(refs);
-  if (view === "done" || view === "spam") {
+  // Out of Spam means Not spam: the SPAM label comes off too.
+  if (view === "spam") return notSpam(refs);
+  if (view === "done") {
     return removeWith(refs, { kind: "moveToInbox" }, { kind: "archive" }, "Moved to inbox", "move to inbox", (n) => `Moved ${n} to inbox`);
   }
   // Everywhere else the rows stay; they just gain the inbox label.
@@ -253,6 +261,28 @@ export function trash(refs = targets()) {
     return removeWith(refs, { kind: "untrash" }, { kind: "trash" }, "Restored from Trash", "restore", (n) => `Restored ${n} from Trash`);
   }
   return removeWith(refs, { kind: "trash" }, { kind: "untrash" }, "Moved to Trash", "trash", (n) => `Moved ${n} to Trash`);
+}
+
+/**
+ * ! — Report spam: into Spam and out of the inbox (Gmail +SPAM −INBOX; IMAP
+ * and Outlook move it to Junk). The rows leave every view but Spam. Undo puts
+ * each conversation back where it was: the inbox, or Done.
+ */
+export function reportSpam(refs = targets()) {
+  if (refs.length === 0) return;
+  const undoSteps = reportSpamUndo(refs, (r) => labelsOf(r).includes(INBOX));
+  return removeWith(refs, { kind: "reportSpam" }, undoSteps, "Reported as spam", "report spam", (n) => `Reported ${n} as spam`);
+}
+
+/** Not spam (! or E in Spam): out of Spam and into the inbox. */
+export function notSpam(refs = targets()) {
+  if (refs.length === 0) return;
+  return removeWith(refs, { kind: "notSpam" }, { kind: "reportSpam" }, "Not spam: moved to inbox", "mark as not spam", (n) => `Not spam: moved ${n} to inbox`);
+}
+
+/** Whether ! means Not spam for these conversations: the Spam view, or every one of them is in Spam. */
+export function targetsInSpam(refs: ThreadRef[] = targets()): boolean {
+  return targetsAreSpam(getUi().view.kind, refs.map((r) => summary(r)?.labelIds ?? cachedThread(r)?.labelIds ?? null));
 }
 
 /**

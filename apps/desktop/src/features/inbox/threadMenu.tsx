@@ -11,7 +11,7 @@ import { copyText } from "../../lib/clipboard";
 import type { MenuEntries } from "../../components/ContextMenu";
 import { LabelSwatch } from "../../components/Identity";
 import { accountById, list, meta, selectThread } from "../../app/store";
-import { archive, moveToInbox, markRead, markUnread, openCompose, setLabel, toggleStar, trash, unsnooze } from "../../app/actions";
+import { archive, moveToInbox, markRead, markUnread, notSpam, openCompose, reportSpam, setLabel, toggleStar, trash, unsnooze } from "../../app/actions";
 import { openSnooze } from "../snooze/SnoozePicker";
 import { openSelected } from "../../app/shortcuts";
 import { isSelected, selectionCount, selectionTargets, toggleSelect } from "../../app/selection";
@@ -103,6 +103,7 @@ export function threadMenu(t: ThreadSummary): MenuEntries {
   const allUnread = loaded.every((x) => x.unread);
   const allStarred = loaded.every((x) => x.starred);
   const inInbox = loaded.every((x) => x.labelIds.includes("INBOX"));
+  const spam = view === "spam" || (loaded.length > 0 && loaded.every((x) => x.labelIds.includes("SPAM")));
   const account = accountById(t.accountId);
   const can = threadAbilities([...new Set(loaded.map((x) => x.accountId))].map(accountById));
   // Gmail links only make sense for accounts synced through the Gmail API (thread ids are Gmail's).
@@ -142,6 +143,8 @@ export function threadMenu(t: ThreadSummary): MenuEntries {
       ? false
       : view === "trash"
       ? { label: "Restore from Trash", icon: "undo", keys: "#", onSelect: run(trash) }
+      : spam
+        ? { label: "Not spam", icon: "inbox", keys: "!", onSelect: run(notSpam) }
       : view === "snoozed" || loaded.every((x) => x.snoozedUntil != null)
         ? { label: "Unsnooze", icon: "inbox", keys: view === "snoozed" ? "e" : undefined, onSelect: run(unsnooze) }
       : inInbox || view === "inbox"
@@ -189,6 +192,8 @@ export function threadMenu(t: ThreadSummary): MenuEntries {
       onSelect: () => void api.openExternal(gmailThreadUrl(gmail.email, t.threadId)),
     },
     { type: "separator" },
+    // Drafts are your own, and Trash is on its way out: nothing to report there.
+    !spam && view !== "trash" && view !== "drafts" && { label: "Report spam", icon: "shield", keys: "!", onSelect: run(reportSpam) },
     view !== "trash" && { label: "Move to Trash", icon: "trash", keys: "#", danger: true, onSelect: run(trash) },
   ];
 }

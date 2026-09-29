@@ -69,6 +69,10 @@ button.nav-item { width: 100%; text-align: left; }
   border-top: 1px solid var(--border-subtle);
 }
 .nav-item .lbl-acct { margin: 0 0 0 2px; }
+/* One account picked: "‹ Northwind   Gmail" over its own mailboxes; the row goes back. */
+.nav-item.sb-scope { margin-bottom: 6px; font-weight: 600; color: var(--text-emphasis); }
+.nav-item.sb-scope .sb-scope-svc { margin-left: auto; flex: none; font-size: var(--text-xs); font-weight: 500; color: var(--text-faint); }
+.nav-item.sb-scope:hover .sb-scope-svc { display: none; }
 .switcher-wrap { position: relative; }
 .switcher > .truncate { min-width: 0; }
 .switcher { gap: 8px; }
@@ -122,6 +126,14 @@ button.sb-progress {
 .sync-acct-fix { display: flex; align-items: center; gap: 10px; margin: 6px 0 0 16px; }
 .sync-acct-fix .sync-acct-line { margin: 0; min-width: 0; }
 .sync-acct-fix .btn { flex: none; }
+/* The alert's actions (syncFix SyncActions): Retry now, Copy details, Hide 6 h. */
+.sync-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; }
+.sync-acct .sync-actions { margin: 6px 0 0 16px; }
+.sync-acct .sync-actions .btn-ghost:first-of-type { margin-left: -2px; }
+.sync-acct-line.is-quiet { color: var(--text-muted); }
+.sync-acct-line.is-ok { color: var(--green-a11); }
+.sync-outcome { display: inline-flex; align-items: center; pointer-events: none; }
+.sync-outcome.is-ok { color: var(--green-a11); border-color: transparent; background: var(--green-a3); }
 .sb-bar span { display: block; height: 100%; background: var(--accent); border-radius: 3px; transition: width 600ms var(--ease-out); }
 .sb-bottom { min-height: 40px; }
 .mock-badge { height: 18px; font-size: 10px; }
@@ -275,6 +287,8 @@ button.ctx-row, button.ctx-file { width: 100%; text-align: left; }
    -------------------------------------------------------------------------- */
 .sync-dot.is-busy { background: var(--amber-a11); box-shadow: 0 0 0 3px var(--amber-a3); animation: pulse 1.4s var(--ease-in-out) infinite; }
 .sync-dot.is-error { background: var(--red-a11); box-shadow: 0 0 0 3px var(--red-a3); }
+/* A sync alert the user hid for a while: still there, not shouting. */
+.sync-dot.is-muted { background: var(--gray-a11); box-shadow: 0 0 0 3px var(--gray-a3); }
 @keyframes pulse { 50% { opacity: .45; } }
 .statusbar .right { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 
@@ -412,8 +426,14 @@ html.is-reordering, html.is-reordering * { cursor: grabbing !important; user-sel
    by the user; the reading pane takes what's left.) */
 @media (max-width: 1280px) { .context { display: none; } }
 
-/* Attachment cards: click or Enter saves to Downloads and opens */
-.file-btn { cursor: pointer; }
+/* Attachment cards: click, Space or Enter previews. A drag takes the file
+   itself (features/image-viewer/fileDrag.ts), never text: nothing in a card
+   can be selected, and only the card is draggable (its name, size, icon and
+   button have no drag of their own), so WebKit never starts a text or
+   selection drag before the file drag. */
+.file-btn { cursor: pointer; user-select: none; -webkit-user-select: none; }
+.file-btn * { -webkit-user-drag: none; }
+.file-btn[draggable="true"] { -webkit-user-drag: element; }
 .file-btn.is-saving { cursor: progress; opacity: .7; }
 
 /* --------------------------------------------------------------------------

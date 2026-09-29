@@ -81,6 +81,7 @@ The screenshots show the demo mode's stand-in for the model, which rearranges th
 - **Floe mode** (⌘⇧F, or `\`). One calm, full-width column for working through mail: the sidebar, reading pane and status bar slide away, Enter opens a focused reading column, Esc goes back.
 - **Get to zero.** Archive everything older than a day, a week, two weeks, a month, three months, or everything, keeping unread or starred mail if you like, for the whole inbox or one split. It confirms once, and Undo brings it all back.
 - **Reply Later** (`y`), **snooze** (`h`), **Follow up** (sent mail with no reply after a few days), **Done** (`e`), undo (`z`), and trackpad swipes.
+- **Spam.** A Spam mailbox in the sidebar for every account (`g !`), and **Report spam** / **Not spam** (`!`, the right-click menu, the selection bar, ⌘K), with Undo. Gmail, IMAP (the Junk folder, whatever the server calls it: Junk, Spam, Bulk…) and Microsoft (Junk Email) all sync the last 30 days of it. Spam stays out of search unless you add `in:spam`, never loads remote images on its own, never offers Unsubscribe (that would confirm your address to the spammer), and rules never forward it.
 
 <p>
   <img width="49%" alt="Floe mode in dark: a single wide column of conversations with verification-code chips, an invite with Yes/Maybe/No and a conflict warning" src="images/readme/floe-dark.jpg">
@@ -99,6 +100,9 @@ The screenshots show the demo mode's stand-in for the model, which rearranges th
 - **Undo send:** 5, 10, 20 or 30 seconds (10 by default), or off. `z` takes it back.
 - **Remind me** if nobody replies in 1, 2 or 3 days or a week.
 - Rich text, per-account signatures, emoji, attachments, and a From picker that keeps replies on the account they came to.
+- **Attachments in and out.** Drag an attachment card out of a conversation as the real file, into Finder, the Desktop, another app or a composer in any Penguin window. Copy (⌘C on a focused card, or the card's menu) puts the file on the clipboard the way Finder does, so a paste in Finder, Slack, Mail or a composer gives the file; a file copied in Finder pastes into a composer as an attachment, in the text or in Subject and To. The card's menu reads Preview (Space), Open, Copy, Copy Image, Copy File Path, Copy Share Link, Copy File Name, Save to Downloads, Save As…, Show in Finder.
+- **Preview before it goes out.** Click an attachment in the composer (or its eye, or Space on it) to see exactly the file that will be sent, whether you just added it, it's on a saved draft or it comes with a forward: pictures, PDFs and text in the same preview as received mail, ←/→ between files, Remove to take it off.
+- **Spell check while typing**, in the message and the subject (never the address fields), in every window. Right-click a misspelled word for suggestions or Learn spelling. Settings → Compose "Check spelling while typing" (on) and "Check grammar with spelling" (off) are the same switches as Edit → Spelling and Grammar, which also has Show Spelling and Grammar (⇧⌘;) and Check Document Now.
 - **Windows and tabs.** **Pop out** moves the message you're writing (new, reply or forward) into a window of its own, exactly as it is; ⌥⌘N or a right-click on New starts one there. ⇧O (or Open in new window in the right-click menu) opens a conversation in its own window, where you read, reply and triage it; archiving it closes the window, with Undo in the main window. Sending from a compose window counts down in the main window, so Undo send is always there. All of Penguin's windows join macOS tabs: Window → Merge All Windows, or "Prefer tabs" in System Settings.
 
 ## Smart views
@@ -124,7 +128,11 @@ Views built from facts Penguin extracts on your Mac when mail is indexed (the sa
 
 <img alt="The image viewer: waitlist-chart.png at fit on a dark backdrop, with its size, sender and date, and 100%, Drag, Copy, Save and Open in Preview in the toolbar" src="images/readme/image-viewer.jpg">
 
-Click any picture in a message, or an image attachment, for a full-window viewer: ←/→ between pictures, zoom around the pointer (scroll or pinch, `z` for fit/100%), ⌘C, ⌘S, ⌘O for Preview. **Drag the picture out** as a real file into Finder, the Desktop or another app. The right-click menu has Copy Image, Copy Image Address, Save to Downloads, Save As…, Open in Preview and Show in Finder.
+Click any picture in a message, or an image attachment, for a full-window viewer: ←/→ between pictures, zoom around the pointer (scroll or pinch, `z` for fit/100%), ⌘C, ⌘S, ⌘O for Preview. **Drag the picture out** as a real file into Finder, the Desktop or another app. The right-click menu has Copy Image, Copy File Path (for an agent on this Mac), Copy Share Link (for one elsewhere; see below), Copy Original Web Address (remote pictures), Save to Downloads, Save As…, Open in Preview and Show in Finder.
+
+## Share links
+
+Right-click a picture or any attachment → **Copy Share Link**: Penguin uploads it to storage you own (Cloudflare R2 or any S3-compatible bucket) and copies a link that expires after 1 hour, 24 hours or 7 days, ready to paste to an AI agent on a remote server or to a person. The bucket stays private, the toast offers **Delete now**, and expired uploads are deleted in the background. Set it up once in Settings → Share links; choosing Copy Share Link… before that opens the setup and finishes the share when the storage tests fine. Bring your own storage: [docs/SHARE-LINKS.md](SHARE-LINKS.md).
 
 ## Privacy controls
 
@@ -155,7 +163,7 @@ Settings → Privacy ([PRIVACY.md](PRIVACY.md)):
 
 <img alt="The account switcher: All accounts (61 unread), profiles Work (2 accounts), Northwind and Home, and the four accounts with their addresses and unread counts" src="images/readme/profiles.jpg">
 
-One unified inbox across every account, each with its own color, or one account at a time. **Profiles** group accounts (say, a company's four addresses) and narrow the inbox, search, labels and compose to them; ⌃1–⌃9 switch profiles and ⌃0 goes back to everything. Replies go out from the account they came to, and ⌥1–⌥9 picks the sending account.
+One unified inbox across every account, each with its own color, or one account at a time. Click an account in the sidebar and the sidebar becomes that account's own mailboxes, under its provider's names: Inbox, Sent, Drafts, All Mail, Spam and Trash on Gmail; Archive and Junk Email on Outlook; Archive and the server's Junk or Spam folder on IMAP; then its labels, folders or categories. The back arrow returns to all accounts. **Profiles** group accounts (say, a company's four addresses) and narrow the inbox, search, labels and compose to them; ⌃1–⌃9 switch profiles and ⌃0 goes back to everything. Replies go out from the account they came to, and ⌥1–⌥9 picks the sending account.
 
 ## List styles and themes
 

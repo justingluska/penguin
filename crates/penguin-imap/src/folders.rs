@@ -440,6 +440,86 @@ mod tests {
         assert!(labels.iter().any(|l| l.id == "SPAM"));
     }
 
+    /// Each provider's spam folder becomes SPAM and is synced, by its
+    /// SPECIAL-USE attribute or, without one, by its name.
+    #[test]
+    fn spam_folders_by_attribute_or_name() {
+        // (provider, LIST answer, the folder that's Junk)
+        let cases: Vec<(&str, Vec<ListEntry>, &str)> = vec![
+            (
+                "Yahoo",
+                vec![entry("Inbox", &[], "/"), entry("Bulk", &["\\Junk"], "/")],
+                "Bulk",
+            ),
+            (
+                "Yahoo without special-use",
+                vec![entry("Inbox", &[], "/"), entry("Bulk", &[], "/")],
+                "Bulk",
+            ),
+            (
+                "AOL",
+                vec![entry("INBOX", &[], "/"), entry("Bulk Mail", &[], "/")],
+                "Bulk Mail",
+            ),
+            (
+                "iCloud",
+                vec![entry("INBOX", &[], "/"), entry("Junk", &["\\Junk"], "/")],
+                "Junk",
+            ),
+            (
+                "Fastmail",
+                vec![entry("INBOX", &[], "/"), entry("Spam", &["\\Junk"], "/")],
+                "Spam",
+            ),
+            (
+                "Outlook.com over IMAP",
+                vec![entry("INBOX", &[], "/"), entry("Junk Email", &[], "/")],
+                "Junk Email",
+            ),
+            (
+                "Courier namespace",
+                vec![entry("INBOX", &[], "."), entry("INBOX.spam", &[], ".")],
+                "INBOX.spam",
+            ),
+            (
+                "the attribute beats a folder merely named Spam",
+                vec![
+                    entry("INBOX", &[], "/"),
+                    entry("Spam", &[], "/"),
+                    entry("Quarantine", &["\\Junk"], "/"),
+                ],
+                "Quarantine",
+            ),
+        ];
+        for (what, list, junk) in cases {
+            let set = FolderSet::from_list(&list, false);
+            let f = set
+                .by_role(Role::Junk)
+                .unwrap_or_else(|| panic!("{what}: no Junk"));
+            assert_eq!(f.raw, junk, "{what}");
+            assert_eq!(f.label(false).as_deref(), Some("SPAM"), "{what}");
+            assert!(
+                set.synced().iter().any(|s| s.raw == junk),
+                "{what}: not synced"
+            );
+            let labels = set.labels("sam@mail.example");
+            assert!(
+                labels.iter().any(|l| l.id == "SPAM" && l.kind == "system"),
+                "{what}"
+            );
+        }
+        // A server with no spam folder: no SPAM label to show.
+        let set = FolderSet::from_list(
+            &[entry("INBOX", &[], "/"), entry("Receipts", &[], "/")],
+            false,
+        );
+        assert!(set.by_role(Role::Junk).is_none());
+        assert!(!set
+            .labels("sam@mail.example")
+            .iter()
+            .any(|l| l.id == "SPAM"));
+    }
+
     #[test]
     fn courier_namespaces_show_without_the_inbox_prefix() {
         let set = FolderSet::from_list(

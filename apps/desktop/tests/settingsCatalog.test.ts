@@ -34,7 +34,8 @@ test("the queries people actually type land on the right rows", () => {
     ["unsubscribe", "privacy:Show unsubscribe button"],
     ["colour", "accounts:Account colors"],
     ["rsvp", "calendar:Answer invitations from Penguin"],
-    ["mcp", "diagnostics:Enable MCP server"],
+    ["mcp", "diagnostics:What agents may do"],
+    ["let agents send", "diagnostics:Let agents send"],
   ];
   for (const [q, want] of cases) assert.ok(labels(q).includes(want), `${q} → ${want}; got ${labels(q).join(", ")}`);
 });

@@ -88,6 +88,10 @@ pub struct State {
     pub smtp_saves_sent: bool,
     /// Refuse every login (revoked app password).
     pub refuse_login: bool,
+    /// The next N commands with this name ("*" = any, "UID FETCH" for
+    /// UID commands) get no answer: the connection just closes, as when
+    /// the network drops or the server resets it mid-command.
+    pub drop: Option<(String, u32)>,
     /// Held before every command's reply: a network round trip (benchmarks).
     pub latency: std::time::Duration,
     /// Reply bytes written to clients, before any COMPRESS.
@@ -614,11 +618,25 @@ impl Conn {
                     .to_ascii_uppercase();
                 args.remove(0);
             }
-            self.state.lock().unwrap().commands.push(if uid {
+            let name = if uid {
                 format!("UID {cmd}")
             } else {
                 cmd.clone()
-            });
+            };
+            let dropped = {
+                let mut st = self.state.lock().unwrap();
+                st.commands.push(name.clone());
+                match st.drop.as_mut() {
+                    Some((only, n)) if *n > 0 && (only == "*" || *only == name) => {
+                        *n -= 1;
+                        true
+                    }
+                    _ => false,
+                }
+            };
+            if dropped {
+                return Ok(());
+            }
             if !authed
                 && !matches!(
                     cmd.as_str(),

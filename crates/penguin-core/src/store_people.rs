@@ -12,7 +12,7 @@ use std::collections::{HashMap, HashSet};
 use rusqlite::{params, params_from_iter, OptionalExtension};
 use serde::{Deserialize, Serialize};
 
-use super::{Store, F_SPAM};
+use super::{has_word, word_range, Store, F_SPAM};
 use crate::types::{Address, AttachmentHit, AttachmentMeta};
 use crate::Result;
 
@@ -106,6 +106,47 @@ struct Hit {
 }
 
 impl Store {
+    /// Recipients for the composer's To/Cc/Bcc as you type: everyone in the
+    /// people index (every address in your mail, not only recent threads)
+    /// with a name or address word starting with each typed word. People
+    /// you've written to come first (most often, then most recently), then
+    /// people who wrote to you; no-reply and notification addresses are
+    /// left out. Local and indexed (people_words ranges), so it can run on
+    /// every keystroke.
+    pub fn suggest_recipients(&self, query: &str, limit: usize) -> Result<Vec<Address>> {
+        let toks: Vec<String> = crate::text::tokens(query).into_iter().map(|(_, _, t)| t).collect();
+        if toks.is_empty() || limit == 0 {
+            return Ok(Vec::new());
+        }
+        let mut conds = Vec::new();
+        let mut vals = Vec::new();
+        for t in toks.iter().take(4) {
+            conds.push(has_word(vals.len() + 1));
+            vals.extend(word_range(t, true));
+        }
+        // Over-fetch so the automated addresses dropped below don't starve the list.
+        vals.push(rusqlite::types::Value::Integer((limit * 4 + 8) as i64));
+        let sql = format!(
+            "SELECT email, name FROM people WHERE {} \
+             ORDER BY (sent_to_count > 0) DESC, sent_to_count DESC, from_count DESC, last_date DESC LIMIT ?{}",
+            conds.join(" AND "),
+            vals.len()
+        );
+        self.read(|c| {
+            let rows = c
+                .prepare_cached(&sql)?
+                .query_map(params_from_iter(vals.iter()), |r| {
+                    Ok(Address { email: r.get(0)?, name: r.get(1)? })
+                })?
+                .collect::<rusqlite::Result<Vec<_>>>()?;
+            Ok(rows
+                .into_iter()
+                .filter(|a| !crate::store::is_automated_address(&a.email))
+                .take(limit)
+                .collect())
+        })
+    }
+
     pub fn person_summary(&self, email: &str) -> Result<PersonSummary> {
         let email = email.trim().to_lowercase();
         let domain = email.rsplit('@').next().unwrap_or("").to_string();
@@ -580,5 +621,29 @@ mod tests {
             (0, 0, None)
         );
         assert!(s.accounts.is_empty() && s.recent_threads.is_empty());
+    }
+
+    #[test]
+    fn suggest_recipients_prefers_people_you_wrote_to_and_skips_robots() {
+        let s = Store::open_in_memory().unwrap();
+        let me = addr("Sam Okafor", "sam@northwind.example");
+        let priya_r = addr("Priya Raman", "priya.raman@linden.example");
+        let priya_n = addr("Priya Natarajan", "priya@harbor.example");
+        let robot = addr("Priya bot", "no-reply@priya-alerts.example");
+        s.upsert_messages(&[
+            // You wrote to Priya Raman once, long ago: no recent inbox thread.
+            msg("a", "m1", "t1", me.clone(), vec![priya_r.clone()], 1_600_000_000_000, true),
+            // Priya Natarajan wrote to you twice, recently.
+            msg("a", "m2", "t2", priya_n.clone(), vec![me.clone()], 1_790_000_000_000, false),
+            msg("a", "m3", "t3", priya_n.clone(), vec![me.clone()], 1_790_000_100_000, false),
+            msg("a", "m4", "t4", robot.clone(), vec![me.clone()], 1_790_000_200_000, false),
+        ])
+        .unwrap();
+        let got = |q: &str| s.suggest_recipients(q, 6).unwrap().into_iter().map(|a| a.email).collect::<Vec<_>>();
+        assert_eq!(got("pri"), ["priya.raman@linden.example", "priya@harbor.example"]);
+        assert_eq!(got("priya nat"), ["priya@harbor.example"]);
+        assert_eq!(got("linden"), ["priya.raman@linden.example"]);
+        assert!(got("zzz").is_empty());
+        assert!(got("  ").is_empty());
     }
 }

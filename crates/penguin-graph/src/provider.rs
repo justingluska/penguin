@@ -6,8 +6,8 @@
 //! label are fixed locally at once; the sync the app pokes afterwards
 //! converges everything else.
 
-use std::collections::{BTreeSet, HashMap, HashSet};
-use std::sync::{Arc, Mutex, OnceLock};
+use std::collections::{BTreeSet, HashSet};
+use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use futures_util::future::join_all;
@@ -241,13 +241,8 @@ impl MailProvider for GraphProvider {
 
     async fn fetch_pending_bodies(&self, ids: &[String]) -> Result<Vec<String>> {
         let acct = self.acct().to_string();
-        let claimed: Vec<String> = {
-            let mut set = in_flight().lock().unwrap_or_else(|e| e.into_inner());
-            ids.iter()
-                .filter(|id| set.insert((acct.clone(), (*id).clone())))
-                .cloned()
-                .collect()
-        };
+        let claim = self.client.claim_bodies(ids);
+        let claimed = claim.ids.clone();
         if claimed.is_empty() {
             return Ok(vec![]);
         }
@@ -287,10 +282,7 @@ impl MailProvider for GraphProvider {
             }
         }
         .await;
-        let mut set = in_flight().lock().unwrap_or_else(|e| e.into_inner());
-        for id in &claimed {
-            set.remove(&(acct.clone(), id.clone()));
-        }
+        drop(claim);
         result
     }
 
@@ -656,13 +648,16 @@ impl MailProvider for GraphProvider {
 
     async fn window_estimate(&self, months: u32, now_ms: i64) -> Result<u64> {
         const TTL: Duration = Duration::from_secs(30 * 60);
-        type Cache = Mutex<HashMap<(String, u32), (u64, Instant)>>;
-        static CACHE: OnceLock<Cache> = OnceLock::new();
-        let cache = CACHE.get_or_init(Default::default);
-        let key = (self.acct().to_string(), months);
-        if let Some((n, at)) = cache.lock().unwrap_or_else(|e| e.into_inner()).get(&key) {
+        let cached = self
+            .client
+            .estimates
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .get(&months)
+            .copied();
+        if let Some((n, at)) = cached {
             if at.elapsed() < TTL {
-                return Ok(*n);
+                return Ok(n);
             }
         }
         let n = if months == 0 {
@@ -691,10 +686,11 @@ impl MailProvider for GraphProvider {
             page.count
                 .ok_or_else(|| Error::Other("Outlook didn't report a message count".into()))?
         };
-        cache
+        self.client
+            .estimates
             .lock()
             .unwrap_or_else(|e| e.into_inner())
-            .insert(key, (n, Instant::now()));
+            .insert(months, (n, Instant::now()));
         Ok(n)
     }
 
@@ -718,10 +714,4 @@ impl MailProvider for GraphProvider {
             Err(e) => Err(e),
         }
     }
-}
-
-/// Bodies being downloaded right now, per (account, message).
-fn in_flight() -> &'static Mutex<HashSet<(String, String)>> {
-    static SET: OnceLock<Mutex<HashSet<(String, String)>>> = OnceLock::new();
-    SET.get_or_init(|| Mutex::new(HashSet::new()))
 }

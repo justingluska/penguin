@@ -561,15 +561,64 @@ export interface SyncStatus {
    * "older" = mail older than the window (headers only, or full per olderMail).
    */
   stage?: SyncStage | null;
+  /**
+   * Failed attempts in a row since sync last stored or checked mail; null
+   * while healthy. `alert` says whether it's worth telling the user yet
+   * (penguin-core sync_health.rs); before that the UI says "Retrying…".
+   */
+  failure?: SyncFailure | null;
+  /** The last failure streak that ended by itself; cleared by the next failure. */
+  recovered?: SyncRecovery | null;
 }
 
 export type SyncStage = "window" | "older";
+
+/** What stopped a sync attempt (penguin-core SyncErrorKind). */
+export type SyncErrorKind =
+  | "network"
+  | "server"
+  | "rateLimited"
+  | "auth"
+  | "keychain"
+  | "storage"
+  | "internal"
+  | "config"
+  | "other";
+
+export interface SyncFailure {
+  kind: SyncErrorKind;
+  /** Failed attempts in a row (1 = the first). */
+  count: number;
+  /** When the first of them failed (ms). */
+  firstAt: number;
+  /** When the latest failed (ms). */
+  lastAt: number;
+  /** When sync tries again on its own (ms); null = not until someone acts. */
+  nextRetryAt: number | null;
+  /** Needs the user, or has lasted (3 attempts or a minute): shown. */
+  alert: boolean;
+}
+
+export interface SyncRecovery {
+  /** When sync made progress again (ms). */
+  at: number;
+  /** The streak's first failure (ms). */
+  since: number;
+  failures: number;
+  kind: SyncErrorKind;
+  /** Whether the streak had been shown. */
+  alerted: boolean;
+}
 
 export type ThreadAction =
   | { kind: "archive" }
   | { kind: "moveToInbox" }
   | { kind: "trash" }
   | { kind: "untrash" }
+  /** Into Spam and out of the inbox (+SPAM −INBOX): Gmail's label, the IMAP Junk folder, Outlook's Junk Email. */
+  | { kind: "reportSpam" }
+  /** Out of Spam and into the inbox (−SPAM +INBOX). */
+  | { kind: "notSpam" }
   | { kind: "markRead" }
   | { kind: "markUnread" }
   | { kind: "star" }
@@ -1208,6 +1257,68 @@ export interface SavedImages {
   total: number;
 }
 
+// Share links (src-tauri/src/share/, docs/SHARE-LINKS.md).
+
+/** How long a share link works (share/config.rs LinkLifetime). S3 presigned URLs max out at 7 days. */
+export type LinkLifetime = "1h" | "24h" | "7d";
+
+/** share_link_config_get/_set/_clear (share/config.rs ShareLinkConfig): the storage settings, never the secret. */
+export interface ShareLinkConfig {
+  /** Every field is filled in and the secret is in the Keychain. */
+  configured: boolean;
+  endpoint: string;
+  bucket: string;
+  region: string;
+  accessKeyId: string;
+  /** A secret access key is saved (in the Keychain). */
+  hasSecret: boolean;
+  lifetime: LinkLifetime;
+  deleteOnExpiry: boolean;
+  /** "Let agents (CLI and MCP) create share links" (off by default). */
+  allowAgents: boolean;
+}
+
+/** share_link_config_set/_test (share/config.rs ShareLinkConfigInput). A blank or missing secret keeps the saved one. */
+export interface ShareLinkConfigInput {
+  endpoint: string;
+  bucket: string;
+  region: string;
+  accessKeyId: string;
+  secretAccessKey?: string;
+  lifetime: LinkLifetime;
+  deleteOnExpiry: boolean;
+  allowAgents: boolean;
+}
+
+/** One step of share_link_config_test (share/mod.rs TestStep). */
+export interface ShareTestStep {
+  step: "upload" | "link" | "private" | "delete";
+  status: "ok" | "failed" | "warning" | "skipped";
+  message: string;
+}
+
+/** share_link_config_test (share/mod.rs ShareTestReport): `ok` when upload, link and delete worked. */
+export interface ShareTestReport {
+  ok: boolean;
+  steps: ShareTestStep[];
+}
+
+/** share_file (share/mod.rs ShareRequest): an attachment by id, or a body picture by its source (data: or https, as Save takes). */
+export type ShareRequest =
+  | { kind: "attachment"; accountId: string; messageId: string; attachmentId: string }
+  | { kind: "picture"; accountId: string; messageId: string; src: string; name: string };
+
+/** share_file (share/mod.rs SharedLink). `url` is a bearer credential: never log it. */
+export interface SharedLink {
+  url: string;
+  /** Unix ms when the link stops working. */
+  expiresAt: number;
+  /** The object, for share_delete. */
+  key: string;
+  name: string;
+  size: number;
+}
+
 /** prepare_image_drag / prepare_attachment_drag (src-tauri/src/file_export.rs DragFile): a file written for a native drag. */
 export interface DragFile {
   /** Absolute path under `<cache>/drag-out/<session>/`; the only kind start_file_drag accepts. */
@@ -1225,6 +1336,10 @@ export type CommandErrorCode =
   | "invalidInput"
   /** The user cancelled (cancel_sign_in during a browser sign-in). */
   | "cancelled"
+  /** Settings don't allow it (an agent above its level in Settings → Developer). */
+  | "permissionDenied"
+  /** Something it needs isn't running (penguin-cli: the Penguin app). */
+  | "unavailable"
   | "other";
 export interface CommandError {
   code: CommandErrorCode;
@@ -1348,6 +1463,14 @@ export interface Settings {
   instantReplies: InstantReplies;
   /** Write with AI in the composer (Apple's on-device model). Default true; runs only when asked. */
   writeWithAi: boolean;
+  /**
+   * Underline misspellings as you type, in every window (WebKit's continuous
+   * spell checking; src-tauri/src/spelling.rs). Default true. Edit ▸
+   * Spelling and Grammar ▸ Check Spelling While Typing is the same switch.
+   */
+  checkSpelling: boolean;
+  /** Check grammar with spelling (Edit ▸ Spelling and Grammar). Default false. */
+  checkGrammar: boolean;
   /** Composer signatures (rich text), max 50. `html` is sanitized on write (sanitize_compose_html). */
   signatures: Signature[];
   /** Account id → the signature id it uses by default. Unknown signature ids are dropped on write. */
@@ -1367,7 +1490,7 @@ export interface Settings {
   syncWindowMonths: SyncWindowMonths;
   /** Mail older than the window: "headers" (default), "none" or "full". */
   olderMail: OlderMail;
-  /** Local MCP server for AI tools (`penguin-cli mcp`). Default off. */
+  /** Agents (penguin-cli and its MCP server): the level and send safety net. Default off. */
   mcp: McpSettings;
   /** Key hints ("E", "⌘K" caps, tooltip keys) across the UI. Default on; the "?" sheet always shows keys. */
   showShortcutHints: boolean;
@@ -1506,6 +1629,8 @@ export interface MenuContext {
   selection: boolean;
   selectionUnread: boolean;
   selectionStarred: boolean;
+  /** The selection is spam (the Spam view, or all in Spam): Message → Not Spam instead of Report Spam. */
+  selectionSpam: boolean;
   sidebarVisible: boolean;
   floe: boolean;
   /** The list's Unread filter is on (View → Show Only Unread). */
@@ -1675,9 +1800,80 @@ export interface ServerSearchResponse {
   accounts: ServerSearchAccount[];
 }
 
-/** `penguin-cli mcp`: read-only access to the local index for AI tools. */
+/**
+ * Settings → Developer → Agents: what penguin-cli and its MCP server may do.
+ * Ordered; each level includes the ones before it. Mirrors AgentAccess in
+ * src-tauri/src/settings.rs (an unknown value loads as "off").
+ */
+export type AgentAccess = "off" | "read" | "draft" | "send";
+
+/** Seconds an agent's send waits in the outbox (cancellable). */
+export type AgentSendDelay = 10 | 30 | 60 | 300;
+
+/** Settings.mcp; mirrors McpSettings in src-tauri/src/settings.rs. */
 export interface McpSettings {
+  access: AgentAccess;
+  /** access !== "off" (kept for older builds). */
   enabled: boolean;
+  /** Default 60. */
+  sendDelaySeconds: AgentSendDelay;
+  /** Agents may send only to people I've emailed before (or my own accounts). Default true. */
+  sendKnownOnly: boolean;
+}
+
+/**
+ * update_settings({ mcp }): fields merge. `access: "send"` is refused here:
+ * raising the level to send goes through enable_agent_send (the confirmation).
+ */
+export interface McpPatch {
+  /** Any lower level; "send" only restates a level already granted. */
+  access?: AgentAccess;
+  sendDelaySeconds?: AgentSendDelay;
+  sendKnownOnly?: boolean;
+}
+
+/** One line of "Recent agent activity" (agent_activity). Counts and ids only, never content. */
+export interface AgentActivity {
+  /** RFC 3339. */
+  ts: string;
+  tool: string;
+  /** "mcp" | "cli". */
+  via: string;
+  ok: boolean;
+  errorCode: string | null;
+  account: string | null;
+  recipientCount: number | null;
+  attachmentCount: number | null;
+  draftId: string | null;
+  /** When a queued send goes (RFC 3339). */
+  sendAt: string | null;
+  resultCount: number | null;
+  /** A read's query or question, cut short. */
+  detail: string | null;
+}
+
+/** A send an agent queued that hasn't gone yet (agent_pending_sends); cancel with cancelScheduledSend. */
+export interface AgentPendingSend {
+  scheduleId: string;
+  accountId: string;
+  draftId: string;
+  threadId: string | null;
+  sendAt: number;
+  to: string[];
+  subject: string;
+}
+
+/** Payload of `penguin://agent-send-queued`. */
+export interface AgentSendQueued {
+  scheduleId: string;
+  accountId: string;
+  draftId: string;
+  threadId: string;
+  sendAt: number;
+  delaySeconds: number;
+  /** Every recipient (To, Cc, Bcc). */
+  to: string[];
+  subject: string;
 }
 
 /** Settings → Developer → "Install command-line tool" (cli_install_status / install_cli). */
@@ -1725,12 +1921,17 @@ export interface SemanticIndexStatus {
 
 export interface McpInfo {
   enabled: boolean;
+  access: AgentAccess;
   /** penguin-cli next to the app binary; null when not built/bundled. */
   cliPath: string | null;
   /** `claude mcp add penguin -- <cli> mcp` */
   claudeCodeCommand: string;
   /** Pretty JSON to merge into claude_desktop_config.json. */
   claudeDesktopConfig: string;
+  /** `claude mcp add penguin -- ssh you@your-mac <cli> mcp`, for an agent on another machine. */
+  sshCommand: string;
+  /** authorized_keys options that pin that machine's key to the MCP server; the key follows. */
+  authorizedKeysPrefix: string;
   /** Where tool calls are logged (names, arguments, counts; never content). */
   auditLogPath: string | null;
 }
@@ -1803,7 +2004,7 @@ export interface Profile {
 }
 
 /** A partial update for update_settings; omitted fields are unchanged. */
-export type SettingsPatch = Partial<Omit<Settings, "me">> & { me?: Partial<Omit<Me, "photo">> };
+export type SettingsPatch = Partial<Omit<Settings, "me" | "mcp">> & { me?: Partial<Omit<Me, "photo">>; mcp?: McpPatch };
 
 /** Payload of `penguin://settings-changed`: the full settings after a change. */
 export type SettingsChangedEvent = Settings;
@@ -1856,6 +2057,8 @@ export interface QuotaStats {
 
 export interface Diagnostics {
   appVersion: string;
+  /** "macOS 26.0.1"; null where it can't be read. */
+  osVersion: string | null;
   dataDir: string;
   configDir: string;
   cacheDir: string;

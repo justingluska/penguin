@@ -1,0 +1,44 @@
+/* Settings → Share links (ShareLinksSettings.tsx). */
+.share-intro { margin: 10px 0 0; max-width: 60ch; }
+.share-intro .st-link, .share-pending .st-link { display: inline; }
+
+.share-pending {
+  margin: 12px 0 0; padding: 12px 14px; border-radius: var(--radius-xl);
+  background: var(--bg-accent-subtle, var(--bg-elevated)); border: 1px solid var(--border-accent, var(--border-interactive));
+  display: flex; flex-direction: column; align-items: flex-start; gap: 6px;
+}
+.share-pending > p:first-child { color: var(--text-emphasis); font-size: var(--text-sm); line-height: 20px; }
+.share-pending b { color: var(--text-emphasis); font-weight: 600; overflow-wrap: anywhere; }
+.share-pending .btn { margin-left: -8px; }
+
+.share-note {
+  display: flex; gap: 8px; align-items: flex-start; margin: 12px 0 0; max-width: 60ch;
+  color: var(--text-muted); font-size: var(--text-xs); line-height: 18px;
+}
+.share-note > .i { flex: none; margin-top: 2px; color: var(--text-muted); }
+
+.share-field .share-input { flex: 0 1 300px; width: 300px; min-width: 0; height: 30px; font-size: var(--text-sm); color: var(--text-emphasis); }
+.share-field .share-input::placeholder { color: var(--text-faint); }
+.share-field .share-input:focus { outline: none; border-color: var(--accent); }
+
+.share-error { margin: 8px 0 0; }
+.share-actions { display: flex; gap: 8px; align-items: center; margin: 12px 0 4px; flex-wrap: wrap; }
+.share-actions .share-remove { margin-left: auto; color: var(--red-a11); }
+.share-actions .btn:disabled { opacity: .45; cursor: default; }
+
+.share-test {
+  margin: 10px 0 0; padding: 10px 12px; border-radius: var(--radius-xl);
+  border: 1px solid var(--border-subtle); background: var(--bg-elevated); font-size: var(--text-xs);
+}
+.share-test-head { font-weight: 600; color: var(--text-emphasis); margin-bottom: 6px; }
+.share-test.is-ok .share-test-head { color: var(--green-a11); }
+.share-test.is-bad .share-test-head { color: var(--red-a11); }
+.share-test ul { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
+.share-test li { display: grid; grid-template-columns: 14px 96px 1fr; gap: 6px; align-items: start; line-height: 18px; color: var(--text-default); }
+.share-test li > .i { margin-top: 2px; }
+.share-test li.is-ok > .i { color: var(--green-a11); }
+.share-test li.is-failed > .i, .share-test li.is-failed .share-test-msg { color: var(--red-a11); }
+.share-test li.is-warning > .i, .share-test li.is-warning .share-test-msg { color: var(--amber-a11); }
+.share-test li.is-skipped { color: var(--text-faint); }
+.share-test-step { color: var(--text-muted); font-weight: 500; }
+.share-test-msg { overflow-wrap: anywhere; }

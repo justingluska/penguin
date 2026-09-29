@@ -28,7 +28,10 @@ import type {
 import { mockProviderFields } from "./accounts";
 import { mockBackend, type MockHandler } from "./index";
 import { reconcileSnooze, snoozeOf } from "./snoozeState";
+import { mockBackoff, mockRecordFailure, mockRecordProgress, mockRetryNow } from "./syncFailures";
+import { hideSyncAlert } from "../syncHides";
 import { mockPrivacy } from "./trackers";
+import { unreadLabels } from "../../app/optimistic";
 import { mockReceipts } from "./receipts";
 import { normalizeSmartViews } from "./smartSettings";
 import { composeHandlers } from "./compose";
@@ -167,6 +170,8 @@ interface MsgSpec {
   sig?: string;
   attachments?: AttachmentMeta[];
   newsletter?: boolean;
+  /** Bulk mail that isn't a newsletter (spam): this many blocked pictures and pixels, and a List-Unsubscribe header in its details. */
+  bulk?: { images: number; trackers: number };
   /** A reply that quotes the message before it, the way Gmail's plain part does (Copy cuts it). */
   quotesPrevious?: boolean;
 }
@@ -402,8 +407,65 @@ function handmade(): Handmade[] {
         { from: people.cedar, to: [me.pe], date: daysAgoAt(5, 8, 20), paragraphs: ["Payment of $2,450.00 for 418 Alder St, Unit 3B was received on Oct 1. Thank you!", "Your receipt is attached."], attachments: [att("Rent_Receipt_Oct.pdf", 96_000, "application/pdf")] },
       ],
     },
+    // Spam (the Spam view, G then !): fictional senders on SPAM_DOMAINS, which fail DMARC in their details.
+    {
+      acc: "nw", id: "t-spam-prize", subject: "Congratulations! You've been selected for a $1,000 gift card",
+      labels: ["SPAM", "UNREAD"], kind: "notification",
+      messages: [
+        {
+          from: P("Prize Center", "claims@prize-center.example"), to: [me.nw], date: todayAt(6, 12, 200),
+          paragraphs: ["Dear valued customer,", "Your email was drawn in this month's loyalty sweepstakes. Claim your $1,000 gift card before midnight by confirming your shipping details.", "This offer expires today."],
+          bulk: { images: 4, trackers: 2 },
+        },
+      ],
+    },
+    {
+      acc: "nw", id: "t-spam-verify", subject: "Action required: your mailbox will be suspended in 24 hours",
+      labels: ["SPAM", "UNREAD"], kind: "notification",
+      messages: [
+        {
+          from: P("Account Security", "no-reply@secure-verify.example"), to: [me.nw], date: daysAgoAt(1, 22, 40),
+          paragraphs: ["We detected unusual sign-in activity on sam@northwind.example.", "To keep your mailbox active, verify your password within 24 hours. Unverified accounts are suspended automatically."],
+        },
+      ],
+    },
+    {
+      acc: "hl", id: "t-spam-crypto", subject: "Turn $250 into $9,400 by Friday (only 12 spots left)",
+      labels: ["SPAM", "UNREAD"], kind: "notification",
+      messages: [
+        {
+          from: P("Vance Holloway", "vance@quantumyield.example"), to: [me.hl], date: daysAgoAt(2, 3, 15),
+          paragraphs: ["Hi Sam,", "My trading signals group returned 3,660% last quarter. I'm opening 12 spots to new members this week, no experience needed.", "Reply YES and I'll send the link."],
+          bulk: { images: 2, trackers: 1 },
+        },
+      ],
+    },
+    {
+      acc: "pe", id: "t-spam-parcel", subject: "Your package is on hold: confirm the $1.99 delivery fee",
+      labels: ["SPAM"], kind: "notification",
+      messages: [
+        {
+          from: P("Parcel Desk", "notice@parcel-redelivery.example"), to: [me.pe], date: daysAgoAt(3, 11, 2),
+          paragraphs: ["We attempted to deliver your package but the address was incomplete.", "Pay the $1.99 redelivery fee to schedule a new delivery date."],
+        },
+      ],
+    },
+    {
+      acc: "fm", id: "t-spam-seo", subject: "Page 1 of search results in 30 days, guaranteed",
+      labels: ["SPAM", "UNREAD"], kind: "notification",
+      messages: [
+        {
+          from: P("Rank Boost Team", "outreach@rankboost-pro.example"), to: [me.fm], date: daysAgoAt(1, 6, 30),
+          paragraphs: ["Hello,", "I noticed okafor.example isn't ranking for your main keywords. Our team can get you to page 1 in 30 days or your money back.", "Can I send over a free audit?"],
+          bulk: { images: 1, trackers: 1 },
+        },
+      ],
+    },
   ];
 }
+
+/** The mock's spam senders (their mail fails SPF and DMARC in Message details). */
+const SPAM_DOMAINS = new Set(["prize-center.example", "secure-verify.example", "quantumyield.example", "parcel-redelivery.example", "rankboost-pro.example"]);
 
 // ---------------------------------------------------------------------------
 // Generated bulk threads
@@ -781,7 +843,9 @@ function messageView(t: MockThread, m: MsgSpec, i: number, imagesLoaded = false)
     // Newsletters: 3 images, 2 pixels, 3 links carrying per-reader ids, 1 behind a click tracker.
     ...(m.newsletter
       ? mockPrivacy({ trackers: 2, images: 3, links: 3, tracked: 1 }, mockSettings, imagesLoaded)
-      : { blockedRemoteImages: 0, trackersRemoved: 0, trackers: [] }),
+      : m.bulk
+        ? mockPrivacy({ ...m.bulk, links: 1, tracked: 1 }, mockSettings, imagesLoaded)
+        : { blockedRemoteImages: 0, trackersRemoved: 0, trackers: [] }),
     labelIds: last ? s.labelIds : s.labelIds.filter((l) => l !== "UNREAD"),
     attachments: m.attachments ?? [],
     unread: last && s.unread,
@@ -866,7 +930,9 @@ function labelsFor(accountId: string | null, accountIds: string[] | null = null)
     if (accountId && a.id !== accountId) continue;
     if (accountIds && !accountIds.includes(a.id)) continue;
     const mine = all.filter((s) => s.accountId === a.id);
-    const unreadWith = (id: string) => mine.filter((s) => s.unread && s.labelIds.includes(id) && !s.labelIds.includes("TRASH")).length;
+    // As the backend counts (store.rs list_labels, app/optimistic.ts unreadLabels):
+    // a conversation in Trash or Spam counts only there.
+    const unreadWith = (id: string) => mine.filter((s) => unreadLabels(s).includes(id)).length;
     for (const id of SYSTEM_LABELS) {
       // Only Gmail has IMPORTANT (docs/PROVIDERS-IMPL.md §4).
       if (id === "IMPORTANT" && !a.capabilities.inboxCategories) continue;
@@ -905,7 +971,7 @@ function simulateSyncNow() {
     setTimeout(() => {
       if (s.phase === "needsReauth" || s.phase === "error") return emit("penguin://sync-status", { ...s });
       if (failHarbor && a.id === ACC.hl) {
-        Object.assign(s, { phase: "error", error: "network: operation timed out" });
+        mockRecordFailure(s, "network", "network: operation timed out", Date.now(), mockBackoff((s.failure?.count ?? 0) + 1));
         return emit("penguin://sync-status", { ...s });
       }
       const acc = accKeyOf(a.id);
@@ -992,6 +1058,8 @@ function apply(s: ThreadSummary, action: ThreadAction) {
     case "moveToInbox": set.add("INBOX"); set.delete("TRASH"); break;
     case "trash": set.add("TRASH"); break;
     case "untrash": set.delete("TRASH"); set.add("INBOX"); break;
+    case "reportSpam": set.add("SPAM"); set.delete("INBOX"); break;
+    case "notSpam": set.delete("SPAM"); set.add("INBOX"); break;
     case "markRead": set.delete("UNREAD"); break;
     case "markUnread": set.add("UNREAD"); break;
     case "star": set.add("STARRED"); break;
@@ -1081,6 +1149,20 @@ function mockPreview(a: AttachmentMeta) {
   return { ...base, kind: "unsupported", reason: "type" };
 }
 
+/** preview_outgoing_file: a composer file from its own bytes (the extension decides here; Rust sniffs the bytes). */
+function mockOutgoingPreview(filename: string, mimeType: string, dataBase64: string) {
+  const ext = (/\.([a-z0-9]+)$/i.exec(filename)?.[1] ?? "").toLowerCase();
+  const bin = atob(dataBase64);
+  const base = { mimeType, filename, size: bin.length, dataUrl: null, text: null, truncated: false, reason: null };
+  if (["png", "jpg", "jpeg", "gif", "webp"].includes(ext)) return { ...base, kind: "image", dataUrl: `data:${mimeType};base64,${dataBase64}` };
+  if (ext === "pdf") return { ...base, kind: "pdf", mimeType: "application/pdf", dataUrl: `data:application/pdf;base64,${dataBase64}` };
+  if (["md", "csv", "txt", "json", "log", "ics"].includes(ext) || mimeType.startsWith("text/")) {
+    const bytes = Uint8Array.from(bin, (c) => c.charCodeAt(0));
+    return { ...base, kind: "text", text: new TextDecoder().decode(bytes) };
+  }
+  return { ...base, kind: "unsupported", reason: "type" };
+}
+
 // ---------------------------------------------------------------------------
 // Shared read access for other mock modules (e.g. mock/search.ts).
 // ---------------------------------------------------------------------------
@@ -1159,7 +1241,14 @@ function getThread(accountId: string, threadId: string): ThreadView | null {
       threadId,
       subject: s.subject,
       labelIds: s.labelIds,
-      messages: t.views.map((m, i) => ({ ...withPrivacy(m, false), unread: s.unread && (m.unread || i === lastI), starred: s.starred })),
+      messages: t.views.map((m, i) => ({
+        ...withPrivacy(m, false),
+        unread: s.unread && (m.unread || i === lastI),
+        starred: s.starred,
+        // Like penguin_core::unsubscribe::plan: nothing to offer in Spam
+        // (unsubscribing tells a spammer the address is live).
+        unsubscribe: s.labelIds.includes("SPAM") ? null : m.unsubscribe,
+      })),
     };
   }
   const msgs = messagesOf(t);
@@ -1195,6 +1284,26 @@ const SYNC_WINDOW = 180 * DAY;
 /** Messages of a thread without the sync-window "download" side effect. */
 function mockThreadMessages(t: MockThread): MessageView[] {
   return t.views ?? messagesOf(t).map((m, i) => messageView(t, m, i));
+}
+
+/** suggest_recipients: every participant of the demo mailbox, word-prefix matched, most seen first. */
+function mockSuggestRecipients(query: string, limit: number): Address[] {
+  const words = query.toLowerCase().split(/[\s@.]+/).filter(Boolean);
+  if (!words.length) return [];
+  const seen = new Map<string, { a: Address; n: number }>();
+  for (const t of threads.values())
+    for (const a of t.summary.participants) {
+      const k = a.email.toLowerCase();
+      const cur = seen.get(k);
+      if (cur) cur.n++;
+      else seen.set(k, { a, n: 1 });
+    }
+  const hay = (a: Address) => `${a.name ?? ""} ${a.email}`.toLowerCase().split(/[\s@.]+/);
+  return [...seen.values()]
+    .filter(({ a }) => !/no-?reply|notifications?@/i.test(a.email) && words.every((w) => hay(a).some((h) => h.startsWith(w))))
+    .sort((x, y) => y.n - x.n)
+    .slice(0, limit)
+    .map(({ a }) => a);
 }
 
 function mockPersonSummary(raw: string) {
@@ -1271,7 +1380,7 @@ function mockDetails(m: MessageView) {
   const d = domainOf(m.from.email);
   const newsletter = m.blockedRemoteImages > 0 || m.trackersRemoved > 0;
   // Mine: no Authentication-Results (sent mail). One sender is a relay that fails SPF.
-  const shady = d === "brightfield.example";
+  const shady = d === "brightfield.example" || SPAM_DOMAINS.has(d);
   const idx = Number(/-m(\d+)$/.exec(m.id)?.[1] ?? 0);
   return {
     accountId: m.accountId,
@@ -1427,9 +1536,13 @@ export const mailHandlers: Record<string, MockHandler> = {
     return `/Users/sam/Downloads/${a.filename}`;
   },
   prepare_attachment_drag: ({ attachmentId }) => ({ path: `/Users/sam/Library/Caches/penguin/drag-out/mock/0/${String(attachmentId)}`, name: String(attachmentId) }),
+  // The mock has no pasteboard: it answers as the Mac app does.
+  copy_attachment_file: ({ attachmentId }) => ({ path: `/Users/sam/Library/Caches/penguin/drag-out/mock/1/${String(attachmentId)}`, name: String(attachmentId) }),
+  preview_outgoing_file: ({ filename, mimeType, dataBase64 }) => mockOutgoingPreview(String(filename), String(mimeType), String(dataBase64)),
   save_attachment_as: () => null,
   open_path: () => undefined,
   person_summary: ({ email }) => mockPersonSummary(String(email)),
+  suggest_recipients: ({ query, limit }) => mockSuggestRecipients(String(query ?? ""), Number(limit ?? 8)),
   get_message_details: ({ accountId, messageId }) => {
     const m = findMockMessage(accountId, messageId);
     if (!m) throw { code: "notFound", message: "message not found" };
@@ -1541,6 +1654,8 @@ const mockSettings: import("../types").Settings = {
     aiSuggestions: devQuery("aiReplies") === "1",
   },
   writeWithAi: devQuery("writeAi") !== "off",
+  checkSpelling: devQuery("spelling") !== "off",
+  checkGrammar: devQuery("grammar") === "on",
   // Composer signatures (?sig=off starts with none).
   signatures:
     devQuery("sig") === "off"
@@ -1556,7 +1671,12 @@ const mockSettings: import("../types").Settings = {
   gmailUnitsPerMin: 6000,
   syncWindowMonths: 6,
   olderMail: "headers",
-  mcp: { enabled: false },
+  // Off by default, as in the app; ?agents=read|draft|send starts at that level.
+  mcp: (() => {
+    const q = devQuery("agents");
+    const access: import("../types").AgentAccess = q === "read" || q === "draft" || q === "send" ? q : "off";
+    return { access, enabled: access !== "off", sendDelaySeconds: 60 as const, sendKnownOnly: true };
+  })(),
   // Off by default, as in the app; dev screenshots with key caps: ?hints=on
   showShortcutHints: devQuery("hints") === "on",
   shortcutCoach: devQuery("coach") !== "off",
@@ -1625,7 +1745,17 @@ function settingsOut(): import("../types").Settings {
 
 Object.assign(mailHandlers, {
   get_settings: () => settingsOut(),
-  update_settings: ({ patch }) => {
+  update_settings: ({ patch: rawPatch }) => {
+    // `mcp` merges field by field and never raises the level to send
+    // (settings.rs McpPatch); that takes enable_agent_send.
+    const { mcp, ...patch } = rawPatch as import("../types").SettingsPatch;
+    if (mcp?.access === "send" && mockSettings.mcp.access !== "send")
+      throw { code: "invalidInput", message: "Allowing agents to send needs the confirmation in Settings → Developer → Agents" };
+    if (mcp) {
+      const access = mcp.access ?? mockSettings.mcp.access;
+      if (mockSettings.mcp.access === "send" && access !== "send") mockAgentPending.length = 0; // a downgrade cancels queued agent sends
+      mockSettings.mcp = { ...mockSettings.mcp, ...mcp, access, enabled: access !== "off" };
+    }
     // `me` merges field by field, as in the backend (the photo only via lib/mock/me.ts).
     Object.assign(mockSettings, patch, patch.me ? { me: { ...mockSettings.me, ...patch.me } } : {});
     // Normalized like settings.rs: trimmed, lowercased, first occurrence kept.
@@ -1682,6 +1812,7 @@ Object.assign(mailHandlers, {
     const total = perAccount.reduce((n, a) => n + a.messagesStored, 0);
     return {
       appVersion: "0.1.0",
+      osVersion: "macOS 26.0.1",
       dataDir: root,
       configDir: root,
       cacheDir: "/Users/sam/Library/Caches/co.gluska.penguin",
@@ -1784,29 +1915,97 @@ Object.assign(mailHandlers, {
 
 // Broken-sync states for screenshots (OWNER: settings agent):
 // ?mockSync=broken puts Northwind in error (a panicked task) and Harbor Labs
-// in needsReauth. retry_account_sync clears the error like the backend.
+// in needsReauth.
 if (typeof location !== "undefined" && new URLSearchParams(location.search).get("mockSync") === "broken") {
-  Object.assign(sync[ACC.nw], {
-    phase: "error",
-    indexed: TOTAL_NW,
-    error: "internal sync error (index out of bounds: the len is 0 but the index is 0); restart sync to retry",
-    ratePerMin: null,
-    etaSecs: null,
-  });
-  Object.assign(sync[ACC.hl], { phase: "needsReauth", error: "account needs to sign in again: token revoked" });
+  sync[ACC.nw].indexed = TOTAL_NW;
+  mockRecordFailure(sync[ACC.nw], "internal", "internal sync error (index out of bounds: the len is 0 but the index is 0); restart sync to retry", NOW - 60_000, null);
+  mockRecordFailure(sync[ACC.hl], "auth", "account needs to sign in again: token revoked", NOW - 60_000, null);
 }
+
+// A flaky server for the "Can't reach …" states (lib/syncHealth.ts), on the
+// Fastmail (IMAP) account. The mock engine retries on the engines' backoff
+// (sped up 4× so the states come round quickly):
+//   ?mockSync=retrying  one failed attempt, retried quietly; the retry works
+//   ?mockSync=failing   3 failed attempts: the alert with its actions
+//   ?mockSync=hidden    the same alert, hidden for 6 hours on this device
+//   ?mockSync=recovered back in sync after a streak that had alerted
+//   ?mockSync=outage    healthy, then the server goes away: quiet tries, then the alert
+// ?mockRetry=fail makes Retry now (and the engine's own retries) fail too;
+// otherwise a retry works (in failing/hidden: Retry now works, the engine's
+// own retries keep failing, so the alert stays until you act).
+const SCALE = 0.25;
+const FLAKY_ERROR = "network: couldn't reach imap.fastmail.com:993: operation timed out";
+const flakyMode = devQuery("mockSync");
+const retryFails = devQuery("mockRetry") === "fail";
+const attemptTimers = new Map<string, ReturnType<typeof setTimeout>>();
+
+/** The mock engine's next attempt for a failing account, at its nextRetryAt. */
+function scheduleAttempt(accountId: string, works: () => boolean) {
+  clearTimeout(attemptTimers.get(accountId));
+  const s = sync[accountId];
+  const at = s?.failure?.nextRetryAt;
+  if (!s || !at) return;
+  attemptTimers.set(
+    accountId,
+    setTimeout(() => {
+      attemptTimers.delete(accountId);
+      const now = Date.now();
+      if (works()) mockRecordProgress(s, now);
+      else {
+        mockRecordFailure(s, "network", FLAKY_ERROR, now, mockBackoff((s.failure?.count ?? 0) + 1, SCALE));
+        scheduleAttempt(accountId, works);
+      }
+      emit("penguin://sync-status", { ...s });
+    }, Math.max(0, at - Date.now())),
+  );
+}
+
+if (flakyMode === "retrying" || flakyMode === "failing" || flakyMode === "hidden" || flakyMode === "recovered") {
+  const s = sync[ACC.fm];
+  const now = Date.now();
+  if (flakyMode === "recovered") {
+    for (const ago of [150_000, 140_000, 120_000]) mockRecordFailure(s, "network", FLAKY_ERROR, now - ago, 20_000);
+    mockRecordProgress(s, now - 80_000);
+  } else if (flakyMode === "retrying") {
+    mockRecordFailure(s, "network", FLAKY_ERROR, now - 2_000, 10_000);
+    scheduleAttempt(ACC.fm, () => !retryFails);
+  } else {
+    for (const ago of [45_000, 35_000, 15_000]) mockRecordFailure(s, "network", FLAKY_ERROR, now - ago, 40_000);
+    scheduleAttempt(ACC.fm, () => false);
+    if (flakyMode === "hidden") hideSyncAlert(s);
+  }
+} else if (flakyMode === "outage") {
+  // Healthy for 3 s, then the server stops answering until Retry now.
+  setTimeout(() => {
+    const s = sync[ACC.fm];
+    mockRecordFailure(s, "network", FLAKY_ERROR, Date.now(), mockBackoff(1, SCALE));
+    emit("penguin://sync-status", { ...s });
+    scheduleAttempt(ACC.fm, () => false);
+  }, 3_000);
+}
+
 Object.assign(mailHandlers, {
-  retry_account_sync: ({ accountId }) =>
-    new Promise<void>((resolve) =>
+  // Like the backends: the failure stays (retrying now) until the attempt
+  // syncs or fails again; a signed-out account can't be retried into health.
+  retry_account_sync: ({ accountId }) => {
+    const s = sync[accountId];
+    if (!s || !s.failure) return undefined;
+    clearTimeout(attemptTimers.get(accountId));
+    mockRetryNow(s, Date.now());
+    emit("penguin://sync-status", { ...s });
+    return new Promise<void>((resolve) => {
+      resolve();
       setTimeout(() => {
-        const s = sync[accountId];
-        if (s && s.phase === "error") {
-          Object.assign(s, { phase: "idle", error: null, lastSyncedAt: Date.now() });
-          emit("penguin://sync-status", { ...s });
-        }
-        resolve();
-      }, 700),
-    ),
+        const now = Date.now();
+        if (s.phase === "needsReauth") mockRecordFailure(s, s.failure?.kind ?? "auth", s.error ?? "account needs to sign in again", now, null);
+        else if (retryFails) {
+          mockRecordFailure(s, s.failure?.kind ?? "network", s.error ?? FLAKY_ERROR, now, mockBackoff((s.failure?.count ?? 0) + 1, SCALE));
+          scheduleAttempt(accountId, () => false);
+        } else mockRecordProgress(s, now);
+        emit("penguin://sync-status", { ...s });
+      }, 1_200);
+    });
+  },
 } satisfies Record<string, MockHandler>);
 
 // Appended by ui-search for the drafts mock (mock/search.ts): a deleted or
@@ -1850,12 +2049,27 @@ export function deleteMockLabel(accountId: string, labelId: string): string[] | 
 Object.assign(mailHandlers, {
   mcp_info: (): import("../types").McpInfo => ({
     enabled: mockSettings.mcp.enabled,
+    access: mockSettings.mcp.access,
     cliPath: "/Applications/Penguin.app/Contents/MacOS/penguin-cli",
     claudeCodeCommand: "claude mcp add penguin -- /Applications/Penguin.app/Contents/MacOS/penguin-cli mcp",
     claudeDesktopConfig:
       '{\n  "mcpServers": {\n    "penguin": {\n      "command": "/Applications/Penguin.app/Contents/MacOS/penguin-cli",\n      "args": ["mcp"]\n    }\n  }\n}',
+    sshCommand: "claude mcp add penguin -- ssh you@your-mac /Applications/Penguin.app/Contents/MacOS/penguin-cli mcp",
+    authorizedKeysPrefix: 'command="/Applications/Penguin.app/Contents/MacOS/penguin-cli mcp",restrict',
     auditLogPath: "~/Library/Logs/co.gluska.penguin/mcp-audit.log",
   }),
+  enable_agent_send: ({ acknowledgement }) => {
+    if (String(acknowledgement).trim().toLowerCase() !== "i understand")
+      throw { code: "invalidInput", message: "Type “I understand” to let agents send" };
+    mockSettings.mcp = { ...mockSettings.mcp, access: "send", enabled: true };
+    const out = settingsOut();
+    emit("penguin://settings-changed", out);
+    return out;
+  },
+  agent_activity: ({ limit }): import("../types").AgentActivity[] =>
+    mockSettings.mcp.access === "off" ? [] : mockAgentActivity().slice(0, Number(limit) || 30),
+  agent_pending_sends: (): import("../types").AgentPendingSend[] =>
+    mockSettings.mcp.access === "send" ? [...mockAgentPending].sort((a, b) => a.sendAt - b.sendAt) : [],
   cli_install_status: (): import("../types").CliLinkStatus => mockCli(),
   install_cli: () =>
     new Promise((resolve) =>
@@ -1877,5 +2091,62 @@ function mockCli(): import("../types").CliLinkStatus {
     conflict: null,
     onPath: offPath || !mockCliInstalled ? false : true,
     pathLine: "echo 'export PATH=\"$HOME/.local/bin:$PATH\"' >> ~/.zshrc",
+  };
+}
+
+// Agents (Settings → Developer → Agents): fictional recent activity and, at
+// the send level, one send waiting in the outbox. ?agents=send shows both.
+const mockAgentPending: import("../types").AgentPendingSend[] =
+  devQuery("agents") === "send"
+    ? [
+        {
+          scheduleId: "agent-sched-1",
+          accountId: ACC.nw,
+          draftId: "agent-draft-1",
+          threadId: null,
+          sendAt: Date.now() + 45_000,
+          to: ["dana.reyes@acme.example"],
+          subject: "Re: Q3 vendor review",
+        },
+      ]
+    : [];
+
+function mockAgentActivity(): import("../types").AgentActivity[] {
+  const at = (minsAgo: number) => new Date(Date.now() - minsAgo * 60_000).toISOString().replace(/\.\d+Z$/, "Z");
+  const row = (p: Partial<import("../types").AgentActivity> & { ts: string; tool: string }): import("../types").AgentActivity => ({
+    via: "mcp",
+    ok: true,
+    errorCode: null,
+    account: null,
+    recipientCount: null,
+    attachmentCount: null,
+    draftId: null,
+    sendAt: null,
+    resultCount: null,
+    detail: null,
+    ...p,
+  });
+  const send = mockSettings.mcp.access === "send";
+  return [
+    ...(send ? [row({ ts: at(0.2), tool: "send_draft", account: "sam@northwind.example", recipientCount: 1, draftId: "agent-draft-1", sendAt: at(-1) })] : []),
+    row({ ts: at(1), tool: "create_draft", account: "sam@northwind.example", recipientCount: 1, attachmentCount: 1, draftId: "agent-draft-1" }),
+    row({ ts: at(1.5), tool: "create_share_link", account: "sam@northwind.example", resultCount: 1 }),
+    row({ ts: at(2), tool: "get_attachment", resultCount: 1 }),
+    row({ ts: at(2.5), tool: "thread_context", resultCount: 4 }),
+    row({ ts: at(3), tool: "search", resultCount: 6, detail: "from:dana vendor review" }),
+    row({ ts: at(9), tool: "send_message", via: "cli", ok: false, errorCode: "permissionDenied", account: "sam@harbor-labs.example", recipientCount: 2 }),
+    row({ ts: at(26), tool: "list_drafts", via: "cli", resultCount: 2 }),
+  ];
+}
+
+/** cancel_scheduled_send also cancels the agent sends above. */
+export function withAgentCancel(inner: MockHandler): MockHandler {
+  return (args) => {
+    const i = mockAgentPending.findIndex((p) => p.scheduleId === args.id);
+    if (i >= 0) {
+      mockAgentPending.splice(i, 1);
+      return true;
+    }
+    return inner(args);
   };
 }

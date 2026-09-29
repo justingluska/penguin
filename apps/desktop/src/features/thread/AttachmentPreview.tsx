@@ -10,7 +10,7 @@
 //            doesn't match for custom schemes) makes it refuse to be framed.
 //  - text  → escaped in a <pre> (HTML/SVG attachments included: never markup)
 //  - else  → "No preview" panel with Download / Open
-import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
+import { useEffect, useMemo, useState, useSyncExternalStore, type ReactNode } from "react";
 import type { AttachmentMeta, AttachmentPreview as Preview, MessageView } from "../../lib/types";
 import { getUi, setUi, useUi } from "../../lib/ui";
 import { api, asCommandError } from "../../lib/api";
@@ -20,6 +20,7 @@ import { Icon } from "../../components/Icon";
 import { Keys, Kbd } from "../../components/Kbd";
 import { toast } from "../../components/Toast";
 import { useKeyTip } from "../../lib/shortcutHints";
+import { copyTextLater } from "../../lib/clipboard";
 
 // ---------------------------------------------------------------------------
 // Open/close + shared state
@@ -124,6 +125,31 @@ async function openSaved(path: string, a: AttachmentMeta) {
   } catch (e) {
     toast({ tone: "error", message: `Couldn't open ${a.filename}: ${asCommandError(e).message}` });
   }
+}
+
+/**
+ * Copy: the file on the clipboard as Finder copies one (Mac app), so a paste
+ * in Finder, Slack, Mail or a composer gives the file.
+ */
+export async function copyAttachmentFile(m: MessageView, a: AttachmentMeta) {
+  try {
+    await api.copyAttachmentFile(m.accountId, m.id, a.id);
+    toast({ message: `Copied ${a.filename}`, detail: "Paste it in Finder, a chat or a message." });
+  } catch (e) {
+    toast({ tone: "error", message: `Couldn't copy ${a.filename}`, detail: asCommandError(e).message });
+  }
+}
+
+/** Copy File Path: where the file is on this Mac, saving it to Downloads first if this session hasn't. */
+export function copyAttachmentPath(m: MessageView, a: AttachmentMeta) {
+  // The clipboard write starts inside the menu click (WebKit's rule); the
+  // path follows once the file is saved.
+  const path = (async () => {
+    const p = savedPaths.get(savedKey(m, a)) ?? (await downloadAttachment(m, a));
+    if (!p) throw new Error(`${a.filename} couldn't be saved`);
+    return p;
+  })();
+  void copyTextLater(path, "File path copied");
 }
 
 /** Open in the default app: it needs a file on disk, so save first (once). */
@@ -233,16 +259,25 @@ function Modal({ t }: { t: Target }) {
             </button>
           </header>
           <div className="ap-body">
-            {error ? (
-              <NoPreview a={a} m={m} title="Couldn't load the preview" body={error} />
-            ) : !preview ? (
-              <div className="ap-loading">
-                <span className="sk" style={{ width: 180, height: 12 }} />
-                <span className="faint small">Loading preview…</span>
-              </div>
-            ) : (
-              <PreviewBody p={preview} a={a} m={m} />
-            )}
+            <PreviewContent
+              file={a}
+              preview={preview}
+              error={error}
+              hint="Download it, or open it in its default app."
+              actions={
+                <>
+                  <button className="btn btn-secondary" onClick={() => void downloadAttachment(m, a)}>
+                    <Icon name="download" size="sm" />
+                    Download
+                    <Keys keys="mod+s" />
+                  </button>
+                  <button className="btn btn-ghost" onClick={() => void openInDefaultApp(m, a)}>
+                    <Icon name="external" size="sm" />
+                    Open in default app
+                  </button>
+                </>
+              }
+            />
           </div>
         </section>
       </div>
@@ -257,25 +292,46 @@ function current(): [MessageView, AttachmentMeta] | null {
   return a ? [target.message, a] : null;
 }
 
-function PreviewBody({ p, a, m }: { p: Preview; a: AttachmentMeta; m: MessageView }) {
+/** A file to preview: an attachment, or a file in the composer. */
+interface PreviewFile {
+  filename: string;
+  mimeType: string;
+}
+
+/**
+ * The body of a preview: loading, the picture, PDF or text, or a "No
+ * preview" panel with `hint` and `actions` (the thread's Download, Open).
+ * Shared by the thread's modal and the composer's (compose/filePreview.tsx).
+ */
+export function PreviewContent({ file, preview, error, hint, actions }: { file: PreviewFile; preview?: Preview; error?: string; hint: string; actions?: ReactNode }) {
+  if (error) return <NoPreview file={file} title="Couldn't load the preview" body={error} actions={actions} />;
+  if (!preview) {
+    return (
+      <div className="ap-loading">
+        <span className="sk" style={{ width: 180, height: 12 }} />
+        <span className="faint small">Loading preview…</span>
+      </div>
+    );
+  }
+  const p = preview;
   switch (p.kind) {
     case "image":
       return (
         <div className="ap-image">
-          <img src={p.dataUrl ?? undefined} alt={a.filename} draggable={false} />
+          <img src={p.dataUrl ?? undefined} alt={file.filename} draggable={false} />
         </div>
       );
     case "pdf":
-      return <PdfFrame dataUrl={p.dataUrl ?? ""} title={a.filename} />;
+      return <PdfFrame dataUrl={p.dataUrl ?? ""} title={file.filename} />;
     case "text":
       return (
         <div className="ap-text v-scroll">
           <pre>{p.text}</pre>
-          {p.truncated && <div className="ap-trunc faint small">Showing the first 1 MB · Download for the full file</div>}
+          {p.truncated && <div className="ap-trunc faint small">Showing the first 1 MB of the file</div>}
         </div>
       );
     default: {
-      const ext = fileExt(a.filename).toLowerCase();
+      const ext = fileExt(file.filename).toLowerCase();
       const title =
         p.reason === "tooLarge"
           ? "Too large to preview"
@@ -287,29 +343,23 @@ function PreviewBody({ p, a, m }: { p: Preview; a: AttachmentMeta; m: MessageVie
           ? `${bytes(p.size)} is over the 20 MB preview limit.`
           : p.reason === "unreadable"
             ? `Its contents don't look like a ${ext.toUpperCase()} file.`
-            : "Download it, or open it in its default app.";
-      return <NoPreview a={a} m={m} title={title} body={body} />;
+            : hint;
+      return <NoPreview file={file} title={title} body={body} actions={actions} />;
     }
   }
 }
 
-function NoPreview({ a, m, title, body }: { a: AttachmentMeta; m: MessageView; title: string; body: string }) {
+function NoPreview({ file, title, body, actions }: { file: PreviewFile; title: string; body: string; actions?: ReactNode }) {
   return (
     <div className="ap-none">
-      <span className={"file-ico ap-bigico " + fileTone(a.filename, a.mimeType)}>{fileExt(a.filename)}</span>
+      <span className={"file-ico ap-bigico " + fileTone(file.filename, file.mimeType)}>{fileExt(file.filename)}</span>
       <div className="ap-none-title">{title}</div>
       <div className="ap-none-body">{body}</div>
-      <div className="row-flex" style={{ gap: 8, marginTop: 8 }}>
-        <button className="btn btn-secondary" onClick={() => void downloadAttachment(m, a)}>
-          <Icon name="download" size="sm" />
-          Download
-          <Keys keys="mod+s" />
-        </button>
-        <button className="btn btn-ghost" onClick={() => void openInDefaultApp(m, a)}>
-          <Icon name="external" size="sm" />
-          Open in default app
-        </button>
-      </div>
+      {actions && (
+        <div className="row-flex" style={{ gap: 8, marginTop: 8 }}>
+          {actions}
+        </div>
+      )}
     </div>
   );
 }

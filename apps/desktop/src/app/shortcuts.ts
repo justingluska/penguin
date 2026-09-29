@@ -9,7 +9,7 @@ import { startRefresh } from "./refresh";
 import type { MailboxView } from "../lib/types";
 import { openDraftForThread } from "../features/compose";
 import { accountName } from "../components/Identity";
-import { archive, markUnreadAndSay, onTargets, openCompose, openLabelOrMove, targetAbilities, toggleRead, toggleStar, trash, undo } from "./actions";
+import { archive, markUnreadAndSay, notSpam, onTargets, openCompose, openLabelOrMove, reportSpam, targetAbilities, targetsInSpam, toggleRead, toggleStar, trash, undo } from "./actions";
 import {
   clearSelection,
   hasSelection as hasMultiSelection,
@@ -100,6 +100,8 @@ export const THREAD_WINDOW_KEYS = new Set([
   "ctx.toggle",
   "triage.done",
   "triage.trash",
+  "triage.spam",
+  "triage.notSpam",
   "triage.star",
   "triage.read",
   "triage.unread",
@@ -161,6 +163,7 @@ export function registerAppShortcuts(scope: "main" | "thread" = "main"): () => v
     { id: "go.done", keys: "g e", label: "Go to Done", group: "Go to", when: noOverlay, run: () => goTo({ kind: "done" }) },
     { id: "go.all", keys: "g a", label: "Go to All mail", group: "Go to", when: noOverlay, run: () => goTo({ kind: "all" }) },
     { id: "go.trash", keys: "g #", label: "Go to Trash", group: "Go to", when: noOverlay, run: () => goTo({ kind: "trash" }) },
+    { id: "go.spam", keys: "g !", label: "Go to Spam", group: "Go to", when: noOverlay, run: () => goTo({ kind: "spam" }) },
     { id: "go.calendar", keys: "g c", label: "Go to Calendar", group: "Go to", when: noOverlay, run: goToCalendar },
     // A filter on the current view, not a view: G then U flips it back.
     { id: "list.unread", keys: "g u", label: "Only unread (on / off)", group: "Go to", when: onMail, run: toggleUnreadOnly },
@@ -169,6 +172,9 @@ export function registerAppShortcuts(scope: "main" | "thread" = "main"): () => v
     // Triage keys act on the multi-selection when there is one (see targets()).
     { id: "triage.done", keys: "e", label: "Mark done (archive)", group: "Triage", when: hasSelection, run: () => onTargets(archive) },
     { id: "triage.trash", keys: "#", label: "Move to Trash", group: "Triage", when: hasSelection, run: () => onTargets(trash) },
+    // ! as in Gmail: Report spam, or Not spam where the conversations are spam already (the Spam view).
+    { id: "triage.spam", keys: "!", label: "Report spam", group: "Triage", when: () => hasSelection() && !targetsInSpam(), run: () => onTargets(reportSpam) },
+    { id: "triage.notSpam", keys: "!", label: "Not spam", group: "Triage", when: () => hasSelection() && targetsInSpam(), run: () => onTargets(notSpam) },
     { id: "triage.star", keys: "s", label: "Star / unstar", group: "Triage", when: hasSelection, run: () => onTargets(toggleStar) },
     { id: "triage.read", keys: "u", label: "Toggle read / unread", group: "Triage", when: hasSelection, run: () => onTargets(toggleRead) },
     { id: "triage.unread", keys: "shift+u", label: "Mark unread", group: "Triage", when: hasSelection, run: () => onTargets(markUnreadAndSay) },

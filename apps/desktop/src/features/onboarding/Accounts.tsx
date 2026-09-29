@@ -13,6 +13,7 @@ import { Icon } from "../../components/Icon";
 import { serviceName } from "../../lib/capabilities";
 import { openReconnect } from "../settings/ReconnectModal";
 import { SyncFixButton, syncFixFor } from "../settings/syncFix";
+import { retryingText, syncHealth } from "../../lib/syncHealth";
 import { Troubleshooting, type Problem } from "./parts";
 import { links } from "./links";
 import { SignInLinkHelp } from "../../components/SignInLinkHelp";
@@ -412,6 +413,16 @@ export function SyncRow({ account, name, status, provider }: { account: Account;
         <button className="btn btn-secondary btn-sm" onClick={() => openReconnect(account.id)}>
           Reconnect <Icon name="external" size="xs" />
         </button>
+      </div>
+    );
+  } else if (status && phase === "error" && syncHealth(status) === "retrying") {
+    // One failed attempt the engine is retrying: not an error to show yet.
+    badge = <span className="badge t-amber">Retrying</span>;
+    body = (
+      <div className="sync-phase">
+        <span title={status.error ?? undefined}>{retryingText(status)}</span>
+        <span className="grow" />
+        <SyncFixButton status={status} quiet />
       </div>
     );
   } else if (status && phase === "error") {

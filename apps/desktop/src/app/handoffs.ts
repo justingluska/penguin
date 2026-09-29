@@ -25,6 +25,8 @@ import { setUi } from "../lib/ui";
 import { focusMainWindow } from "../lib/windowChrome";
 import { asSettingsSection, openSettings } from "../features/settings/state";
 import { openReconnect } from "../features/settings/ReconnectModal";
+import { asShareTarget } from "../features/share/model";
+import { setPendingShare } from "../features/share/state";
 
 /** Longest Undo countdown a hand-off may ask for (Settings offers up to 30 s). */
 const MAX_UNDO_SECONDS = 30;
@@ -58,6 +60,8 @@ export function installWindowHandoffs(): () => void {
       // Asked from a window without Settings (a link in a message's privacy
       // note, an invitation, the composer's snippet or signature links).
       void focusMainWindow();
+      // "Copy Share Link…" before share links were set up: the file waits here.
+      if (m.share !== undefined) setPendingShare(asShareTarget(m.share));
       openSettings(asSettingsSection(m.section));
     } else if (m.type === "reconnect" && typeof m.accountId === "string") {
       void focusMainWindow();

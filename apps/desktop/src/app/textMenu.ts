@@ -13,6 +13,7 @@ import { isMac } from "../lib/keyboard";
 import { setUi } from "../lib/ui";
 import { toast } from "../components/Toast";
 import { hasTextSelectionAt, openMenu, type MenuEntries } from "../components/ContextMenu";
+import { spellWord, wordSpan } from "./spellWord";
 
 type Field = HTMLInputElement | HTMLTextAreaElement | HTMLElement;
 
@@ -107,6 +108,45 @@ function replaceRange(range: Range, text: string) {
   document.execCommand("insertText", false, text);
 }
 
+/** The word a right-click asks about, and how to replace it with a suggestion. */
+function spellTarget(e: MouseEvent, f: Field, selected: string): { word: string; replace: (g: string) => void } | null {
+  if (isInput(f)) {
+    // An input's text has no DOM range: its selection is the word.
+    const word = spellWord(selected);
+    const { selectionStart: a, selectionEnd: b } = f;
+    const span = word && a !== null && b !== null ? wordSpan(f.value, a, b, word) : null;
+    if (!word || !span) return null;
+    return {
+      word,
+      replace: (g) => {
+        f.focus({ preventScroll: true });
+        f.setSelectionRange(span[0], span[1]);
+        // insertText keeps undo and fires input (React's onChange).
+        document.execCommand("insertText", false, g);
+      },
+    };
+  }
+  let range: Range | null;
+  if (selected) {
+    const word = spellWord(selected);
+    const sel = document.getSelection();
+    if (!word || !sel?.rangeCount) return null;
+    range = sel.getRangeAt(0).cloneRange();
+    // Drop the trailing space smart selection took along.
+    const text = range.toString();
+    const at = text.indexOf(word);
+    if (at < 0 || range.startContainer !== range.endContainer || range.startContainer.nodeType !== Node.TEXT_NODE) return null;
+    range.setStart(range.startContainer, range.startOffset + at);
+    range.setEnd(range.startContainer, range.startOffset + word.length);
+  } else {
+    range = wordRangeAt(e.clientX, e.clientY, f);
+  }
+  const word = range ? spellWord(range.toString()) : null;
+  if (!range || !word) return null;
+  const r = range;
+  return { word, replace: (g) => replaceRange(r, g) };
+}
+
 function lookUp(text: string) {
   api.lookUp(text).catch((e) => toast({ tone: "error", message: "Couldn't open Dictionary", detail: String(e?.message ?? e) }));
 }
@@ -128,31 +168,31 @@ async function editMenu(e: MouseEvent, f: Field) {
   const ro = readOnly(f);
   const at = { x: e.clientX, y: e.clientY };
 
-  // Spelling (contenteditable with spellcheck on, e.g. the composer body):
-  // the word under the pointer, checked by macOS's spell checker.
+  // Spelling (a field with spellcheck on: the composer body, the subject):
+  // the word WebKit selected on the right-click, or the one under the
+  // pointer, checked by macOS's spell checker. WebKit's own menu, which
+  // would offer these, never shows in the app, so the suggestions are here.
   let spelling: MenuEntries = [];
-  if (!isInput(f) && f.spellcheck && !selected) {
-    const range = wordRangeAt(e.clientX, e.clientY, f);
-    const word = range?.toString();
-    if (range && word) {
-      try {
-        const res = await api.spellCheck(word);
-        if (res.misspelled) {
-          spelling = [
-            ...(res.guesses.length
-              ? res.guesses.slice(0, 6).map((g) => ({ label: g, text: g, onSelect: () => replaceRange(range, g) }))
-              : [{ label: "No guesses found", disabled: true }]),
-            { type: "separator" as const },
-            {
-              label: "Learn spelling",
-              onSelect: () => api.learnSpelling(word).catch(() => toast({ tone: "error", message: "Couldn't learn that word" })),
-            },
-            { type: "separator" as const },
-          ];
-        }
-      } catch {
-        // Spell check unavailable (mock/browser): the menu just has no suggestions.
+  const target = !ro && f.spellcheck ? spellTarget(e, f, selected) : null;
+  if (target) {
+    const { word, replace } = target;
+    try {
+      const res = await api.spellCheck(word);
+      if (res.misspelled) {
+        spelling = [
+          ...(res.guesses.length
+            ? res.guesses.slice(0, 6).map((g) => ({ label: g, text: g, onSelect: () => replace(g) }))
+            : [{ label: "No guesses found", disabled: true }]),
+          { type: "separator" as const },
+          {
+            label: "Learn spelling",
+            onSelect: () => api.learnSpelling(word).catch(() => toast({ tone: "error", message: "Couldn't learn that word" })),
+          },
+          { type: "separator" as const },
+        ];
       }
+    } catch {
+      // Spell check unavailable (mock/browser): the menu just has no suggestions.
     }
   }
 

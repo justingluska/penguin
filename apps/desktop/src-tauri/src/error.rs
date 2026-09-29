@@ -2,9 +2,9 @@
 //! `code` lets the UI branch (re-auth prompt, onboarding, offline banner)
 //! without parsing text.
 
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Clone, Copy, Serialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub enum ErrorCode {
     /// The account's refresh token is missing or revoked: sign in again.
@@ -17,7 +17,29 @@ pub enum ErrorCode {
     InvalidInput,
     /// The user cancelled (e.g. cancel_sign_in during a browser sign-in).
     Cancelled,
+    /// Settings don't allow it (an agent above its level in Settings →
+    /// Developer → Agents), or the caller couldn't prove it may ask.
+    PermissionDenied,
+    /// Something it needs isn't running (penguin-cli: the Penguin app).
+    Unavailable,
     Other,
+}
+
+impl ErrorCode {
+    /// The wire name (`needsReauth`, `permissionDenied`, …).
+    pub fn as_str(self) -> &'static str {
+        match self {
+            ErrorCode::NeedsReauth => "needsReauth",
+            ErrorCode::NotConfigured => "notConfigured",
+            ErrorCode::Network => "network",
+            ErrorCode::NotFound => "notFound",
+            ErrorCode::InvalidInput => "invalidInput",
+            ErrorCode::Cancelled => "cancelled",
+            ErrorCode::PermissionDenied => "permissionDenied",
+            ErrorCode::Unavailable => "unavailable",
+            ErrorCode::Other => "other",
+        }
+    }
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -50,6 +72,9 @@ impl CmdError {
     }
     pub fn cancelled() -> Self {
         Self::new(ErrorCode::Cancelled, "Sign-in cancelled")
+    }
+    pub fn denied(message: impl Into<String>) -> Self {
+        Self::new(ErrorCode::PermissionDenied, message)
     }
     pub fn other(message: impl Into<String>) -> Self {
         Self::new(ErrorCode::Other, message)

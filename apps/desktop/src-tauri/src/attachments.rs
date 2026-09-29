@@ -332,6 +332,36 @@ pub fn from_bytes(att: &AttachmentMeta, bytes: &[u8]) -> AttachmentPreview {
     }
 }
 
+/// Largest composer file previewed from its bytes: the 25 MB draft limit,
+/// with room. Anything bigger isn't a file the composer could send.
+pub const MAX_OUTGOING_PREVIEW: usize = 30 * 1024 * 1024;
+
+/// The preview of a file in the composer that isn't on any message yet
+/// (picked, pasted or dropped; standard base64, as it's sent), under the
+/// same checks as a received attachment: the bytes decide what renders,
+/// never the claimed type.
+pub fn outgoing_preview(
+    filename: String,
+    mime_type: String,
+    data_base64: &str,
+) -> CmdResult<AttachmentPreview> {
+    if data_base64.len() / 4 * 3 > MAX_OUTGOING_PREVIEW {
+        return Err(CmdError::invalid("That file is too large to preview"));
+    }
+    let bytes = base64::engine::general_purpose::STANDARD
+        .decode(data_base64.trim())
+        .map_err(|_| CmdError::invalid("That file's contents are unreadable"))?;
+    let att = AttachmentMeta {
+        id: String::new(),
+        filename,
+        mime_type,
+        size: bytes.len() as u64,
+        content_id: None,
+        inline: false,
+    };
+    Ok(from_bytes(&att, &bytes))
+}
+
 // ---------------------------------------------------------------------------
 // Byte cache
 // ---------------------------------------------------------------------------
@@ -557,6 +587,53 @@ mod tests {
             content_id: None,
             inline: false,
         }
+    }
+
+    #[test]
+    fn composer_files_preview_from_their_own_bytes() {
+        let b64 = |b: &[u8]| base64::engine::general_purpose::STANDARD.encode(b);
+        let p = outgoing_preview(
+            "notes.txt".into(),
+            "text/plain".into(),
+            &b64(b"Floe agenda"),
+        )
+        .unwrap();
+        assert_eq!(
+            (p.kind, p.text.as_deref(), p.size),
+            (PreviewKind::Text, Some("Floe agenda"), 11)
+        );
+        let p = outgoing_preview(
+            "Brief.pdf".into(),
+            "application/pdf".into(),
+            &b64(b"%PDF-1.7\n"),
+        )
+        .unwrap();
+        assert_eq!(p.kind, PreviewKind::Pdf);
+        assert!(p
+            .data_url
+            .unwrap()
+            .starts_with("data:application/pdf;base64,"));
+        // The claimed type never decides: HTML named .pdf isn't shown as one.
+        let p = outgoing_preview(
+            "Brief.pdf".into(),
+            "application/pdf".into(),
+            &b64(b"<html>"),
+        )
+        .unwrap();
+        assert_eq!(
+            (p.kind, p.reason),
+            (PreviewKind::Unsupported, Some(NoPreviewReason::Unreadable))
+        );
+        let p = outgoing_preview(
+            "Plan.docx".into(),
+            "application/octet-stream".into(),
+            &b64(b"PK"),
+        )
+        .unwrap();
+        assert_eq!(p.reason, Some(NoPreviewReason::Type));
+        assert!(outgoing_preview("x.txt".into(), "text/plain".into(), "not base64!").is_err());
+        let huge = "A".repeat(MAX_OUTGOING_PREVIEW / 3 * 4 + 8);
+        assert!(outgoing_preview("x.txt".into(), "text/plain".into(), &huge).is_err());
     }
 
     #[test]

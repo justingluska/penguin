@@ -1,11 +1,13 @@
 // Sidebar sync block: combined backfill progress with an ETA (or a note that
 // an account needs attention). Clicking it opens a per-account breakdown.
-import { useEffect, useRef, useSyncExternalStore } from "react";
+import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import type { Account, SyncPhase, SyncStatus } from "../../lib/types";
 import { ago, eta, num } from "../../lib/format";
 import { AccountDot, accountName } from "../../components/Identity";
 import { meta } from "../../app/store";
-import { SyncFixButton, syncFixFor } from "../settings/syncFix";
+import { SyncActions, syncClock, syncFixFor } from "../settings/syncFix";
+import { activeHide, recentRecovery, retryingText, syncHealth, type SyncHide } from "../../lib/syncHealth";
+import { useSyncHides } from "../../lib/syncHides";
 import { getLayout, setLayout } from "../../lib/layout";
 import { useDismiss } from "../../lib/dismiss";
 
@@ -17,7 +19,9 @@ const PHASE: Record<SyncPhase, string> = {
   needsReauth: "Signed out",
 };
 
-const needsAttention = (s: SyncStatus) => s.phase === "error" || s.phase === "needsReauth";
+/** Alerting and not hidden: counts as "needs attention" and shows the block. */
+const needsAttention = (s: SyncStatus, hides: readonly SyncHide[]) => syncHealth(s) === "alert" && !activeHide(hides, s);
+const tries = (n: number) => `${n} failed ${n === 1 ? "try" : "tries"}`;
 const pct = (indexed: number, total: number | null) => (total ? Math.min(100, (indexed / total) * 100) : 0);
 /**
  * Indexed as shown against the estimate. The estimate excludes spam/trash, so
@@ -67,6 +71,7 @@ function combinedEta(backfilling: SyncStatus[]): number | null {
 export function SyncProgress({ accounts: scoped }: { accounts: Account[] }) {
   const sync = meta.use((m) => m.sync);
   const allAccounts = meta.use((m) => m.accounts);
+  const hides = useSyncHides();
   const open = useSyncExternalStore(
     (cb) => {
       popoverSubs.add(cb);
@@ -79,8 +84,8 @@ export function SyncProgress({ accounts: scoped }: { accounts: Account[] }) {
   const all = Object.values(sync);
   const inScope = new Set(scoped.map((a) => a.id));
   const backfilling = all.filter((s) => s.phase === "backfilling" && inScope.has(s.accountId));
-  const attention = all.filter(needsAttention);
-  const accounts = allAccounts.filter((a) => inScope.has(a.id) || (sync[a.id] && needsAttention(sync[a.id])));
+  const attention = all.filter((s) => needsAttention(s, hides));
+  const accounts = allAccounts.filter((a) => inScope.has(a.id) || (sync[a.id] && needsAttention(sync[a.id], hides)));
   // Settled and healthy: nothing to show (the status bar carries "Synced …"),
   // unless the status bar opened the breakdown.
   const show = backfilling.length > 0 || attention.length > 0 || open;
@@ -158,6 +163,7 @@ export function SyncProgress({ accounts: scoped }: { accounts: Account[] }) {
 }
 
 function SyncPopover({ accounts, sync }: { accounts: Account[]; sync: Record<string, SyncStatus> }) {
+  const hides = useSyncHides();
   return (
     <div className="panel sync-pop" role="dialog" aria-label="Sync status">
       {accounts.map((a) => {
@@ -169,9 +175,11 @@ function SyncPopover({ accounts, sync }: { accounts: Account[]; sync: Record<str
               <span className="grow truncate" title={accountName(a, accounts)}>
                 {a.email}
               </span>
-              <span className={"sync-acct-phase" + (s && needsAttention(s) ? " is-alert" : "")}>{s ? PHASE[s.phase] : "Waiting"}</span>
+              <span className={"sync-acct-phase" + (s && syncHealth(s) === "alert" && !activeHide(hides, s) ? " is-alert" : "")}>
+                {!s ? "Waiting" : syncHealth(s) === "retrying" ? "Retrying" : activeHide(hides, s) ? "Hidden" : PHASE[s.phase]}
+              </span>
             </div>
-            {s && <AccountSyncDetail s={s} />}
+            {s && <AccountSyncDetail s={s} hides={hides} />}
           </div>
         );
       })}
@@ -179,7 +187,30 @@ function SyncPopover({ accounts, sync }: { accounts: Account[]; sync: Record<str
   );
 }
 
-function AccountSyncDetail({ s }: { s: SyncStatus }) {
+/** Re-render every `ms` while `on` (a countdown). */
+function useTick(on: boolean, ms: number) {
+  const [, bump] = useState(0);
+  useEffect(() => {
+    if (!on) return;
+    const t = setInterval(() => bump((n) => n + 1), ms);
+    return () => clearInterval(t);
+  }, [on, ms]);
+}
+
+function AccountSyncDetail({ s, hides }: { s: SyncStatus; hides: readonly SyncHide[] }) {
+  const health = syncHealth(s);
+  useTick(health === "retrying", 1_000);
+  if (health === "retrying" && s.failure) {
+    // Failing, but the engine is retrying on its own: say so quietly.
+    return (
+      <>
+        <div className="sync-acct-line is-quiet tnum" title={s.error ?? undefined}>
+          {retryingText(s)} · {tries(s.failure.count)} since {syncClock(s.failure.firstAt)}
+        </div>
+        <SyncActions status={s} quiet />
+      </>
+    );
+  }
   if (s.phase === "backfilling") {
     const parts = [
       `${num(shownIndexed(s))} of ${s.totalEstimate === null ? "…" : num(s.totalEstimate)}`,
@@ -197,18 +228,32 @@ function AccountSyncDetail({ s }: { s: SyncStatus }) {
   }
   const fix = syncFixFor(s);
   if (fix) {
+    const hidden = activeHide(hides, s);
+    const parts = [
+      hidden ? `hidden until ${syncClock(hidden.until)}` : null,
+      s.failure && s.failure.count > 1 ? `${tries(s.failure.count)} since ${syncClock(s.failure.firstAt)}` : null,
+    ].filter(Boolean);
     return (
-      <div className="sync-acct-fix">
-        <span className="sync-acct-line is-alert grow" title={fix.detail ?? undefined}>
+      <>
+        <div className={"sync-acct-line" + (hidden ? " is-quiet" : " is-alert")} title={fix.detail ?? undefined}>
           {fix.message}
-        </span>
-        <SyncFixButton status={s} />
-      </div>
+          {parts.length ? <span className="faint"> · {parts.join(" · ")}</span> : null}
+        </div>
+        <SyncActions status={s} />
+      </>
     );
   }
+  const back = recentRecovery(s);
   return (
-    <div className="sync-acct-line tnum">
-      {num(s.indexed)} messages{s.lastSyncedAt ? ` · synced ${ago(s.lastSyncedAt)}` : ""}
-    </div>
+    <>
+      {back && (
+        <div className="sync-acct-line is-ok tnum" title={`Sync failed ${back.failures === 1 ? "once" : `${back.failures} times in a row`} from ${syncClock(back.since)}, then worked again`}>
+          Back in sync at {syncClock(back.at)} after {tries(back.failures)}
+        </div>
+      )}
+      <div className="sync-acct-line tnum">
+        {num(s.indexed)} messages{s.lastSyncedAt ? ` · synced ${ago(s.lastSyncedAt)}` : ""}
+      </div>
+    </>
   );
 }

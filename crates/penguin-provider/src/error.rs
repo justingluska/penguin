@@ -18,7 +18,7 @@
 //! Gmail's own `penguin_gmail::Error` converts into this one variant for
 //! variant (same messages), so Gmail behaves exactly as before.
 
-use penguin_core::AccountProvider;
+use penguin_core::{AccountProvider, SyncErrorKind};
 
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
@@ -70,6 +70,21 @@ impl Error {
             Error::Http { status, .. } => *status == 429 || *status >= 500,
             Error::Network(_) | Error::RateLimited => true,
             _ => false,
+        }
+    }
+
+    /// What kind of problem this is when it stops a sync attempt
+    /// (`SyncStatus::record_failure`).
+    pub fn sync_kind(&self) -> SyncErrorKind {
+        match self {
+            Error::NeedsReauth(_) => SyncErrorKind::Auth,
+            Error::Keychain(_) => SyncErrorKind::Keychain,
+            Error::NotConfigured(_) => SyncErrorKind::Config,
+            Error::Network(_) => SyncErrorKind::Network,
+            Error::RateLimited | Error::Http { status: 429, .. } => SyncErrorKind::RateLimited,
+            Error::Http { status, .. } if *status >= 500 => SyncErrorKind::Server,
+            Error::Store(_) => SyncErrorKind::Storage,
+            _ => SyncErrorKind::Other,
         }
     }
 

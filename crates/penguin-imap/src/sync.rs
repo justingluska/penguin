@@ -11,7 +11,10 @@
 //!    chunk: one FETCH for ids, then one per body group (≤100 messages and
 //!    ≤8 MiB, one store commit each); the folder is EXAMINEd once for its
 //!    list and the selection reused after that.
-//! 3. Older mail per `OlderMail` (headers-only / full / none), same shape.
+//!    The Junk folder fills only back to the spam window
+//!    (`spam_window_start_ms`: 30 days, or the window if shorter).
+//! 3. Older mail per `OlderMail` (headers-only / full / none), same shape;
+//!    never for Junk.
 //! 4. Incremental, interleaved with 2–3: new UIDs at or above the anchor
 //!    (`messages_added`), flag/label changes via CONDSTORE (CHANGEDSINCE)
 //!    or a FLAGS scan, expunges via QRESYNC VANISHED or a UID diff when
@@ -21,7 +24,11 @@
 //!    folder was looked at (a move between folders is not a deletion).
 //! 5. Push: IDLE on INBOX (Gmail: All Mail) on a second connection pokes
 //!    the loop; reconnects with backoff. Other folders are polled.
-//! 6. NeedsReauth/Keychain stop the task; other errors back off 5 s → 5 min.
+//! 6. NeedsReauth/Keychain stop the task; other errors back off 10 s → 5 min
+//!    and then run a whole pass (poll included). Each failed attempt and the
+//!    next progress are recorded on the status (penguin-core sync_health.rs),
+//!    which decides when a failure is shown; connecting alone is not
+//!    progress.
 
 use std::collections::{BTreeSet, HashMap, HashSet, VecDeque};
 use std::panic::AssertUnwindSafe;
@@ -30,9 +37,9 @@ use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
 use futures_util::FutureExt;
-use penguin_core::{SyncCursor, SyncPhase, SyncStage, SyncStatus};
+use penguin_core::{SyncCursor, SyncErrorKind, SyncPhase, SyncStage, SyncStatus};
 use penguin_provider::heartbeat::Heartbeat;
-use penguin_provider::window::{window_start_ms, OlderMail, WindowPolicy};
+use penguin_provider::window::{spam_window_start_ms, window_start_ms, OlderMail, WindowPolicy};
 use penguin_provider::SyncObserver;
 use tokio::sync::Notify;
 use tokio::task::AbortHandle;
@@ -64,6 +71,8 @@ pub const FLAG_SCAN: Duration = Duration::from_secs(10 * 60);
 /// IDLE is renewed after this (servers drop IDLE after ~30 min).
 pub const IDLE_RENEW: Duration = Duration::from_secs(25 * 60);
 const STATUS_TICK: Duration = Duration::from_secs(1);
+/// The first error backoff (doubled per failure: 10 s, 20 s, 40 s …).
+const ERROR_BACKOFF: Duration = Duration::from_secs(5);
 const MAX_ERROR_BACKOFF: Duration = Duration::from_secs(5 * 60);
 const RATE_WINDOW: Duration = Duration::from_secs(60);
 const RATE_MIN_SPAN: Duration = Duration::from_secs(15);
@@ -118,17 +127,7 @@ impl Shared {
         policy: WindowPolicy,
     ) -> Arc<Shared> {
         Arc::new(Shared {
-            status: Mutex::new(SyncStatus {
-                account_id: account_id.to_string(),
-                phase: SyncPhase::Idle,
-                indexed: 0,
-                total_estimate: None,
-                last_synced_at: None,
-                error: None,
-                rate_per_min: None,
-                eta_secs: None,
-                stage: None,
-            }),
+            status: Mutex::new(SyncStatus::new(account_id, SyncPhase::Idle)),
             poked: AtomicBool::new(false),
             wake: Notify::new(),
             observer,
@@ -225,6 +224,9 @@ pub struct AccountSync {
     /// before a NOOP check ([`STALE_AFTER`]; tests shorten it).
     session_used: Instant,
     pub(crate) stale_after: Duration,
+    /// The first error backoff; it doubles per failure up to
+    /// [`MAX_ERROR_BACKOFF`] (tests shorten it).
+    pub(crate) backoff: Duration,
     cursor: SyncCursor,
     imap: ImapCursor,
     folders: Arc<FolderSet>,
@@ -245,6 +247,7 @@ impl AccountSync {
             session: None,
             session_used: Instant::now(),
             stale_after: STALE_AFTER,
+            backoff: ERROR_BACKOFF,
             cursor: SyncCursor::default(),
             imap: ImapCursor::default(),
             folders: Arc::new(FolderSet::default()),
@@ -335,9 +338,22 @@ impl AccountSync {
         blocking(&self.ctx.store, move |s| s.count_messages(Some(&id))).await
     }
 
+    /// Counts and phase after a step. `stored`: messages the step added.
+    /// A step ends a failure streak when it is the work sync was doing:
+    /// storing mail, or a poll once backfill is done. A poll that works
+    /// while a failing backfill waits is not enough (the failure is the
+    /// backfill's), and neither is init (logging in).
     async fn status_now(&mut self, stored: u64) -> Result<()> {
+        self.status_after(stored, true).await
+    }
+
+    async fn status_after(&mut self, stored: u64, progress: bool) -> Result<()> {
         let indexed = self.count().await?;
         let phase = self.resting_phase();
+        if !progress && self.shared.snapshot().failing() {
+            self.shared.update(|s| s.indexed = indexed);
+            return Ok(());
+        }
         let stage = self.stage();
         let rate = if phase == SyncPhase::Backfilling && stored > 0 {
             self.rate.record(stored)
@@ -345,13 +361,17 @@ impl AccountSync {
             None
         };
         let total = self.total;
+        // Mail was stored or checked: a failure streak is over.
+        self.failures = 0;
+        let now = now_ms();
         self.shared.update(|s| {
+            s.record_progress(now);
             s.phase = phase;
             s.stage = stage;
             s.indexed = indexed;
             s.total_estimate = total.map(|t| t.max(indexed));
             s.error = None;
-            s.last_synced_at = Some(now_ms());
+            s.last_synced_at = Some(now);
             if phase == SyncPhase::Backfilling {
                 if rate.is_some() {
                     s.rate_per_min = rate;
@@ -385,8 +405,9 @@ impl AccountSync {
         self.reconcile_folders().await?;
         self.apply_window_policy();
         self.save_cursor().await?;
-        self.status_now(0).await?;
-        Ok(())
+        // Logging in again is not progress: after a failure the status
+        // keeps it until the pass that follows stores or checks mail.
+        self.status_after(0, false).await
     }
 
     /// Anchor new folders, forget vanished ones.
@@ -592,7 +613,8 @@ impl AccountSync {
                 .labels_added(&self.ctx.cfg.account_id, added);
         }
         self.save_cursor().await?;
-        self.status_now(0).await
+        let resting = self.resting_phase() != SyncPhase::Backfilling;
+        self.status_after(0, resting).await
     }
 
     /// Delete stored messages that have no copy left; returns their threads.
@@ -935,6 +957,12 @@ impl AccountSync {
             return Ok(true);
         }
         if !listed {
+            // The Junk folder only as far back as the spam window.
+            let after = if f.role == Role::Junk {
+                after.max(spam_window_start_ms(now_ms(), self.shared.policy().months))
+            } else {
+                after
+            };
             let list = if below <= 1 || sel.exists == 0 {
                 Vec::new()
             } else {
@@ -1010,6 +1038,15 @@ impl AccountSync {
             return Ok(false);
         };
         let mut st = self.imap.folders[&f.raw].clone();
+        if f.role == Role::Junk {
+            // Spam older than the window is never downloaded (the fill
+            // took the spam window's worth).
+            st.older_done = true;
+            st.older_below = None;
+            self.imap.folders.insert(f.raw.clone(), st);
+            self.save_cursor().await?;
+            return Ok(true);
+        }
         let below = st.older_below.unwrap_or(st.uidnext);
         let ctx = self.ctx.clone();
         let folders = self.folders.clone();
@@ -1091,7 +1128,6 @@ impl AccountSync {
 
     async fn run_inner(&mut self) -> Result<()> {
         self.init().await?;
-        self.failures = 0;
         self.next_full = Instant::now() + FULL_POLL;
         self.next_primary = Instant::now() + self.primary_interval();
         loop {
@@ -1120,17 +1156,17 @@ impl AccountSync {
                 Ok(()) => return,
                 Err(Error::NeedsReauth(msg)) => {
                     tracing::warn!(account = %self.ctx.cfg.account_id, "IMAP sync stopped: the server refused the password");
-                    self.shared.update(|s| {
-                        s.phase = SyncPhase::NeedsReauth;
-                        s.error = Some(msg);
-                    });
+                    let now = now_ms();
+                    self.shared
+                        .update(|s| s.record_failure(SyncErrorKind::Auth, msg, now, None));
                     return;
                 }
                 Err(Error::Keychain(msg)) => {
                     tracing::warn!(account = %self.ctx.cfg.account_id, error = %msg, "IMAP sync stopped: keychain access failed");
+                    let now = now_ms();
                     self.shared.update(|s| {
-                        s.phase = SyncPhase::NeedsReauth;
-                        s.error = Some(format!("Keychain access failed: {msg}"));
+                        let msg = format!("Keychain access failed: {msg}");
+                        s.record_failure(SyncErrorKind::Keychain, msg, now, None)
                     });
                     return;
                 }
@@ -1138,22 +1174,23 @@ impl AccountSync {
                     self.failures += 1;
                     self.session = None;
                     let wait =
-                        Duration::from_secs(5u64 << self.failures.min(10)).min(MAX_ERROR_BACKOFF);
-                    tracing::warn!(account = %self.ctx.cfg.account_id, error = %e, ?wait, "IMAP sync error; retrying");
+                        (self.backoff * (1u32 << self.failures.min(10))).min(MAX_ERROR_BACKOFF);
+                    tracing::warn!(account = %self.ctx.cfg.account_id, error = %e, failures = self.failures, ?wait, "IMAP sync error; retrying");
                     let message = match &e {
                         Error::RateLimited => "The mail server is limiting downloads for this account right now; sync resumes automatically.".to_string(),
                         other => other.to_string(),
                     };
-                    self.shared.update(|s| {
-                        s.phase = SyncPhase::Error;
-                        s.error = Some(message);
-                        s.rate_per_min = None;
-                        s.eta_secs = None;
-                    });
+                    let (kind, now) = (e.sync_kind(), now_ms());
+                    let retry_in = wait.as_millis() as i64;
+                    self.shared
+                        .update(|s| s.record_failure(kind, message, now, Some(retry_in)));
                     tokio::select! {
                         _ = tokio::time::sleep(wait) => {}
                         _ = self.shared.wake.notified() => {}
                     }
+                    // The next attempt is a whole pass, not just a login:
+                    // only stored or checked mail ends the failure.
+                    self.shared.poked.store(true, Ordering::SeqCst);
                 }
             }
         }
@@ -1285,10 +1322,8 @@ pub fn spawn(ctx: Arc<Ctx>, shared: Arc<Shared>, idle: bool) -> Handle {
                         .or_else(|| payload.downcast_ref::<String>().cloned())
                         .unwrap_or_else(|| "unknown".into());
                     tracing::error!(account = %account, panic = %panic, "IMAP sync task panicked");
-                    tick.update(|s| {
-                        s.phase = SyncPhase::Error;
-                        s.error = Some(format!("internal sync error ({panic}); retry sync to restart"));
-                    });
+                    let msg = format!("internal sync error ({panic}); retry sync to restart");
+                    tick.update(|s| s.record_failure(SyncErrorKind::Internal, msg, now_ms(), None));
                 }
             }
             _ = ticker => {}

@@ -88,8 +88,16 @@
   border-radius: var(--radius-lg); border: 1px solid var(--border-default); font-size: var(--text-xs); color: var(--text-emphasis); }
 .cmp-att-name { font-weight: 500; min-width: 0; }
 .cmp-att-size { color: var(--text-faint); flex: none; }
-.cmp-att-x { display: inline-flex; padding: 3px; border-radius: 5px; color: var(--text-faint); }
-.cmp-att-x:hover { color: var(--text-emphasis); background: var(--bg-interactive-hover); }
+.cmp-att-open { display: inline-flex; align-items: center; gap: 8px; min-width: 0; height: 100%; padding: 0 2px 0 0; border-radius: var(--radius-md); color: inherit; cursor: pointer; }
+.cmp-att-open:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.cmp-att:has(.cmp-att-open:hover) { background: var(--bg-row-hover); }
+.cmp-att-x, .cmp-att-eye { display: inline-flex; flex: none; padding: 3px; border-radius: 5px; color: var(--text-faint); }
+.cmp-att-x:hover, .cmp-att-eye:hover { color: var(--text-emphasis); background: var(--bg-interactive-hover); }
+.cmp-att-eye { margin-right: -4px; }
+/* The file preview sits above the composer (the main window's is an overlay itself). */
+.cmp-preview-scrim { z-index: 60; }
+.cmp-preview-host { z-index: 61; }
+.cmp-preview-host .att-preview:focus { outline: none; }
 .cmp-atts-total { font-size: 11px; color: var(--text-faint); margin-left: 4px; }
 /* The original of a reply/forward: downloading, failed, earlier files */
 .cmp-orig { display: flex; align-items: center; gap: 8px; min-height: 28px; margin: -4px 18px 10px 82px; font-size: var(--text-xs); color: var(--text-muted); }

@@ -14,6 +14,7 @@ import { dismissToastKey, toast } from "../components/Toast";
 import { accountName } from "../components/Identity";
 import { list, meta } from "./store";
 import { showSyncIssues } from "./syncToasts";
+import { syncHealth } from "../lib/syncHealth";
 
 export type RefreshAccountState =
   /** Poked, waiting for its poll to finish. */
@@ -70,7 +71,9 @@ const refKey = (accountId: string, threadId: string) => accountId + "\u0000" + t
 
 let cleanup: (() => void) | null = null;
 
-const needsFix = (s: SyncStatus | undefined) => !!s && (s.phase === "error" || s.phase === "needsReauth");
+// A failure the engine is still retrying on its own (lib/syncHealth.ts) is
+// waited on like any poll: the poke wakes it, and its retry usually lands.
+const needsFix = (s: SyncStatus | undefined) => syncHealth(s) === "alert";
 
 export function startRefresh() {
   if (state.active) return; // the progress toast is already up

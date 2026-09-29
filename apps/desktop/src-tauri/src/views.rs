@@ -53,6 +53,11 @@ pub enum ThreadAction {
         #[serde(rename = "labelId")]
         label_id: String,
     },
+    /// Report spam: into Spam and out of the inbox (Gmail +SPAM −INBOX,
+    /// IMAP a move to the Junk folder, Graph a move to junkemail).
+    ReportSpam,
+    /// Not spam: out of Spam and back to the inbox.
+    NotSpam,
 }
 
 impl ThreadAction {
@@ -75,6 +80,8 @@ impl ThreadAction {
             ThreadAction::ReplyLater { label_id } => {
                 (vec![label_id.clone()], vec![s("INBOX"), s("UNREAD")])
             }
+            ThreadAction::ReportSpam => (vec![s("SPAM")], vec![s("INBOX")]),
+            ThreadAction::NotSpam => (vec![s("INBOX")], vec![s("SPAM")]),
         }
     }
 
@@ -92,6 +99,8 @@ impl ThreadAction {
             ThreadAction::AddLabel { .. } => "label",
             ThreadAction::RemoveLabel { .. } => "remove the label from",
             ThreadAction::ReplyLater { .. } => "move to Reply Later",
+            ThreadAction::ReportSpam => "report as spam",
+            ThreadAction::NotSpam => "move out of Spam",
         }
     }
 }
@@ -348,5 +357,17 @@ mod tests {
             )
         );
         assert_eq!(a.verb(), "move to Reply Later");
+    }
+
+    #[test]
+    fn spam_actions_move_between_spam_and_the_inbox() {
+        let s = |v: &[&str]| v.iter().map(|x| x.to_string()).collect::<Vec<_>>();
+        let a: ThreadAction = serde_json::from_str(r#"{"kind":"reportSpam"}"#).unwrap();
+        assert_eq!(a, ThreadAction::ReportSpam);
+        assert_eq!(a.local_delta(), (s(&["SPAM"]), s(&["INBOX"])));
+        let a: ThreadAction = serde_json::from_str(r#"{"kind":"notSpam"}"#).unwrap();
+        assert_eq!(a, ThreadAction::NotSpam);
+        assert_eq!(a.local_delta(), (s(&["INBOX"]), s(&["SPAM"])));
+        assert_eq!(a.verb(), "move out of Spam");
     }
 }

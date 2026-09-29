@@ -7,6 +7,8 @@ import { Keys } from "../components/Kbd";
 import { meta } from "./store";
 import { accountName } from "../components/Identity";
 import { SyncFixButton, syncFixFor } from "../features/settings/syncFix";
+import { activeHide, syncHealth } from "../lib/syncHealth";
+import { useSyncHides } from "../lib/syncHides";
 import { toggleSyncPopover } from "../features/sidebar/SyncProgress";
 import { NextUp } from "../features/calendar/NextUp";
 
@@ -82,10 +84,15 @@ function SyncStatusLine() {
     return () => clearInterval(t);
   }, []);
 
+  const hides = useSyncHides();
   const all = Object.values(sync);
-  // Accounts that need a fix; reconnects first (sync can't resume without one).
-  const broken = all.find((s) => syncFixFor(s)?.kind === "reconnect") ?? all.find((s) => syncFixFor(s));
+  // Accounts that need a fix and aren't hidden; reconnects first (sync can't resume without one).
+  const shown = all.filter((s) => syncFixFor(s) && !activeHide(hides, s));
+  const broken = shown.find((s) => syncFixFor(s)?.kind === "reconnect") ?? shown[0];
   const fix = syncFixFor(broken);
+  // Failing quietly: the engine is still retrying on its own.
+  const retrying = all.find((s) => syncHealth(s) === "retrying");
+  const hidden = all.find((s) => activeHide(hides, s));
   const backfilling = all.filter((s) => s.phase === "backfilling");
   const nameOf = (id: string) => {
     const a = accounts.find((x) => x.id === id);
@@ -97,6 +104,12 @@ function SyncStatusLine() {
   if (broken && fix) {
     dot += " is-error";
     text = `${nameOf(broken.accountId)} · ${fix.message}`;
+  } else if (retrying) {
+    dot += " is-busy";
+    text = `${nameOf(retrying.accountId)} · Retrying…`;
+  } else if (hidden) {
+    dot += " is-muted";
+    text = `${nameOf(hidden.accountId)} · ${syncFixFor(hidden)?.message ?? "Sync problem"} (hidden)`;
   } else if (backfilling.length) {
     dot += " is-busy";
     const indexed = backfilling.reduce((n, s) => n + s.indexed, 0);
@@ -108,7 +121,9 @@ function SyncStatusLine() {
     const n = accounts.length;
     text = `${oldest ? `Synced ${ago(oldest)}` : "Not synced yet"} · ${n} ${n === 1 ? "account" : "accounts"}`;
   }
-  const title = all.map((s) => `${nameOf(s.accountId)}: ${s.phase}, ${num(s.indexed)} indexed`).join("\n");
+  const title = all
+    .map((s) => `${nameOf(s.accountId)}: ${s.phase}${s.failure ? `, ${s.failure.count} failed ${s.failure.count === 1 ? "try" : "tries"}` : ""}, ${num(s.indexed)} indexed`)
+    .join("\n");
   if (broken && fix) {
     return (
       <span className="right sync-broken">
