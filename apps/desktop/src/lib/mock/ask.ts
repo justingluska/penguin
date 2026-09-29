@@ -6,6 +6,7 @@ import type { AskAnswer, AskCard, AskCite, AskIntent, AskItem, AskScope, AskTime
 import type { MockHandler } from "./index";
 import { MOCK_ACCOUNT_IDS } from "./search";
 import { askQueryHandlers, mockQueryAnswer } from "./askQuery";
+import { mockExtraAnswer } from "./askExtra";
 
 const W = MOCK_ACCOUNT_IDS.work;
 const P = MOCK_ACCOUNT_IDS.personal;
@@ -260,7 +261,7 @@ function rich(question: string, q: string, scope: AskScope | null): AskAnswer | 
 }
 
 function answer(question: string, scope: AskScope | null): AskAnswer {
-  const asQuery = mockQueryAnswer(question);
+  const asQuery = mockQueryAnswer(question) ?? mockExtraAnswer(question);
   if (asQuery) return asQuery;
   const q = question.toLowerCase();
   // Spend first ("how much did I spend on flights" is a sum, not a flight).

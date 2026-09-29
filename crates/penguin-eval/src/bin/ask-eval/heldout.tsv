@@ -61,3 +61,18 @@ h059	tg-people	people	who wrote to me the most last month	messages max by=person
 h060	tg-people	people	who have I emailed most in 2025	messages max by=person dir=to @2025
 h061	sw-landlord	summary	what did Mike say about the parking spot	passage plant=parking
 h062	ms-said	summary	what did Yuki say about the phishing emails	passage plant=phishing
+h063	owner-totals	aggregate	how much did Streamly cost me in 2025	spending sum @2025 merchant=streamly
+h064	owner-totals	aggregate	add up my Tunewave receipts from this year	orders sum @thisyear merchant=tunewave
+h065	owner-totals	aggregate	total Swiftcab spend last month	spending sum @lastmonth merchant=swiftcab
+h066	owner-totals	aggregate	what's the total of my Nimbus Cloud bills in 2025	bills sum @2025 merchant=nimbus
+h067	owner-totals	aggregate	how much does Tunewave charge me a month	spending average money by=month @last12full merchant=tunewave
+h068	owner-first	temporal	when did we first talk to Ravi	messages first person=ravi
+h069	owner-first	temporal	when did Marco first reach out	messages first person=marco dir=from
+h070	owner-first	temporal	how long have I been emailing Greta	messages first person=greta
+h071	owner-first	temporal	the earliest email from Ana	messages first person=ana dir=from
+h072	owner-first	temporal	when did I bring on Tom	messages first person=tom
+h073	owner-contact	lookup	Hannah's email address	contact list field=email person=hannah
+h074	owner-contact	lookup	what email does Irene use	contact list field=email person=irene
+h075	owner-contact	lookup	how do I get in touch with Pablo	contact list field=email person=pablo
+h076	owner-extra	list	which subscriptions am I paying for	subscriptions list
+h077	owner-extra	aggregate	most expensive receipt in 2025	orders max money @2025

@@ -2,10 +2,10 @@
 
 Ask's question set is built from questions people actually ask, not ones we wrote. This page lists where they come from, how they're grouped, how each became a question about the synthetic mailbox, and how Ask does on them.
 
-- The set lives in `crates/penguin-eval/src/bin/ask-eval/`. `questions.tsv` holds 318 questions and `heldout.tsv` holds 62. Each row names its source, its category, the question, and a gold query.
+- The set lives in `crates/penguin-eval/src/bin/ask-eval/`. `questions.tsv` holds 353 questions and `heldout.tsv` holds 77. Each row names its source, its category, the question, and a gold query.
 - `oracle.rs` computes each expected answer from the corpus itself: its tags and the text it generated. It never uses Penguin's extractors or Ask.
 - `main.rs` runs and grades the set, and `draft.rs` holds the simulated model parser.
-- Run: `scripts/box-cargo.sh run -p penguin-eval --release --bin ask-eval -- --parser`.
+- Run: `scripts/box-cargo.sh run -p penguin-eval --release --bin ask-eval -- --parser`. `--probe FILE` asks each line of FILE and prints the answer, the reading and the result, ungraded: the way to see what a new phrasing does before writing its gold query.
 
 How Ask answers is in [ASK.md](ASK.md), under "Questions as queries".
 
@@ -31,6 +31,12 @@ Collected 2026-09-27. Every question below is quoted from the page linked. A key
 | `canary` | Canary Mail, [Copilot](https://canarymail.io/features/ai) | "Show me invoices from last month." |
 | `plai-invoices`, `plai-accountant` | [protonmail-local-ai](https://github.com/marshalltech81/protonmail-local-ai) README | "Find all invoices from last year and extract the vendor names and amounts" · "What did my accountant say about Q3 taxes?" |
 | `apple-mom` | Apple Newsroom, [Introducing Apple Intelligence](https://www.apple.com/newsroom/2024/06/introducing-apple-intelligence-for-iphone-ipad-and-mac/), 2024-06-10 | "When is Mom's flight landing?" |
+
+### The maintainer
+
+| Key | Source | Questions quoted |
+|---|---|---|
+| `owner-totals`, `owner-first`, `owner-contact`, `owner-extra` | Justin Gluska, 2026-09-29, asking for more in Ask | "I wanna be able to say things like 'total cost of my linear receipts this year' and it adds up … Or 'when did I hire X' or 'their email' and it finds the first email communication etc." Rewritten for the corpus (Linear → Streamly, Tunewave and Nimbus Cloud, which send monthly receipts and bills) with the variants people type: "Streamly total this year", "sum of my Nimbus invoices", "how much do I pay for Streamly a month", "how long have I known Priya", "oldest email with Priya", "Priya's email", "how do I reach Dana", "Mike's email". `owner-extra` are the question types added alongside (subscriptions, the largest receipt, emails from someone this year, the last one from them). |
 
 ### People asking on Hacker News
 
@@ -71,11 +77,11 @@ What the sources say, in short:
 
 | Category | What it asks | Examples from the sources | In the set |
 |---|---|---|---|
-| **count** | How many things, emails or nights | "How many flights have I taken this year?", "How many plants did I acquire in the last month?" | 78 + 15 |
-| **aggregate** | Totals, averages, extremes, "which … most", per-month breakdowns | "How much have rides cost me this year?", "Which grocery store did I spend the most money at…?", "What's the average?" | 70 + 14 |
-| **temporal** | When, first, last, next, how long since or until | "When's the last time I went to Illinois…", "What time is my next flight?", "How much time until my flight?" | 47 + 9 |
-| **lookup** | One value: a code, a number, an amount | "Confirmation number for my flight today?", "Tracking number for the laptop shipment.", "What was the PO number…?" | 30 + 5 |
-| **list** | Every item in a set | "List the receipts I got last week…", "Find all invoices from last year…", "Which cities has Jon visited?" | 24 + 5 |
+| **count** | How many things, emails or nights | "How many flights have I taken this year?", "How many plants did I acquire in the last month?" | 79 + 15 |
+| **aggregate** | Totals, averages, extremes, "which … most", per-month breakdowns | "How much have rides cost me this year?", "Which grocery store did I spend the most money at…?", "What's the average?", "total cost of my linear receipts this year" | 83 + 20 |
+| **temporal** | When, first, last, next, how long since or until | "When's the last time I went to Illinois…", "What time is my next flight?", "How much time until my flight?", "when did I hire X" | 59 + 14 |
+| **lookup** | One value: a code, a number, an amount, an address | "Confirmation number for my flight today?", "Tracking number for the laptop shipment.", "What was the PO number…?", "their email" | 38 + 8 |
+| **list** | Every item in a set | "List the receipts I got last week…", "Find all invoices from last year…", "Which cities has Jon visited?", "what subscriptions do I pay for" | 25 + 6 |
 | **comparison** | More or less between two periods or names | "…compare it to the prior year's data", "meetings vs. deep work this month" | 20 + 5 |
 | **existence** | Yes or no | "Did Jeffrey's box ever arrive?", "…museums … in December?" (answer 0) | 23 + 5 |
 | **people** | Who, the most | "the people I emailed the most this year", "Who was the plumber…?" | 12 + 2 |
@@ -115,6 +121,10 @@ The corpus is generated for a fixed day, **Sun 2026-09-27, noon local**. So "in 
 - **Spending.** Receipts, subscription charges and hotel booking totals, with refunds counted negative, dated by the email. Bills that are only due are billed, not spent. At a merchant that only sends bills (a utility), "how much did I pay" is what it billed. Currencies are never added together.
 - **Bills.** Statements and received invoices that have an amount due. A renewal notice with no price isn't one.
 - **People.** The humans in the cast, not automated senders. "Who did I email the most" counts recipients of your mail.
+- **First email.** "When did I hire X", "when did I start working with X" and "how long have I known X" are the day of the first email between you in either direction (sent to them, or copied, counts); "when did X first email me" and "the first email I sent X" pick a direction.
+- **Contact details.** A person's email is the address the cast gives them; a phone is one written in their own mail as "(415) 555-0138". A name two people share ("Mike") expects both addresses.
+- **Subscriptions.** The merchants whose receipts say "Amount charged" every month (Streamly, Tunewave). What they cost a month is the sum of each one's latest charge. Nimbus Cloud's monthly bills are bills, not subscriptions.
+- **"A month."** "How much do I pay for X a month" is the average per month over the twelve whole months before this one (`@last12full`).
 - **Where you fly.** Destinations: a flight home to the airport most flights leave from isn't a destination.
 
 ## Grading
@@ -126,8 +136,10 @@ The corpus is generated for a fixed day, **Sun 2026-09-27, noon local**. So "in 
 - **Comparisons.** The winning side must match.
 - **Yes/no.** The yes or no must match.
 - **Summary.** The conversation that holds the answer must be among the first three cited.
+- **Contact details.** Every expected address (or the phone) must appear in the answer: its headline, detail or `result.text`.
+- **Subscriptions.** The answer's rows must be exactly the expected merchants; their monthly cost is graded as an amount.
 - **Source recall.** Reported separately: the share of the conversations behind the expected answer that the answer cites, capped at 60.
 
 ## Results
 
-See [ASK.md](ASK.md#numbers-questions-as-queries) for the tables: before and after, per category, grammar alone and with the parser, and latency.
+See [ASK.md](ASK.md#numbers-questions-as-queries) for the tables: before and after, per category, grammar alone and with the parser, and latency; and [the 2026-09-29 numbers](ASK.md#numbers-totals-by-merchant-first-email-contact-details-subscriptions-2026-09-29) for the totals, first-email and contact-details questions (the 15 new held-out questions were written before the code changed).

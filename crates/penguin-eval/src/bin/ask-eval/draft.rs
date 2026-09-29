@@ -29,7 +29,8 @@ fn display(key: &str) -> String {
 }
 
 pub fn to_draft(g: &Gold) -> Option<QueryDraft> {
-    if g.op == Op::Passage {
+    // Contact details and subscriptions aren't in the query schema.
+    if g.op == Op::Passage || matches!(g.subject, Subject::Contact | Subject::Subscriptions) {
         return None;
     }
     Some(QueryDraft {
@@ -42,6 +43,7 @@ pub fn to_draft(g: &Gold) -> Option<QueryDraft> {
             Subject::Bookings => "bookings",
             Subject::Spending => "spending",
             Subject::Messages => "messages",
+            Subject::Contact | Subject::Subscriptions => unreachable!("not drafted"),
         }
         .into(),
         op: format!("{:?}", g.op).to_lowercase(),

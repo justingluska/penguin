@@ -1,6 +1,7 @@
 //! `ask-eval`: Ask's exact answers on real question shapes.
 //!
 //!   ask-eval [--out FILE] [--parser] [--set tuned|heldout] [--category C] [--id ID] [--verbose] [--reps N]
+//!   ask-eval --probe FILE   (ask each line of FILE, print what Ask answered; no grading)
 //!
 //! The questions (`questions.tsv`) are real questions people ask their
 //! mail, from the sources in `sources.tsv`, mapped onto the synthetic
@@ -76,6 +77,7 @@ struct Args {
     id: Option<String>,
     verbose: bool,
     reps: usize,
+    probe: Option<String>,
 }
 
 fn args() -> Args {
@@ -89,6 +91,7 @@ fn args() -> Args {
         id: get("--id"),
         verbose: v.iter().any(|a| a == "--verbose"),
         reps: get("--reps").and_then(|r| r.parse().ok()).unwrap_or(3),
+        probe: get("--probe"),
     }
 }
 
@@ -357,6 +360,17 @@ fn grade(a: &Value, e: &Expected, g: &Gold) -> (bool, String) {
             };
             ok(got == Some(*b), format!("yes {got:?}, want {b}"))
         }
+        Expect::Texts(want) => {
+            let blob = text_blob(a).to_lowercase();
+            let missing: Vec<&String> = want.iter().filter(|w| !blob.contains(&w.to_lowercase())).collect();
+            ok(exact(a) && missing.is_empty(), format!("missing {missing:?} in {h:?}"))
+        }
+        Expect::Labels(want) => {
+            let got: BTreeSet<String> = a["groups"].as_array().into_iter().flatten().map(|x| s(x, "label").to_string()).collect();
+            let all = want.iter().all(|w| got.iter().any(|g| label_match(g, w)));
+            let extra = got.iter().filter(|g| !want.iter().any(|w| label_match(g, w))).count();
+            ok(exact(a) && all && extra == 0, format!("rows {got:?}, want {want:?}"))
+        }
         Expect::Sources(docs) => {
             let c = cited(a);
             ok(c.iter().take(3).any(|d| docs.contains(d)), format!("top cites {:?}", c.iter().take(3).collect::<Vec<_>>()))
@@ -384,6 +398,29 @@ fn pct(v: &[f64], p: f64) -> f64 {
     s[i]
 }
 
+/// Ask each question in `file` (one per line, `#` comments) and print the
+/// reading and the answer, to see what a phrasing does before it has a
+/// gold query.
+fn probe(store: &Store, file: &str, now: i64, off: i32) {
+    let text = std::fs::read_to_string(file).expect("probe file");
+    let scope = AskScope::default();
+    for q in text.lines().map(str::trim).filter(|l| !l.is_empty() && !l.starts_with('#')) {
+        let a = serde_json::to_value(store.ask(q, &scope, now, off).expect("ask")).unwrap();
+        let cands: Vec<&str> = a["candidates"].as_array().into_iter().flatten().map(|c| s(c, "label")).collect();
+        println!(
+            "{q}\n    [{} · {}] {}\n    detail: {}\n    understood: {}\n    result: {}\n    cited: {}{}",
+            s(&a, "intent"),
+            s(&a, "confidence"),
+            s(&a, "headline"),
+            s(&a, "detail"),
+            a["understood"]["summary"].as_str().unwrap_or("—"),
+            if a["result"].is_null() { "—".to_string() } else { a["result"].to_string() },
+            cited(&a).len(),
+            if cands.is_empty() { String::new() } else { format!("\n    did you mean: {}", cands.join(" | ")) },
+        );
+    }
+}
+
 fn main() {
     let args = args();
     let now = fixed_now();
@@ -391,6 +428,10 @@ fn main() {
     let t0 = Instant::now();
     let (corpus, store) = build(now);
     eprintln!("corpus: {} messages, facts extracted in {:.1}s", corpus.messages.len(), t0.elapsed().as_secs_f64());
+    if let Some(file) = &args.probe {
+        probe(&store, file, now, off);
+        return;
+    }
     let truth = Truth::from_corpus(&corpus);
     let today = truth.today;
     let qs: Vec<Question> = questions()

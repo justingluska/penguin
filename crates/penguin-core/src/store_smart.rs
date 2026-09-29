@@ -460,6 +460,8 @@ struct Subscription {
     cadence: &'static str,
     nominal: f64,
     count: usize,
+    /// Every charge counted: (message rowid, unix ms, amount), oldest first.
+    charges: Vec<(i64, i64, f64)>,
 }
 
 fn detect_subscriptions(list: Vec<Purchase>) -> Vec<Subscription> {
@@ -522,6 +524,10 @@ fn detect_subscriptions(list: Vec<Purchase>) -> Vec<Subscription> {
         if recent.iter().any(|v| (v - mid).abs() > mid * 0.25) {
             continue;
         }
+        let history: Vec<(i64, i64, f64)> = charges
+            .iter()
+            .map(|p| (p.newest.msg, p.newest.date, p.amount.as_ref().map_or(0.0, |m| m.value)))
+            .collect();
         let last = charges.pop().expect("at least two charges");
         out.push(Subscription {
             merchant: last.merchant.clone(),
@@ -530,6 +536,7 @@ fn detect_subscriptions(list: Vec<Purchase>) -> Vec<Subscription> {
             cadence: name,
             nominal,
             count: charges.len() + 1,
+            charges: history,
         });
     }
     out
@@ -579,6 +586,64 @@ fn subscriptions(c: &Connection, scope: Option<&[AccountId]>, now: Now) -> Resul
         })
     });
     Ok(items.into_iter().map(|(_, _, i)| i).collect())
+}
+
+/// A recurring charge as Ask shows it ("what subscriptions do I pay for"):
+/// the Subscriptions view's rule, with every charge it counted.
+pub(crate) struct Recurring {
+    pub merchant: String,
+    /// The latest charge.
+    pub amount: Money,
+    /// "Monthly", "Yearly"…
+    pub cadence: &'static str,
+    /// The latest charge as a month's worth (a yearly one divided by 12).
+    pub per_month: f64,
+    /// (message rowid, unix ms, amount), oldest first.
+    pub charges: Vec<(i64, i64, f64)>,
+    /// Charged recently enough to still be running.
+    pub active: bool,
+    /// Past due but within one more period: a charge may just be late (or
+    /// its email missing); not yet clearly stopped.
+    pub late: bool,
+    /// When the next charge is due (unix ms).
+    pub next: i64,
+}
+
+/// Recurring charges over the Subscriptions view's window: active first,
+/// the costliest a month first; then the stopped ones, latest first.
+pub(crate) fn recurring_charges(
+    c: &Connection,
+    scope: Option<&[AccountId]>,
+    now_ms: i64,
+) -> Result<Vec<Recurring>> {
+    let found = detect_subscriptions(purchases(c, scope, now_ms - SUBSCRIPTION_DAYS * DAY)?);
+    let mut out: Vec<Recurring> = found
+        .into_iter()
+        .map(|s| {
+            let next = s.last.date + (s.nominal * DAY as f64) as i64;
+            let grace = ((s.nominal * 0.5).max(7.0) * DAY as f64) as i64;
+            Recurring {
+                per_month: s.amount.value * 30.44 / s.nominal,
+                merchant: s.merchant,
+                amount: s.amount,
+                cadence: s.cadence,
+                charges: s.charges,
+                active: now_ms <= next + grace,
+                late: now_ms > next + grace && now_ms <= next + grace + (s.nominal * DAY as f64) as i64,
+                next,
+            }
+        })
+        .collect();
+    out.sort_by(|a, b| {
+        b.active.cmp(&a.active).then_with(|| {
+            if a.active {
+                b.per_month.total_cmp(&a.per_month)
+            } else {
+                b.next.cmp(&a.next)
+            }
+        })
+    });
+    Ok(out)
 }
 
 fn subscriptions_info(items: &[Item]) -> Vec<SmartStat> {

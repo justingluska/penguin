@@ -397,6 +397,15 @@ fn special(w: &[&str], today: NaiveDate) -> Option<DateRange> {
                 to: Some(today + Duration::days(days + 1)),
             })
         }
+        // "the last 12 full months": whole months, this one left out.
+        ["last" | "past", n, "full" | "complete" | "whole", "months" | "month"] => {
+            let n: u32 = n.parse().ok().filter(|n| (1..=120).contains(n))?;
+            let to = dates::first_of_month(today);
+            Some(DateRange {
+                from: to.checked_sub_months(chrono::Months::new(n)),
+                to: Some(to),
+            })
+        }
         ["year", "to", "date"] | ["ytd"] => Some(DateRange {
             from: dates::ymd(today.year(), 1, 1),
             to: Some(today + Duration::days(1)),
@@ -716,6 +725,8 @@ mod tests {
         assert_eq!(tf("en agosto").as_deref(), Some("August 2026"));
         assert_eq!(tf("el año pasado").as_deref(), Some("2025"));
         assert_eq!(tf("next month").as_deref(), Some("October 2026"));
+        assert_eq!(tf("the last 12 full months").as_deref(), Some("Sep 1, 2025 – Aug 31, 2026"));
+        assert_eq!(tf("past 3 full months").as_deref(), Some("Jun 1 – Aug 31, 2026"));
         assert_eq!(tf("purple"), None);
         let fut = read_timeframe("march", today(), QueryTense::Future).unwrap();
         assert_eq!(fut.label, "March 2027");

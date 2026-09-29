@@ -627,6 +627,10 @@ fn unknown_people_and_questions_say_so() {
         "I don't know anyone matching \u{201c}zelda\u{201d}"
     );
     assert_eq!(a.search_query.as_deref(), Some("zelda"));
+    // A sum at a merchant nobody knows says so, not a quoted sentence.
+    let a = ask(&s, "how much did I spend at Zelda this year");
+    assert_eq!(a.confidence, AskConfidence::None);
+    assert_eq!(a.headline, "I don't know anyone matching \u{201c}zelda\u{201d}");
     let a = ask(&s, "why is the roadmap late");
     assert_eq!(a.intent, AskIntent::Passage);
     assert_eq!(a.confidence, AskConfidence::None);
@@ -746,4 +750,89 @@ fn works_on_a_read_only_store() {
     assert_eq!(a.intent, AskIntent::When);
     drop(ro);
     let _ = std::fs::remove_dir_all(&dir);
+}
+
+// ------------------------------------- first email, contact details, totals
+
+#[test]
+fn when_did_i_hire_them_is_the_first_email() {
+    let s = mailbox();
+    // No hire date in mail: the earliest email either way, and it says so.
+    let a = ask(&s, "when did I hire Priya?");
+    assert_eq!(a.intent, AskIntent::FirstContact);
+    let first = ask(&s, "first email with Priya");
+    let date = first.result.as_ref().unwrap().date.clone().unwrap();
+    assert_eq!(a.result.as_ref().unwrap().date.as_deref(), Some(date.as_str()));
+    assert!(a.headline.starts_with("Your first email with Priya Natarajan: "), "{}", a.headline);
+    assert!(a.detail.as_deref().unwrap().contains("can't show when that started"), "{:?}", a.detail);
+    assert!(!a.items.is_empty());
+    let a = ask(&s, "when did I start working with Priya");
+    assert!(a.headline.starts_with("Your first email with Priya Natarajan: "), "{}", a.headline);
+    // How long: from the same email.
+    let a = ask(&s, "how long have I known Priya?");
+    assert!(a.headline.starts_with("You've known Priya Natarajan since "), "{}", a.headline);
+    assert_eq!(a.result.as_ref().unwrap().date.as_deref(), Some(date.as_str()));
+    // One direction when the question says so.
+    let a = ask(&s, "first email I sent Priya");
+    assert!(a.headline.starts_with("You first emailed Priya Natarajan"), "{}", a.headline);
+    let a = ask(&s, "the oldest email from Priya");
+    assert!(a.headline.starts_with("Priya Natarajan first emailed you"), "{}", a.headline);
+}
+
+#[test]
+fn contact_details_list_the_addresses_you_use() {
+    let s = mailbox();
+    let a = ask(&s, "what's Omar's email address?");
+    assert_eq!(a.intent, AskIntent::ContactInfo);
+    assert_eq!(a.headline, "Omar Haddad's email: omar@northwind.example");
+    assert_eq!(a.result.as_ref().unwrap().text.as_deref(), Some("omar@northwind.example"));
+    assert!(fact(&a, "Email").value.starts_with("omar@northwind.example \u{b7} "));
+    // Two addresses, both exchanged with.
+    let a = ask(&s, "Mike Kestrel's email");
+    assert!(a.headline.starts_with("Mike Kestrel's email addresses: "), "{}", a.headline);
+    assert!(a.headline.contains("mike@kettleontheknoll.example") && a.headline.contains("mike@fernwood.example"), "{}", a.headline);
+    // A name two people share: both, and nothing picked.
+    let a = ask(&s, "Mike's email");
+    assert!(a.headline.starts_with("2 people match \u{201c}Mike\u{201d}: "), "{}", a.headline);
+    assert!(a.headline.contains("Mike Kestrel") && a.headline.contains("Mike Delgado <mike@delgado.example>"), "{}", a.headline);
+    assert!(a.person.is_none());
+    assert_eq!(a.candidates.len(), 2, "{:?}", a.candidates);
+    // Other answers about "Mike" say the name is shared.
+    let a = ask(&s, "when did I last email Mike");
+    assert!(a.detail.as_deref().unwrap_or("").contains("has the same name"), "{:?}", a.detail);
+    // "Their email" needs someone to refer to.
+    let a = ask(&s, "their email");
+    assert_eq!(a.confidence, AskConfidence::None);
+    assert!(a.headline.starts_with("Who do you mean by \u{201c}their\u{201d}"), "{}", a.headline);
+    let scope = AskScope {
+        person: Some(vec!["priya@linden.example".into()]),
+        ..AskScope::default()
+    };
+    let a = s.ask("their email", &scope, now(), 0).unwrap();
+    assert_eq!(a.headline, "Priya Natarajan's email: priya@linden.example");
+}
+
+#[test]
+fn merchant_totals_read_every_phrasing() {
+    let s = mailbox();
+    // The merchant as a noun modifier, "total cost", "sum of", "X total":
+    // all the same sum, with the math and what was left out.
+    for q in [
+        "total cost of my Uber receipts this year",
+        "Uber total this year",
+        "sum of my uber receipts this year",
+        "how much have I paid Uber this year",
+        "what did I spend on Uber this year",
+    ] {
+        let a = ask(&s, q);
+        assert_eq!(a.intent, AskIntent::Spend, "{q}");
+        assert_eq!(a.headline, "$78.25 across 4 Uber receipts this year", "{q}");
+        let sum = a.sum.as_ref().unwrap();
+        assert_eq!((sum.totals[0].count, sum.skipped), (4, 1), "{q}");
+        let r = a.result.as_ref().unwrap();
+        assert_eq!((r.totals.len(), r.count), (1, Some(4)), "{q}");
+        assert!(a.understood.is_some(), "{q}");
+        // The same company's other address isn't a "did you mean".
+        assert!(a.candidates.is_empty(), "{q}: {:?}", a.candidates);
+    }
 }

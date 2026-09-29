@@ -41,6 +41,10 @@ pub(crate) struct Resolution {
     pub target: Option<Target>,
     /// Other plausible matches, best first.
     pub alternatives: Vec<Target>,
+    /// Other people the name fits just as well ("Mike": Mike Chen and Mike
+    /// Delgado), however little mail you have with them, so an answer can
+    /// say the name is ambiguous instead of silently picking one.
+    pub namesakes: Vec<Target>,
 }
 
 /// A name standing for a set of domains (account nickname, profile name).
@@ -339,6 +343,7 @@ pub(crate) fn resolve(
     Ok(Resolution {
         target: merged,
         alternatives,
+        namesakes: vec![],
     })
 }
 
@@ -377,6 +382,7 @@ fn resolve_one(
                 weight,
             }),
             alternatives: vec![],
+            namesakes: vec![],
         });
     }
     // "@linden.example" / "linden.example": a whole domain.
@@ -396,6 +402,7 @@ fn resolve_one(
                     format!("\"{phrase}\" is a domain"),
                 )),
                 alternatives: vec![],
+                namesakes: vec![],
             });
         }
     }
@@ -542,9 +549,27 @@ fn resolve_one(
         {
             target.loose = true;
         }
+        // Everyone else whose full name has the typed words as whole words
+        // ("mike" → Mike Chen, Mike Delgado), one per name.
+        let mut names: Vec<String> = top.name.iter().map(|n| n.to_lowercase()).collect();
+        let mut namesakes = Vec::new();
+        for (p, cv) in ranked.iter().skip(1) {
+            let Some(n) = p.name.as_deref().filter(|n| n.split_whitespace().count() >= 2) else {
+                continue;
+            };
+            if !cv.exact || target.emails.contains(&p.email) || names.contains(&n.to_lowercase()) {
+                continue;
+            }
+            names.push(n.to_lowercase());
+            namesakes.push(person(p, *cv, phrase));
+            if namesakes.len() == 4 {
+                break;
+            }
+        }
         return Ok(Resolution {
             target: Some(target),
             alternatives,
+            namesakes,
         });
     }
 
@@ -596,6 +621,7 @@ fn resolve_one(
     Ok(Resolution {
         target: Some(target),
         alternatives: out,
+        namesakes: vec![],
     })
 }
 

@@ -3,7 +3,7 @@
 // status tones.
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { daysUntil, fmtTime, markSegments, parseLocal, shipStep, statusTone } from "../src/features/search/askFormat.ts";
+import { daysUntil, emailRows, fmtTime, markSegments, parseLocal, shipStep, statusTone } from "../src/features/search/askFormat.ts";
 
 test("local wall times parse without a timezone shift", () => {
   const p = parseLocal("2026-10-02T19:05");
@@ -60,4 +60,22 @@ test("parcel progress and status tones", () => {
   assert.equal(statusTone("In 6 days"), "blue");
   assert.equal(statusTone("3 weeks ago"), "gray");
   assert.equal(statusTone(null), "gray");
+});
+
+test("contact details: each address you've written with, and its counts", () => {
+  const facts = [
+    { label: "Email", value: "priya@linden.example · 41 from them · 27 from you · last Sep 22, 2026" },
+    { label: "Email", value: "priya.n@mailbox.example · 3 from them · 1 from you · last Mar 2, 2026" },
+    { label: "Phone", value: "+1 (415) 555-0142 · signature, Sep 22, 2026" },
+    // Who-is answers write every address in one "Email" fact: not rows.
+    { label: "Email", value: "a@x.example, b@y.example" },
+  ];
+  assert.deepEqual(
+    emailRows(facts).map((r) => [r.address, r.detail]),
+    [
+      ["priya@linden.example", "41 from them · 27 from you · last Sep 22, 2026"],
+      ["priya.n@mailbox.example", "3 from them · 1 from you · last Mar 2, 2026"],
+    ],
+  );
+  assert.deepEqual(emailRows([{ label: "Email", value: "not an address" }]), []);
 });

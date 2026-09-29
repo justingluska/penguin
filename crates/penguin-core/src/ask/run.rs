@@ -24,7 +24,7 @@ use rusqlite::{params, params_from_iter, Connection, OptionalExtension};
 use serde::Deserialize;
 
 use super::extract::{self, clip};
-use super::intent::{self, Dir, FactKind, Focus, Intent, Kind, Question, Which};
+use super::intent::{self, Dir, FactKind, First, Focus, Intent, Kind, Question, Which};
 use super::resolve::{self, Alias, Target, TargetKind};
 use super::*;
 use crate::store::{
@@ -78,6 +78,9 @@ struct Cx<'a> {
     q: Question,
     question: String,
     steps: Vec<String>,
+    /// Set when the name asked about fits several people ("Mike"): the
+    /// others, for the answer to say so.
+    namesakes: Vec<Target>,
 }
 
 impl Cx<'_> {
@@ -145,6 +148,28 @@ impl Cx<'_> {
         let mut steps = std::mem::take(&mut self.steps);
         steps.append(&mut a.steps);
         a.steps = steps;
+        // "Mike" when you write to two Mikes: say which one this is (the
+        // others are "did you mean" chips) rather than pick silently. An
+        // answer that already lists everyone the name fits says nothing.
+        let namesakes = std::mem::take(&mut self.namesakes);
+        if let (false, Some(p)) = (namesakes.is_empty(), &a.person) {
+            let listed = namesakes.iter().all(|t| a.headline.contains(&t.label));
+            if a.confidence != AskConfidence::None && !listed {
+                let others: Vec<&str> = namesakes.iter().map(|t| t.label.as_str()).collect();
+                let note = if others.len() == 1 {
+                    format!("{} has the same name; this is {}.", others[0], p.label)
+                } else {
+                    format!("{} also have the name; this is {}.", others.join(", "), p.label)
+                };
+                a.detail = Some(match a.detail.take() {
+                    Some(d) if !d.is_empty() => format!("{d} · {note}"),
+                    _ => note,
+                });
+                if a.confidence == AskConfidence::High {
+                    a.confidence = AskConfidence::Medium;
+                }
+            }
+        }
         // A date phrase read from the question is shown as an explicit,
         // removable interpretation (like search's date: chip).
         if let (Some(t), Some(span)) = (&self.q.range_text, self.range_span()) {
@@ -649,9 +674,21 @@ fn resolve_who(cx: &mut Cx, who: &str, intent: AskIntent) -> Result<Resolved> {
         return Ok(Resolved::Answer(Box::new(cx.finish(a))));
     };
     cx.steps.push(format!("Resolved {}", target.how));
-    let candidates = res
-        .alternatives
-        .iter()
+    if !res.namesakes.is_empty() {
+        cx.steps.push(format!(
+            "\u{201c}{who}\u{201d} also fits {}",
+            res.namesakes.iter().map(|t| format!("{} <{}>", t.label, list_emails(&t.emails))).collect::<Vec<_>>().join(", ")
+        ));
+    }
+    cx.namesakes = res.namesakes.clone();
+    let mut others: Vec<&Target> = res.alternatives.iter().collect();
+    for n in &res.namesakes {
+        if !others.iter().any(|a| a.emails.first() == n.emails.first()) {
+            others.push(n);
+        }
+    }
+    let candidates = others
+        .into_iter()
         .map(|alt| {
             let key = if alt.kind == TargetKind::Company {
                 alt.domains.first().cloned().unwrap_or_default()
@@ -770,6 +807,7 @@ pub(super) fn answer<'a>(
         q: q.clone(),
         question: question.trim().to_string(),
         steps: vec![],
+        namesakes: vec![],
     };
     if let (Some(t), Some(span)) = (&q.range_text, cx.range_span()) {
         cx.steps.push(format!("Read \u{201c}{t}\u{201d} as {span}"));
@@ -784,6 +822,10 @@ pub(super) fn answer<'a>(
         q.intent,
         Intent::Unknown | Intent::Passage { .. } | Intent::When { .. } | Intent::Find { .. }
     );
+    // A sum template ("how much did I spend at X") is a fact question too:
+    // when the grammar reads all of it ("total cost of my Streamly receipts
+    // this year"), the query layer adds up every matching fact; the
+    // template's merchant slot can't tell "cost of my streamly" from a name.
     let fact_template = matches!(
         q.intent,
         Intent::Flight { .. }
@@ -793,6 +835,7 @@ pub(super) fn answer<'a>(
             | Intent::Bills { .. }
             | Intent::Booking { .. }
             | Intent::CountFacts { .. }
+            | Intent::Spend { .. }
     );
     if open || fact_template {
         let parsed = super::qparse::parse(question, today).filter(|p| p.unread.is_empty());
@@ -804,7 +847,14 @@ pub(super) fn answer<'a>(
                 || q.group_by.is_some()
                 || !q.compare.is_empty()
         };
-        if let Some(p) = parsed.filter(|p| open || aggregate(&p.query)) {
+        // A spending template about a category ("how much did I spend on
+        // hotels") keeps its own answer; one about a merchant goes through
+        // the query, whose reading ("total cost of my Streamly receipts")
+        // names the merchant where the template's slot can't.
+        let spend_ok = |q: &AskQuery| {
+            !matches!(cx.q.intent, Intent::Spend { .. }) || q.merchant.is_some() || q.group_by.is_some() || !q.compare.is_empty()
+        };
+        if let Some(p) = parsed.filter(|p| open || (aggregate(&p.query) && spend_ok(&p.query))) {
             let (lo, hi, saved_q, saved_steps) = (cx.lo, cx.hi, cx.q.clone(), cx.steps.clone());
             if let Some(a) = query_exec::run_query(&mut cx, &p.query, QuerySource::Grammar)? {
                 return Ok(a);
@@ -825,9 +875,13 @@ pub(super) fn answer<'a>(
             | Intent::Booking { .. }
             | Intent::ContactInfo { .. }
     );
+    // A spending question whose merchant wasn't found may still read as a
+    // query; it doesn't fall back to quoted sentences ("I don't know anyone
+    // matching …" is the honest answer to a sum).
+    let spend_question = matches!(q.intent, Intent::Spend { .. });
     let a = match q.intent.clone() {
-        Intent::LastContact { who, dir } => contact(&mut cx, &who, dir, true),
-        Intent::FirstContact { who, dir } => contact(&mut cx, &who, dir, false),
+        Intent::LastContact { who, dir } => contact(&mut cx, &who, dir, true, First::Email),
+        Intent::FirstContact { who, dir, first } => contact(&mut cx, &who, dir, false, first),
         Intent::Relationship { who, focus } => relationship(&mut cx, &who, focus),
         Intent::LatestItem { who, kind } => latest_item(&mut cx, who.as_deref(), kind),
         Intent::Count { who, dir, kind } => count(&mut cx, &who, dir, kind),
@@ -850,6 +904,7 @@ pub(super) fn answer<'a>(
         Intent::Bills { what } => facts::bills(&mut cx, what.as_deref()),
         Intent::Booking { what } => facts::booking(&mut cx, what.as_deref()),
         Intent::Code { service } => facts::code(&mut cx, service.as_deref()),
+        Intent::Subscriptions => facts::subscriptions(&mut cx),
         Intent::ContactInfo { who, field } => facts::contact_info(&mut cx, &who, field),
         Intent::CountFacts { kind, who } => facts::count_facts(&mut cx, kind, who.as_deref()),
         Intent::Said { who, topic } => passages::said(&mut cx, who.as_deref(), &topic),
@@ -872,6 +927,24 @@ pub(super) fn answer<'a>(
     // Nothing extracted matches ("how much is the new rent?" when the rent
     // is only in a landlord's email): answer from the text instead, and
     // keep the fact answer if the text has nothing either.
+    if (fact_question || spend_question) && a.confidence == AskConfidence::None {
+        // First the question read as a query, which may name the thing
+        // another way ("how much is my Streamly subscription": no Streamly
+        // bill, but its latest charge).
+        if let Some(p) = super::qparse::parse(question, today).filter(|p| p.unread.is_empty()) {
+            let (lo, hi, saved_q, saved_steps) = (cx.lo, cx.hi, cx.q.clone(), cx.steps.clone());
+            if let Some(qa) = query_exec::run_query(&mut cx, &p.query, QuerySource::Grammar)? {
+                let found = !(qa.items.is_empty() && qa.cards.is_empty() && qa.groups.is_empty());
+                if found && qa.confidence != AskConfidence::None {
+                    return Ok(qa);
+                }
+            }
+            cx.lo = lo;
+            cx.hi = hi;
+            cx.q = saved_q;
+            cx.steps = saved_steps;
+        }
+    }
     if fact_question && a.confidence == AskConfidence::None {
         let text = cx.q.text.clone();
         let mut p = passages::topic(&mut cx, AskIntent::Passage, &text)?;
@@ -925,6 +998,7 @@ pub(super) fn answer_query(
         q,
         question: question.trim().to_string(),
         steps: vec![],
+        namesakes: vec![],
     };
     cx.steps.push(match source {
         QuerySource::Model => "Read the question with Apple Intelligence (on this Mac), then checked its reading against the query schema and your mail".to_string(),
@@ -958,7 +1032,34 @@ fn nothing_with(cx: &mut Cx, intent: AskIntent, t: &Target, what: &str) -> AskAn
 
 // ---------------------------------------------------- last/first contact
 
-fn contact(cx: &mut Cx, who: &str, dir: Dir, last: bool) -> Result<AskAnswer> {
+/// "1 year 7 months", "3 months", "2 weeks": how long from `a` to `b`.
+fn duration_words(a: NaiveDate, b: NaiveDate) -> String {
+    let mut months = (b.year() - a.year()) * 12 + b.month() as i32 - a.month() as i32;
+    if b.day() < a.day() {
+        months -= 1;
+    }
+    let (y, m) = (months / 12, months % 12);
+    match (y, m) {
+        (0, 0) => {
+            let days = (b - a).num_days().max(0) as usize;
+            if days >= 14 {
+                plural(days / 7, "week", "weeks")
+            } else {
+                plural(days, "day", "days")
+            }
+        }
+        (0, m) => plural(m as usize, "month", "months"),
+        (y, 0) => plural(y as usize, "year", "years"),
+        (y, m) => format!("{} {}", plural(y as usize, "year", "years"), plural(m as usize, "month", "months")),
+    }
+}
+
+/// Last or first email with someone. A first-contact question that asks
+/// when a relationship began ("when did I hire Julia") or how long you've
+/// known someone is answered from the same first email, in either
+/// direction, and says that's what it is: mail shows when you started
+/// writing, not a hire date.
+fn contact(cx: &mut Cx, who: &str, dir: Dir, last: bool, first: First) -> Result<AskAnswer> {
     let intent = if last {
         AskIntent::LastContact
     } else {
@@ -1006,13 +1107,28 @@ fn contact(cx: &mut Cx, who: &str, dir: Dir, last: bool) -> Result<AskAnswer> {
     let rel = relative(when, cx.today);
     let name = &t.label;
     let mut a = cx.answer(intent);
+    let subject = clip(&chosen.subject_or_none(), 90);
+    let who_wrote = if chosen.by_me { "you wrote it" } else { "they wrote it" };
     a.headline = match (last, chosen.by_me) {
         (true, true) => format!("You last emailed {name} on {} ({rel})", fmt_date(when)),
         (true, false) => format!("{name} last emailed you on {} ({rel})", fmt_date(when)),
+        // Either direction: the first email between you.
+        (false, _) if dir == Dir::Any && first == First::Known => {
+            format!("You've known {name} since {} ({})", fmt_month(when), duration_words(when, cx.today))
+        }
+        (false, _) if dir == Dir::Any => {
+            format!("Your first email with {name}: {}, \u{201c}{subject}\u{201d}", fmt_date(when))
+        }
         (false, true) => format!("You first emailed {name} on {} ({rel})", fmt_date(when)),
         (false, false) => format!("{name} first emailed you on {} ({rel})", fmt_date(when)),
     };
-    if dir == Dir::FromThem && !chosen.from_them {
+    if !last && dir == Dir::Any {
+        a.detail = Some(match first {
+            First::Known => format!("From your first email with them: {}, \u{201c}{subject}\u{201d} ({who_wrote})", fmt_date(when)),
+            First::Start => format!("Your mail can't show when that started; this is the earliest email between you ({who_wrote}, {rel})."),
+            First::Email => format!("{} ({who_wrote})", capitalize(&rel)),
+        });
+    } else if dir == Dir::FromThem && !chosen.from_them {
         a.detail = Some(format!(
             "{name} hasn't written to you{}; this is the {} message you sent.",
             cx.range_phrase(),
@@ -1077,6 +1193,10 @@ fn contact(cx: &mut Cx, who: &str, dir: Dir, last: bool) -> Result<AskAnswer> {
     };
     a.search_query = Some(format!("{}{}", target_query(&t, Dir::Any), cx.range_ops()));
     a.followups = person_followups(&t, intent);
+    let mut result = AskResult::new(AskResultKind::Item);
+    result.date = Some(iso(when));
+    result.count = Some(direct.len() as u64);
+    a.result = Some(result);
     Ok(cx.finish(a))
 }
 
@@ -1343,14 +1463,14 @@ fn relationship(cx: &mut Cx, who: &str, focus: Focus) -> Result<AskAnswer> {
     let start_row = span.regular.map_or(span.first, |r| r.0);
     let start_m = fmt_month(local_date(start_row.date, cx.off));
     a.headline = match focus {
-        Focus::Span | Focus::Start => match (span.regular, reg_end, ended) {
-            (Some(_), Some(end), true) if focus == Focus::Span => {
+        Focus::Span => match (span.regular, reg_end, ended) {
+            (Some(_), Some(end), true) => {
                 format!(
                     "You worked with {name} from {start_m} to {}",
                     fmt_month(local_date(end.date, cx.off))
                 )
             }
-            (Some(_), _, false) if focus == Focus::Span => {
+            (Some(_), _, false) => {
                 format!("You've worked with {name} since {start_m} (still active)")
             }
             (Some(_), _, _) => format!("Regular mail with {name} started in {start_m}"),
@@ -1962,6 +2082,14 @@ fn spend(cx: &mut Cx, merchant: &str) -> Result<AskAnswer> {
         }
         None => t,
     };
+    // Another address at the same company is already in the sum.
+    let candidates: Vec<AskSuggestion> = candidates
+        .into_iter()
+        .filter(|c| {
+            let at = c.label.rsplit('@').next().unwrap_or("").trim_end_matches('>');
+            !t.domains.iter().any(|d| at == d || at.ends_with(&format!(".{d}")))
+        })
+        .collect();
     let (lo, hi) = (cx.lo, cx.hi);
     let rows = cx.store.read(|c| target_rows(cx, c, &t, lo, hi))?;
     let from: Vec<&Row> = rows

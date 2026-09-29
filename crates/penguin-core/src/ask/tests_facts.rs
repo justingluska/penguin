@@ -533,3 +533,36 @@ fn meaning_search_through_the_semantic_traits() {
     );
     assert!(idx.len() == mail().len());
 }
+
+#[test]
+fn subscriptions_are_recurring_charges() {
+    let s = mailbox();
+    let tune = addr("Tunewave", "billing@tunewave.example");
+    let msgs: Vec<Message> = (0..6)
+        .map(|k| {
+            let m = Mail {
+                thread: Box::leak(format!("tune-{k}").into_boxed_str()),
+                date: days_ago(3 + 30 * k),
+                from: tune.clone(),
+                subject: "Your Tunewave receipt",
+                body: "Thanks for being a member.\n\nPlan: Standard\nAmount charged: $10.99\nBilling period: monthly",
+                html: None,
+                bulk: true,
+            };
+            message(100 + k as usize, &m)
+        })
+        .collect();
+    s.upsert_messages(&msgs).unwrap();
+    s.extract_pending(10_000).unwrap();
+    let a = ask(&s, "what subscriptions do I pay for?");
+    assert_eq!(a.intent, AskIntent::Subscriptions);
+    assert_eq!(a.headline, "1 subscription, $10.99 a month: Tunewave");
+    assert_eq!(a.groups.len(), 1);
+    assert_eq!(a.groups[0].count, 6);
+    assert_eq!(a.result.as_ref().unwrap().totals[0].value, 10.99);
+    // In a date range: every charge in it, added up.
+    let a = ask(&s, "how much did I spend on subscriptions in the last 3 months");
+    assert_eq!(a.intent, AskIntent::Subscriptions);
+    assert!(a.headline.starts_with("$32.97 on 1 subscription"), "{}", a.headline);
+    assert_eq!(a.items.len(), 3);
+}

@@ -10,7 +10,7 @@ import { Icon } from "../../components/Icon";
 import { Avatar } from "../../components/Identity";
 import { toast } from "../../components/Toast";
 import { api } from "../../lib/api";
-import { daysUntil, fmtDay, fmtTime, fmtWhen, markSegments, money, SHIP_STEPS, shipStep, statusTone } from "./askFormat";
+import { daysUntil, emailRows, fmtDay, fmtTime, fmtWhen, markSegments, money, SHIP_STEPS, shipStep, statusTone } from "./askFormat";
 
 type Open = (cite: AskCite, keep: boolean) => void;
 
@@ -299,22 +299,58 @@ export function SumBlock({ sum, expanded, onToggle, count }: { sum: AskSum; expa
 }
 
 /** Who the answer is about: name, addresses, and the phone/address facts. */
-export function PeopleCard({ person, facts, onOpen }: { person: AskPerson; facts: AskFact[]; onOpen: Open }) {
-  const detail = facts.filter((f) => f.label === "Phone" || f.label === "Address" || f.label === "Email" || f.label === "Company domain");
+/**
+ * A person card: name, addresses, phone and postal address. With `emails`
+ * (a contact-details answer), each address you've exchanged mail with is a
+ * row with its counts and a copy button, and the phone copies too.
+ */
+export function PeopleCard({ person, facts, onOpen, emails = false }: { person: AskPerson; facts: AskFact[]; onOpen: Open; emails?: boolean }) {
+  const detail = facts.filter((f) => f.label === "Phone" || f.label === "Address");
+  // "priya@linden.example · 41 from them · 27 from you · last Sep 22, 2026"
+  const rows = emails ? emailRows(facts) : [];
   return (
-    <div className="ask-person">
+    <div className={`ask-person${rows.length ? " has-emails" : ""}`}>
       <Avatar person={{ name: person.name, email: person.emails[0] ?? "" }} size="lg" />
       <div className="ask-person-main">
         <div className="ask-person-name">{person.name ?? person.label}</div>
-        <div className="ask-person-sub faint truncate">{person.company ? person.domain : person.emails.join(", ")}</div>
+        {rows.length === 0 && <div className="ask-person-sub faint truncate">{person.company ? person.domain : person.emails.join(", ")}</div>}
+        {rows.length > 0 && (
+          <ul className="ask-person-emails" aria-label="Email addresses">
+            {rows.map(({ address, detail: counts, fact: f }) => (
+              <li key={address}>
+                <Copyable value={address} what="address" mono={false} />
+                {counts && (
+                  <span className="faint truncate">
+                    {f.cite ? (
+                      <a onMouseDown={(e) => e.preventDefault()} onClick={(e) => onOpen(f.cite!, keep(e))} title="Open the latest email from this address">
+                        {counts}
+                      </a>
+                    ) : (
+                      counts
+                    )}
+                  </span>
+                )}
+              </li>
+            ))}
+          </ul>
+        )}
         {detail.length > 0 && (
           <div className="ask-person-facts">
-            {detail
-              .filter((f) => f.label === "Phone" || f.label === "Address")
-              .map((f) => (
+            {detail.map((f) => {
+              const [value, ...rest] = f.value.split(" · ");
+              return (
                 <span key={f.label} className="ask-person-fact">
                   <span className="faint">{f.label}</span>{" "}
-                  {f.cite ? (
+                  {f.label === "Phone" && emails ? (
+                    <>
+                      <Copyable value={value} what="phone number" mono={false} />
+                      {rest.length > 0 && (
+                        <a className="faint" onMouseDown={(e) => e.preventDefault()} onClick={(e) => f.cite && onOpen(f.cite, keep(e))}>
+                          {rest.join(" · ")}
+                        </a>
+                      )}
+                    </>
+                  ) : f.cite ? (
                     <a onMouseDown={(e) => e.preventDefault()} onClick={(e) => onOpen(f.cite!, keep(e))}>
                       {f.value}
                     </a>
@@ -322,7 +358,8 @@ export function PeopleCard({ person, facts, onOpen }: { person: AskPerson; facts
                     f.value
                   )}
                 </span>
-              ))}
+              );
+            })}
           </div>
         )}
       </div>

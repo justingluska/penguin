@@ -110,8 +110,10 @@ pub enum AskIntent {
     Booking,
     /// "Latest verification code from Rydeo".
     Code,
-    /// "What's Priya's phone number".
+    /// "What's Priya's phone number", "Priya's email", "how do I reach Dana".
     ContactInfo,
+    /// "What subscriptions do I pay for": recurring charges.
+    Subscriptions,
     /// "What did Priya say about pricing".
     Said,
     /// "Did Priya reply about the contract".

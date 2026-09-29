@@ -937,6 +937,10 @@ fn people_you_know_codes_files_newsletters_and_saved_searches() {
     store
         .upsert_messages(&[sent, from_priya, stranger, news, code, old_code, pdf, sheet])
         .unwrap();
+    // Ingest scans codes only in mail from the real clock's last 48 hours;
+    // the app's startup backfill covers the rest. The test's clock is fixed
+    // (now()), so run that backfill as the app would, or it rots with time.
+    store.backfill_otp(now() - 30 * DAY).unwrap();
 
     let people = list(&store, "people", None);
     assert_eq!(

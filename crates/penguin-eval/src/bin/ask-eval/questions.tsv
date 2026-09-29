@@ -317,3 +317,38 @@ q315	ms-said	summary	what did the vet say about Biscuit	passage plant=vet
 q316	plai-accountant	summary	what did my accountant say about the tax return	passage plant=tax
 q317	tg-date	summary	when does Fjordsoft shut off the v1 API	passage plant=api-sunset
 q318	gaio-trip	summary	what time is the plumber coming	passage plant=plumber
+q319	owner-totals	aggregate	total cost of my streamly receipts this year	orders sum @thisyear merchant=streamly
+q320	owner-totals	aggregate	how much have I paid Streamly in 2026	spending sum @2026 merchant=streamly
+q321	owner-totals	aggregate	sum of my Streamly receipts	orders sum merchant=streamly
+q322	owner-totals	aggregate	sum of my Nimbus invoices	bills sum merchant=nimbus
+q323	owner-totals	aggregate	Streamly total this year	spending sum @thisyear merchant=streamly
+q324	owner-totals	aggregate	what did I spend on Streamly last month	spending sum @lastmonth merchant=streamly
+q325	owner-totals	aggregate	how much do I pay for Streamly a month	spending average money by=month @last12full merchant=streamly
+q326	owner-totals	lookup	how much is my Streamly subscription	spending last field=amount merchant=streamly
+q327	owner-totals	aggregate	total of my Tunewave charges in 2025	spending sum @2025 merchant=tunewave
+q328	owner-totals	aggregate	total cost of my Swiftcab rides this year	orders sum @thisyear merchant=swiftcab
+q329	owner-totals	aggregate	Nimbus total this year	bills sum @thisyear merchant=nimbus
+q330	owner-totals	aggregate	how much have I paid Nimbus Cloud in 2026	bills sum @2026 merchant=nimbus
+q331	owner-first	temporal	when did I hire Julia	messages first person=julia
+q332	owner-first	temporal	when did I first email Julia	messages first person=julia dir=to
+q333	owner-first	temporal	when did Julia first email me	messages first person=julia dir=from
+q334	owner-first	temporal	first email with Julia	messages first person=julia
+q335	owner-first	temporal	when did I start working with Tom	messages first person=tom
+q336	owner-first	temporal	how long have I known Priya	messages first person=priya
+q337	owner-first	temporal	when did I meet Dana	messages first person=dana
+q338	owner-first	temporal	oldest email with Priya	messages first person=priya
+q339	owner-first	temporal	first email I sent Priya	messages first person=priya dir=to
+q340	owner-first	temporal	when did Irene hire me	messages first person=irene
+q341	owner-first	temporal	when did I first hear from Marco	messages first person=marco dir=from
+q342	owner-contact	lookup	Priya's email	contact list field=email person=priya
+q343	owner-contact	lookup	what's Julia's email address	contact list field=email person=julia
+q344	owner-contact	lookup	email address for Theo	contact list field=email person=theo
+q345	owner-contact	lookup	how do I reach Dana	contact list field=email person=dana
+q346	owner-contact	lookup	Dana's phone number	contact list field=phone person=dana
+q347	owner-contact	lookup	Mike's email	contact list field=email person=mike-w|mike-d
+q348	owner-contact	lookup	how can I contact Ravi	contact list field=email person=ravi
+q349	owner-extra	list	what subscriptions do I pay for	subscriptions list
+q350	owner-extra	aggregate	how much do I spend on subscriptions a month	subscriptions sum
+q351	owner-extra	aggregate	largest receipt this year	orders max money @thisyear
+q352	owner-extra	count	how many emails did I get from Priya this year	messages count @thisyear person=priya dir=from
+q353	owner-extra	temporal	when did I last hear from Julia	messages last person=julia dir=from

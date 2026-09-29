@@ -142,6 +142,17 @@ const LEXICON: &[(&str, Role)] = &[
     ("facturas", Role::Noun(QuerySubject::Bills)),
     ("factura", Role::Noun(QuerySubject::Bills)),
     ("recibos", Role::Noun(QuerySubject::Bills)),
+    // money paid, whatever the email calls it: "my Streamly charges",
+    // "Tunewave payments", "my Linear subscription"
+    ("charges", Role::Noun(QuerySubject::Spending)),
+    ("payments", Role::Noun(QuerySubject::Spending)),
+    ("payment", Role::Noun(QuerySubject::Spending)),
+    ("subscriptions", Role::Noun(QuerySubject::Spending)),
+    ("subscription", Role::Noun(QuerySubject::Spending)),
+    ("memberships", Role::Noun(QuerySubject::Spending)),
+    ("membership", Role::Noun(QuerySubject::Spending)),
+    ("suscripcion", Role::Noun(QuerySubject::Spending)),
+    ("pagos", Role::Noun(QuerySubject::Spending)),
     // bookings
     ("reservations", Role::Noun(QuerySubject::Bookings)),
     ("reservation", Role::Noun(QuerySubject::Bookings)),
@@ -188,6 +199,7 @@ const LEXICON: &[(&str, Role)] = &[
     ("money", Role::Money),
     ("expenses", Role::Money),
     ("charged", Role::Money),
+    ("charge", Role::Money),
     ("gaste", Role::Money),
     ("gastado", Role::Money),
     ("gastamos", Role::Money),
@@ -229,6 +241,7 @@ const GLUE: &[&str] = &[
     "she", "him", "her", "its", "their", "his", "hers", "your", "yours", "mine", "ours",
     "kind", "type", "sort", "day", "days", "date", "dates", "exactly", "roughly", "about",
     "visit", "visited", "visiting", "ido", "estuve",
+    "add", "added", "totals", "subtotal",
     "anywhere", "anything", "something", "somewhere", "ever", "higher", "lower", "bigger",
     "smaller", "cheaper", "pricier", "until", "till", "left", "wait", "own", "used", "use",
     // Spanish
@@ -559,6 +572,7 @@ pub(crate) fn parse(question: &str, today: NaiveDate) -> Option<Parsed> {
     let mut nights = false;
     let mut trips = false;
     let mut used = vec![false; words.len()];
+    let mut named_plan = false;
     let mut i = 0;
     while i < words.len() {
         let mut matched = 0;
@@ -581,6 +595,12 @@ pub(crate) fn parse(question: &str, today: NaiveDate) -> Option<Parsed> {
             if let Some((_, role)) = LEXICON.iter().find(|(w, _)| *w == phrase) {
                 match *role {
                     Role::Noun(s) => {
+                        // "subscriptions" names a kind of charge the query
+                        // can't filter on; only one merchant's ("my Streamly
+                        // subscription") reads as a query.
+                        if matches!(phrase.as_str(), "subscriptions" | "subscription" | "memberships" | "membership" | "suscripcion") {
+                            named_plan = true;
+                        }
                         if !noun_seen || subject == Some(QuerySubject::Messages) {
                             subject = Some(s);
                         }
@@ -612,6 +632,16 @@ pub(crate) fn parse(question: &str, today: NaiveDate) -> Option<Parsed> {
         } else {
             i += 1;
         }
+    }
+    // "Streamly total this year", "sum of my Tunewave payments", "add up my
+    // receipts": a total is of money unless it counts ("total number of").
+    let sum_cue = words.iter().any(|w| matches!(w.as_str(), "total" | "totals" | "sum" | "subtotal"))
+        || has_seq(&words, &["add", "up"])
+        || has_seq(&words, &["added", "up"]);
+    let counting = has_seq(&words, &["how", "many"]) || has(&words, "number") || has(&words, "count");
+    if sum_cue && !counting && subject.is_none() {
+        subject = Some(QuerySubject::Spending);
+        money = true;
     }
     if nights && subject.is_none() {
         subject = Some(QuerySubject::Stays);
@@ -701,7 +731,16 @@ pub(crate) fn parse(question: &str, today: NaiveDate) -> Option<Parsed> {
         || has_seq(&words, &["how", "often"])
         || words.windows(2).enumerate().any(|(i, w)| w[0] == "number" && w[1] == "of" && (i == 0 || !matches!(words[i - 1].as_str(), "order" | "flight" | "tracking" | "confirmation" | "booking" | "reservation" | "phone" | "account" | "invoice")))
         || matches!(first, "cuantos" | "cuantas" | "count");
-    let how_much = has_seq(&words, &["how", "much"]) || matches!(first, "cuanto" | "cuanta") || has(&words, "total") && money;
+    // A total of receipts, bills or payments is money ("total cost of my
+    // Streamly receipts", "sum of my Nimbus invoices"); "what did I spend on
+    // X" asks the same as "how much".
+    let spend_verb = words.iter().any(|w| matches!(w.as_str(), "spend" | "spent" | "pay" | "paid" | "gaste" | "gastado" | "pague" | "pagado"));
+    let what_spent = matches!(first, "what" | "que") && spend_verb && !(most || least) && group_by.is_none();
+    let how_much = has_seq(&words, &["how", "much"])
+        || matches!(first, "cuanto" | "cuanta")
+        || has(&words, "total") && money
+        || what_spent
+        || sum_cue && !counting && (money || matches!(subject, QuerySubject::Orders | QuerySubject::Bills | QuerySubject::Spending));
     let average = words.iter().any(|w| matches!(w.as_str(), "average" | "avg" | "typical" | "typically" | "usually" | "promedio" | "media" | "mean"));
     let longest = words.iter().any(|w| matches!(w.as_str(), "longest" | "shortest"));
     if longest && subject == QuerySubject::Stays {
@@ -757,6 +796,13 @@ pub(crate) fn parse(question: &str, today: NaiveDate) -> Option<Parsed> {
     // job; "where did I fly in 2025" is grouped above.
     let which_what = matches!(first, "what" | "which" | "que" | "cuales");
 
+    // "How much is my Streamly subscription", "how much was the Nimbus
+    // bill": one charge, the latest, unless dates or "per month" ask for more.
+    let how_much_is = (has_seq(&words, &["how", "much", "is"]) || has_seq(&words, &["how", "much", "was"]))
+        && timeframe.is_none()
+        && group_by.is_none()
+        && !plural_noun
+        && !sum_cue;
     let op = if !compare.is_empty() {
         if money || how_much {
             QueryOp::Sum
@@ -779,7 +825,7 @@ pub(crate) fn parse(question: &str, today: NaiveDate) -> Option<Parsed> {
         }
     } else if how_many {
         QueryOp::Count
-    } else if how_much && (first_cue || last_cue || next_cue) {
+    } else if how_much && (first_cue || last_cue || next_cue || how_much_is) {
         // "how much was my last Swiftcab ride": that one's amount.
         if first_cue {
             QueryOp::First
@@ -817,8 +863,27 @@ pub(crate) fn parse(question: &str, today: NaiveDate) -> Option<Parsed> {
         QueryOp::Exists
     } else if group_by.is_some() || list_cue || which_what || plural_noun {
         QueryOp::List
+    } else if money {
+        // "my Streamly subscription cost this year": what it came to.
+        QueryOp::Sum
     } else {
         return None;
+    };
+    // "How much do I pay for Streamly a month": what it usually costs, the
+    // average over the last twelve whole months (shown, and editable, as the
+    // timeframe). "How much did I spend per month in 2025" lists the months.
+    let op = if op == QueryOp::Sum
+        && group_by == Some(QueryGroup::Month)
+        && how_much
+        && timeframe.is_none()
+        && compare.is_empty()
+        && tense != QueryTense::Past
+        && !has(&words, "did")
+    {
+        timeframe = Some(HABITUAL_MONTHS.into());
+        QueryOp::Average
+    } else {
+        op
     };
     // A plain "when" question about travel ("when do I fly to Lisbon") and
     // lookups are the templates' job; this layer adds what they lack.
@@ -952,7 +1017,12 @@ pub(crate) fn parse(question: &str, today: NaiveDate) -> Option<Parsed> {
         // "sofia" in "how many emails did sofia send me": the person.
         if subject == QuerySubject::Messages && person.is_none() && w.chars().all(char::is_alphabetic) && w.len() > 1 {
             person = Some(w.clone());
-            direction = Some(QueryDirection::From);
+            // "emails I sent Priya" are to her; "emails Priya sent" from her.
+            let i_sent = words.windows(2).any(|p| {
+                matches!(p[0].as_str(), "i" | "we")
+                    && matches!(p[1].as_str(), "sent" | "send" | "wrote" | "write" | "emailed" | "email" | "messaged")
+            });
+            direction = Some(if i_sent { QueryDirection::To } else { QueryDirection::From });
             continue;
         }
         unread.push(w.clone());
@@ -1015,11 +1085,14 @@ pub(crate) fn parse(question: &str, today: NaiveDate) -> Option<Parsed> {
             query.direction = Some(QueryDirection::From);
         }
     }
-    if check(&query, today).is_err() {
+    if check(&query, today).is_err() || (named_plan && query.merchant.is_none()) {
         return None;
     }
     Some(Parsed { query, unread })
 }
+
+/// The timeframe a habitual "a month" question is averaged over.
+const HABITUAL_MONTHS: &str = "the last 12 full months";
 
 /// Words skipped inside and around entities: verbs and fillers that don't
 /// name anything.
@@ -1117,10 +1190,47 @@ mod tests {
         assert_eq!((x.op, x.group_by), (QueryOp::Max, Some(QueryGroup::Place)));
         let x = q("what was my most expensive order");
         assert_eq!((x.subject, x.op, x.measure), (QuerySubject::Orders, QueryOp::Max, QueryMeasure::Money));
+        // Habitual: what it usually costs, over the last twelve whole months.
         let x = q("how much do I spend per month on dishdash");
-        assert_eq!((x.op, x.group_by, x.merchant.as_deref()), (QueryOp::Sum, Some(QueryGroup::Month), Some("dishdash")));
+        assert_eq!((x.op, x.group_by, x.merchant.as_deref()), (QueryOp::Average, Some(QueryGroup::Month), Some("dishdash")));
+        assert_eq!(x.timeframe.as_deref(), Some(HABITUAL_MONTHS));
+        // Past: the months, one by one.
+        let x = q("how much did I spend per month on dishdash this year");
+        assert_eq!((x.op, x.group_by), (QueryOp::Sum, Some(QueryGroup::Month)));
         let x = q("what's the average swiftcab ride cost");
         assert_eq!(x.op, QueryOp::Average);
+    }
+
+    #[test]
+    fn totals_by_merchant() {
+        // A merchant as a noun modifier, with any word for the receipts.
+        for (text, subject) in [
+            ("total cost of my linear receipts this year", QuerySubject::Orders),
+            ("sum of my Linear invoices", QuerySubject::Bills),
+            ("sum of my Linear payments in 2025", QuerySubject::Spending),
+            ("total of my linear charges this year", QuerySubject::Spending),
+            ("Linear total this year", QuerySubject::Spending),
+            ("add up my linear receipts", QuerySubject::Orders),
+            ("how much have I paid Linear in 2026", QuerySubject::Spending),
+            ("what did I spend on Linear last month", QuerySubject::Spending),
+            ("my linear subscription cost this year", QuerySubject::Spending),
+        ] {
+            let x = q(text);
+            assert_eq!((x.subject, x.op, x.measure), (subject, QueryOp::Sum, QueryMeasure::Money), "{text}");
+            assert_eq!(x.merchant.as_deref(), Some("linear"), "{text}");
+        }
+        let x = q("how much is my Linear subscription");
+        assert_eq!((x.op, x.field, x.merchant.as_deref()), (QueryOp::Last, Some(QueryField::Amount), Some("linear")));
+        let x = q("how much do I pay for Linear a month");
+        assert_eq!((x.op, x.group_by, x.timeframe.as_deref()), (QueryOp::Average, Some(QueryGroup::Month), Some(HABITUAL_MONTHS)));
+        // Counting stays counting.
+        let x = q("total number of flights this year");
+        assert_eq!((x.subject, x.op), (QuerySubject::Flights, QueryOp::Count));
+        // Subscriptions in general are the subscriptions answer's, not a
+        // filter this layer has.
+        assert!(parse("how much did I spend on subscriptions this year", today()).is_none());
+        let x = q("first email I sent priya");
+        assert_eq!((x.person.as_deref(), x.direction), (Some("priya"), Some(QueryDirection::To)));
     }
 
     #[test]

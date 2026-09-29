@@ -823,6 +823,7 @@ export type AskIntent =
   | "booking"
   | "code"
   | "contactInfo"
+  | "subscriptions"
   | "said"
   | "didReply"
   | "find"

@@ -505,6 +505,7 @@ mod extracted;
 
 #[path = "store_smart.rs"]
 mod smart;
+pub(crate) use smart::{recurring_charges, Recurring};
 
 #[path = "store_split.rs"]
 mod split;

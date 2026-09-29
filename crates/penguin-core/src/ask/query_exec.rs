@@ -473,6 +473,31 @@ pub(super) fn run_query(cx: &mut Cx, q: &AskQuery, source: QuerySource) -> Resul
         return messages(cx, q, source, range, &sides, compare_time, understood);
     }
 
+    // ---- money paid to one merchant: every email from it, added up with
+    // the math and what was left out (the spending answer), over the
+    // query's dates.
+    if let (QueryOp::Sum, QueryMeasure::Money, None, true, None, Some(m)) =
+        (q.op, q.measure, q.group_by, sides.is_empty(), &q.place, &q.merchant)
+    {
+        if matches!(q.subject, QuerySubject::Spending | QuerySubject::Orders) {
+            cx.q.range_text = q.timeframe.clone();
+            let mut a = super::spend(cx, m)?;
+            if a.confidence == AskConfidence::None && source == QuerySource::Grammar {
+                return Ok(None);
+            }
+            // The dates are a chip here; no "any time" follow-up.
+            a.followups.retain(|f| !f.label.starts_with("Any time"));
+            let mut result = AskResult::new(AskResultKind::Sum);
+            if let Some(sum) = &a.sum {
+                result.totals = sum.totals.clone();
+                result.count = Some(sum.totals.iter().map(|t| t.count as u64).sum());
+            }
+            a.result = Some(result);
+            a.understood = Some(understood);
+            return Ok(Some(a));
+        }
+    }
+
     // ---- read the facts
     let mut hits: Vec<Hit> = Vec::new();
     let search = q.merchant.clone().or(q.place.clone());
@@ -829,7 +854,13 @@ pub(super) fn run_query(cx: &mut Cx, q: &AskQuery, source: QuerySource) -> Resul
                 a.detail = Some(format!("{} across the ones with an amount", money_of(&totals)));
             }
             result = AskResult::new(if q.op == QueryOp::List { AskResultKind::List } else { AskResultKind::Count });
-            result.count = Some(v as u64);
+            // A list of amounts counts the items and carries their total.
+            if q.measure == QueryMeasure::Money {
+                result.count = Some(n as u64);
+                result.totals = totals_of(&chosen);
+            } else {
+                result.count = Some(v as u64);
+            }
             if q.measure == QueryMeasure::Nights {
                 result.value = Some(v as f64);
             }
@@ -1158,9 +1189,13 @@ fn messages(
     };
     let (lo, hi) = widest(cx);
     let mut label = "you".to_string();
+    let mut candidates = Vec::new();
     let rows: Vec<Row> = if let Some(p) = &q.person {
         let t = match resolve_who(cx, p, AskIntent::Query)? {
-            Resolved::Found(t, _) => t,
+            Resolved::Found(t, c) => {
+                candidates = c;
+                t
+            }
             Resolved::Answer(a) => {
                 return if source == QuerySource::Grammar { Ok(None) } else { Ok(Some(*a)) };
             }
@@ -1217,6 +1252,7 @@ fn messages(
     cx.steps.push(format!("Counted every stored message{who} (exact, not estimated)"));
     let mut a = cx.answer(AskIntent::Query);
     a.understood = Some(understood);
+    a.candidates = candidates;
     let rng = range.map(|r| in_label(&label_of(r))).unwrap_or_default();
     let today = cx.today;
     let day = |r: &Row| local_date(r.date, cx.off);

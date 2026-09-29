@@ -31,8 +31,18 @@ pub(crate) enum Dir {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum Focus {
     Span,
-    Start,
     End,
+}
+
+/// What a first-contact question asks for: the first email itself, when a
+/// working relationship began ("when did I hire Julia": the mail can't say,
+/// so the answer is the earliest email and says so), or how long you've
+/// known someone.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum First {
+    Email,
+    Start,
+    Known,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -79,6 +89,7 @@ pub(crate) enum Intent {
     FirstContact {
         who: String,
         dir: Dir,
+        first: First,
     },
     Relationship {
         who: String,
@@ -141,7 +152,9 @@ pub(crate) enum Intent {
     Code {
         service: Option<String>,
     },
-    /// `field`: "phone" or "address".
+    /// Recurring charges ("what subscriptions do I pay for").
+    Subscriptions,
+    /// `field`: "email", "phone", "address", or "contact" (all of them).
     ContactInfo {
         who: String,
         field: &'static str,
@@ -503,11 +516,12 @@ fn take_range(words: &mut Vec<String>, today: NaiveDate) -> (Option<DateRange>, 
                 continue;
             }
             let mut cut = start;
-            // "during 2025", "for this year", "over the last 3 months"
+            // "during 2025", "for this year", "over the last 3 months",
+            // "in the last 3 months"
             while cut > 1
                 && matches!(
                     words[cut - 1].as_str(),
-                    "during" | "for" | "over" | "the" | "within"
+                    "during" | "for" | "over" | "the" | "within" | "in"
                 )
             {
                 cut -= 1;
@@ -536,17 +550,19 @@ const MACROS: &[(&str, &str)] = &[
     ),
     ("%ME%", "(i|we)"),
     ("%MSG%", "(email|emails|e-mail|message|messages|mail|mails|note|reply|response|conversation|contact|exchange|thread|correspondence|interaction|touchpoint|communication)"),
-    ("%WORKWITH%", "(work with|work for|worked with|worked for|working with|working for|start working with|start working for|started working with|started working for|begin working with|begin working for|began working with|began working for|start with|started with|start at|started at|do business with|did business with|do work for|did work for|get hired by|got hired by|hire|hired|engage|engaged|partner with|partnered with|sign with|signed with|onboard with|onboarded with|join|joined)"),
+    ("%WORKWITH%", "(work with|work for|worked with|worked for|working with|working for|do business with|did business with|do work for|did work for)"),
+    ("%HIRE%", "(start working with|start working for|started working with|started working for|begin working with|begin working for|began working with|began working for|start with|started with|start at|started at|get hired by|got hired by|hire|hired|engage|engaged|partner with|partnered with|sign with|signed with|sign up with|signed up with|onboard|onboarded|onboard with|onboarded with|join|joined|retain|retained|take on|took on|bring on|brought on)"),
     ("%STOP%", "(stop working with|stopped working with|stop working for|stopped working for|part ways with|parted ways with|finish with|finished with|finish working with|finished working with|end with|ended with|end things with|ended things with|leave|left|lose|lost|wrap up with|wrapped up with|stop doing work for|stopped doing work for|offboard from|offboarded from)"),
     ("%LETGO%", "(let us go|let me go|fire us|fire me|fired us|fired me|drop us|drop me|dropped us|dropped me|cut us loose|cut me loose|end the contract|ended the contract|end our contract|ended our contract|end the engagement|ended the engagement|end our engagement|ended our engagement|end the relationship|ended the relationship|cancel|cancelled|canceled|cancel on us|cancel on me|stop working with us|stop working with me|stopped working with us|stopped working with me|part ways|parted ways|terminate us|terminate me|terminated us|terminated me|terminate the contract|terminated the contract|churn|churned|leave us|leave me|left us|left me|pull the plug|pulled the plug|move on|moved on|take it in-house|took it in-house|bring it in-house|brought it in-house)"),
     ("%KIND%", "<kind:invoice|invoices|bill|bills|receipt|receipts|contract|contracts|agreement|agreements|proposal|proposals|pdf|pdfs|attachment|attachments|file|files|document|documents|doc|docs|spreadsheet|spreadsheets|sheet|sheets|photo|photos|image|images|picture|pictures|email|emails|message|messages|mail|reply|replies|response|note|thing|update|statement|statements>"),
     ("%LATEST%", "(latest|last|most recent|newest|recent|final)"),
+    ("%FIRST%", "(first|oldest|earliest|very first)"),
     ("%WHEN%", "(when|what date|what day|what time|which day|which date|cuando|que dia|que fecha|a que hora)"),
     ("%WHICH%", "<which:next|upcoming|return|outbound|last|previous|>"),
     ("%FLIGHTFIELD%", "<field:number|flight number|confirmation|confirmation code|confirmation number|confirmation #|booking reference|booking code|booking number|reservation code|reservation number|record locator|pnr|details|info|information|time|times|itinerary|status>"),
     ("%BILL%", "<bill:bill|bills|invoice|invoices|payment|rent|statement|premium|tuition|subscription|renewal|fee>"),
     ("%CODEKIND%", "(verification|login|log in|sign-in|sign in|signin|security|2fa|two-factor|one-time|one time|otp|access|authentication|)"),
-    ("%CONTACTFIELD%", "<field:phone|phone number|number|cell|cell number|cell phone|mobile|mobile number|telephone|address|mailing address|office address|home address|street address|postal address|work address>"),
+    ("%CONTACTFIELD%", "<field:phone|phone number|number|cell|cell number|cell phone|mobile|mobile number|telephone|address|mailing address|office address|home address|street address|postal address|work address|email|email address|e-mail|e-mail address|emails|email addresses|contact info|contact information|contact details|details>"),
     ("%FACTS%", "<facts:orders|purchases|packages|deliveries|parcels|shipments|flights|hotel stays|stays|hotel nights|hotels|reservations|bookings|pedidos|compras|paquetes|envios|vuelos|hoteles|estancias|reservas>"),
 ];
 
@@ -634,16 +650,22 @@ const TEMPLATES: &[(&str, Build)] = &[
     ("(are|is) %ME% still (working with|working for|doing work for|emailing|talking to|in touch with) {p}", |c| {
         Some(Intent::Relationship { who: c.slot("p"), focus: Focus::End })
     }),
-    // ---- relationship start / span
+    // ---- relationship start: when it began is the first email with them
+    // (the mail can't show a hire date; the answer says so)
     ("%WHEN% did %ME% (start|begin|first start) (working|work|doing work) (with|for) {p}", |c| {
-        Some(Intent::Relationship { who: c.slot("p"), focus: Focus::Start })
+        Some(Intent::FirstContact { who: c.slot("p"), dir: Dir::Any, first: First::Start })
     }),
     ("%WHEN% did (the|our|my) (work|relationship|engagement|contract|project|retainer) (with|for) {p} (start|begin|kick off)", |c| {
-        Some(Intent::Relationship { who: c.slot("p"), focus: Focus::Start })
+        Some(Intent::FirstContact { who: c.slot("p"), dir: Dir::Any, first: First::Start })
     }),
-    ("%WHEN% did {p} (start working with|hire|sign|onboard|engage) (us|me)", |c| Some(Intent::Relationship { who: c.slot("p"), focus: Focus::Start })),
+    ("%WHEN% did {p} (start working with|hire|sign|onboard|engage|retain|take on|bring on) (us|me)", |c| Some(Intent::FirstContact { who: c.slot("p"), dir: Dir::Any, first: First::Start })),
+    ("%WHEN% did %ME% %HIRE% {p}", |c| Some(Intent::FirstContact { who: c.slot("p"), dir: Dir::Any, first: First::Start })),
+    // ---- relationship span
     ("%WHEN% did %ME% %WORKWITH% {p}", |c| Some(Intent::Relationship { who: c.slot("p"), focus: Focus::Span })),
-    ("how long (have|did|had) %ME% (known|know|worked with|worked for|work with|work for|been working with|been working for|been emailing|been talking to|been in touch with|been doing business with|been dealing with|dealt with) {p}", |c| {
+    ("how long (have|had) %ME% (known|know|been emailing|been emailing with|been talking to|been writing to|been in touch with|been corresponding with) {p}", |c| {
+        Some(Intent::FirstContact { who: c.slot("p"), dir: Dir::Any, first: First::Known })
+    }),
+    ("how long (have|did|had) %ME% (worked with|worked for|work with|work for|been working with|been working for|been doing business with|been dealing with|dealt with) {p}", |c| {
         Some(Intent::Relationship { who: c.slot("p"), focus: Focus::Span })
     }),
     ("how long (was|were) %ME% (working with|working for|with) {p}", |c| Some(Intent::Relationship { who: c.slot("p"), focus: Focus::Span })),
@@ -654,23 +676,25 @@ const TEMPLATES: &[(&str, Build)] = &[
     ("(timeline|history) (of|with|for) {p}", |c| Some(Intent::Relationship { who: c.slot("p"), focus: Focus::Span })),
     ("(for) how long (have|did) %ME% %WORKWITH% {p}", |c| Some(Intent::Relationship { who: c.slot("p"), focus: Focus::Span })),
     // ---- first contact
-    ("%WHEN% did %ME% first %CONTACT% {p}", |c| Some(Intent::FirstContact { who: c.slot("p"), dir: verb_dir(c) })),
+    ("%WHEN% did %ME% first %CONTACT% {p}", |c| Some(Intent::FirstContact { who: c.slot("p"), dir: verb_dir(c), first: First::Email })),
     ("%WHEN% did {p} first (email|e-mail|message|write to|contact|reach out to|reply to|get in touch with) (me|us)", |c| {
-        Some(Intent::FirstContact { who: c.slot("p"), dir: Dir::FromThem })
+        Some(Intent::FirstContact { who: c.slot("p"), dir: Dir::FromThem, first: First::Email })
     }),
-    ("%WHEN% was (the|my|our) first %MSG% (from|with|to) {p}", |c| Some(Intent::FirstContact { who: c.slot("p"), dir: Dir::Any })),
-    ("(the|my|our|) first %MSG% <prep:from|with|to> {p}", |c| {
-        let dir = match c.get("prep") {
-            Some("from") => Dir::FromThem,
-            Some("to") => Dir::ToThem,
-            _ => Dir::Any,
-        };
-        Some(Intent::FirstContact { who: c.slot("p"), dir })
+    ("%WHEN% was (the|my|our) %FIRST% %MSG% <prep:from|with|to|between me and|between us and> {p}", |c| Some(Intent::FirstContact { who: c.slot("p"), dir: prep_dir(c), first: First::Email })),
+    // "the first email I sent Priya", "the first email Priya sent me".
+    ("(when was|what date was|what was|) (the|my|our|) %FIRST% %MSG% (i|we) (sent|wrote|emailed|wrote to|sent to) {p}", |c| {
+        Some(Intent::FirstContact { who: c.slot("p"), dir: Dir::ToThem, first: First::Email })
+    }),
+    ("(when was|what date was|what was|) (the|my|our|) %FIRST% %MSG% {p} (sent|wrote|emailed) (me|us)", |c| {
+        Some(Intent::FirstContact { who: c.slot("p"), dir: Dir::FromThem, first: First::Email })
+    }),
+    ("(what was|show me|show|find|open|) (the|my|our|) %FIRST% %MSG% <prep:from|with|to|between me and|between us and> {p}", |c| {
+        Some(Intent::FirstContact { who: c.slot("p"), dir: prep_dir(c), first: First::Email })
     }),
     ("%WHEN% did %ME% (meet|get introduced to|get to know|first hear about|start talking to|start emailing|start emailing with) {p}", |c| {
-        Some(Intent::FirstContact { who: c.slot("p"), dir: Dir::Any })
+        Some(Intent::FirstContact { who: c.slot("p"), dir: Dir::Any, first: First::Email })
     }),
-    ("how did %ME% (meet|get introduced to|get connected with) {p}", |c| Some(Intent::FirstContact { who: c.slot("p"), dir: Dir::Any })),
+    ("how did %ME% (meet|get introduced to|get connected with) {p}", |c| Some(Intent::FirstContact { who: c.slot("p"), dir: Dir::Any, first: First::Email })),
     // ---- waiting on / owe replies (before the generic "did X reply")
     ("(what|which|what emails|which emails|what threads|which threads|who) (am|are) %ME% (still|) waiting (on|for) (a reply|replies|an answer|a response|) from {p}", |c| {
         Some(Intent::WaitingOn { who: some_who(c) })
@@ -786,7 +810,7 @@ const TEMPLATES: &[(&str, Build)] = &[
     ("(top|most frequent|biggest) (senders|emailers|correspondents|contacts)", |_| Some(Intent::TopSenders)),
     ("who are my (top|most frequent) (senders|contacts|correspondents)", |_| Some(Intent::TopSenders)),
     // ---- who emailed about
-    ("who (emailed|e-mailed|messaged|wrote|wrote to|contacted|sent) (me|us|) (about|regarding|re|concerning|on) {t}", |c| Some(Intent::WhoAbout { topic: c.slot("t") })),
+    ("who (emailed|e-mailed|messaged|wrote|wrote to|contacted|sent|emails|e-mails|messages|writes|writes to|contacts|sends) (me|us|) (about|regarding|re|concerning|on) {t}", |c| Some(Intent::WhoAbout { topic: c.slot("t") })),
     ("who (sent|shared|forwarded) (me|us|) (the|a|an|that|) {t}", |c| Some(Intent::WhoAbout { topic: c.slot("t") })),
     ("who (mentioned|talked about|asked about|brought up|wrote about|emailed about|was talking about|is talking about) {t}", |c| Some(Intent::WhoAbout { topic: c.slot("t") })),
     ("who (was|is|were) (involved in|on|in) (the|) {t} (thread|email|emails|conversation|discussion)", |c| Some(Intent::WhoAbout { topic: c.slot("t") })),
@@ -906,6 +930,18 @@ const TEMPLATES_FIRST: &[(&str, Build)] = &[
     ("(my|our|the) (tickets|ticket) (for|to) {what}", |c| Some(Intent::Booking { what: thing(c, "what") })),
     ("(what|which) (reservations|bookings|tickets|events|shows|concerts) (do|did) (i|we) have (coming up|booked|)", |_| Some(Intent::Booking { what: None })),
     ("(upcoming|my|our) (reservations|bookings|tickets)", |_| Some(Intent::Booking { what: None })),
+    // ---- subscriptions: recurring charges (the smart view's rule)
+    ("(what|which) (subscriptions|memberships|recurring charges|recurring payments) (do|am|are|have) (i|we) (have|pay for|paying for|pay|paying|subscribed to|signed up for|got|) (right now|now|currently|)", |_| Some(Intent::Subscriptions)),
+    ("(what|which) (subscriptions|memberships|recurring charges|recurring payments) (do|am|are|have) (i|we) (currently|still|) (have|pay for|paying for|pay|paying|got)", |_| Some(Intent::Subscriptions)),
+    ("(what|which) (am|are) (i|we) (paying for|subscribed to|charged for) (every month|monthly|each month|every year|yearly|)", |_| Some(Intent::Subscriptions)),
+    ("(what|which) do (i|we) pay for (every month|monthly|each month|every year|yearly)", |_| Some(Intent::Subscriptions)),
+    ("(list|show|show me|find) (my|our|all my|all our|all) (subscriptions|memberships|recurring charges|recurring payments)", |_| Some(Intent::Subscriptions)),
+    ("(my|our|active) (subscriptions|memberships|recurring charges|recurring payments)", |_| Some(Intent::Subscriptions)),
+    ("how many (subscriptions|memberships|recurring charges) (do|have) (i|we) (have|pay for|got|)", |_| Some(Intent::Subscriptions)),
+    ("how much (do|am|are|did) (i|we) (spend|spending|pay|paying) (on|for) (my|our|all my|all|) (subscriptions|memberships|recurring charges) (a month|per month|each month|every month|monthly|a year|per year|each year|every year|yearly|in total|total|altogether|)", |_| Some(Intent::Subscriptions)),
+    ("how much (do|does) (my|our|all my) (subscriptions|memberships) cost (me|us|) (a month|per month|each month|every month|monthly|a year|per year|yearly|in total|total|altogether|)", |_| Some(Intent::Subscriptions)),
+    ("(que|cuales) (suscripciones|membresias) (tengo|pago|tenemos|pagamos)", |_| Some(Intent::Subscriptions)),
+    ("(mis|nuestras) (suscripciones|membresias)", |_| Some(Intent::Subscriptions)),
     // ---- verification codes
     ("(what is|what was|show me|show|get|copy|give me) (my|the|our) (latest|last|newest|most recent|recent|) %CODEKIND% (code|passcode|pin|otp) (from|for) {service}", |c| Some(Intent::Code { service: thing(c, "service") })),
     ("(what is|what was|show me|show|get|copy|give me) (my|the|our) (latest|last|newest|most recent|recent|) %CODEKIND% (code|passcode|pin|otp)", |_| Some(Intent::Code { service: None })),
@@ -914,11 +950,15 @@ const TEMPLATES_FIRST: &[(&str, Build)] = &[
     ("(latest|last|newest|recent|my) %CODEKIND% (code|codes|passcode)", |_| Some(Intent::Code { service: None })),
     ("(verification|login|sign-in|security|2fa|otp|one-time|access) (code|codes) (from|for) {service}", |c| Some(Intent::Code { service: thing(c, "service") })),
     // ---- contact details
+    // "their email", "his phone number": the person from the previous answer.
+    ("<pro:his|her|their> %CONTACTFIELD%", |c| Some(Intent::ContactInfo { who: c.slot("pro"), field: contact_field(c) })),
+    ("(what is|what was|give me|find|get|tell me) <pro:his|her|their> %CONTACTFIELD%", |c| Some(Intent::ContactInfo { who: c.slot("pro"), field: contact_field(c) })),
     ("(what is|what was|give me|find|get|tell me) {p} 's %CONTACTFIELD%", |c| Some(Intent::ContactInfo { who: c.slot("p"), field: contact_field(c) })),
     ("{p} 's %CONTACTFIELD%", |c| Some(Intent::ContactInfo { who: c.slot("p"), field: contact_field(c) })),
     ("(what is|find|get) the %CONTACTFIELD% (for|of) {p}", |c| Some(Intent::ContactInfo { who: c.slot("p"), field: contact_field(c) })),
     ("%CONTACTFIELD% (for|of) {p}", |c| Some(Intent::ContactInfo { who: c.slot("p"), field: contact_field(c) })),
-    ("how (do|can|should) (i|we) (call|phone|ring|text|reach) {p}", |c| Some(Intent::ContactInfo { who: c.slot("p"), field: "phone" })),
+    ("how (do|can|should) (i|we) (call|phone|ring|text) {p}", |c| Some(Intent::ContactInfo { who: c.slot("p"), field: "phone" })),
+    ("how (do|can|should) (i|we) (reach|contact|get in touch with|get hold of|get a hold of|email|e-mail|write to) {p}", |c| Some(Intent::ContactInfo { who: c.slot("p"), field: "contact" })),
     ("where (is|are) {p} (located|based|headquartered)", |c| Some(Intent::ContactInfo { who: c.slot("p"), field: "address" })),
     // ---- did they reply about X
     ("(did|has|have) {p} (replied|reply|responded|respond|answered|answer|gotten back to me|got back to me|get back to me|gotten back to us|got back to us|get back to us|written back|write back) (about|regarding|re|on) {t}", |c| Some(Intent::DidReply { who: c.slot("p"), topic: c.slot("t") })),
@@ -942,9 +982,11 @@ const TEMPLATES_FIRST: &[(&str, Build)] = &[
     ("cuando (le|les|) (escribi|conteste|respondi) (por ultima vez|) a {p} (por ultima vez|)", |c| Some(Intent::LastContact { who: c.slot("p"), dir: Dir::ToThem })),
     ("cuando (me|nos) (escribio|contesto|respondio) {p} (por ultima vez|)", |c| Some(Intent::LastContact { who: c.slot("p"), dir: Dir::FromThem })),
     ("cuando (fue|es) (mi|el|nuestro) (ultimo|mas reciente) (correo|email|mensaje|contacto) (con|de|a) {p}", |c| Some(Intent::LastContact { who: c.slot("p"), dir: Dir::Any })),
-    ("cuando (fue|es) (mi|el|nuestro) primer (correo|email|mensaje|contacto) (con|de|a) {p}", |c| Some(Intent::FirstContact { who: c.slot("p"), dir: Dir::Any })),
-    ("cuando (empece|empezamos|comence|comenzamos) a trabajar con {p}", |c| Some(Intent::Relationship { who: c.slot("p"), focus: Focus::Start })),
-    ("cuanto tiempo (llevo|llevamos|hace que) (trabajando con|conozco a|conocemos a|trabajo con|trabajamos con) {p}", |c| Some(Intent::Relationship { who: c.slot("p"), focus: Focus::Span })),
+    ("cuando (fue|es) (mi|el|nuestro) primer (correo|email|mensaje|contacto) (con|de|a) {p}", |c| Some(Intent::FirstContact { who: c.slot("p"), dir: Dir::Any, first: First::Email })),
+    ("cuando (empece|empezamos|comence|comenzamos) a trabajar con {p}", |c| Some(Intent::FirstContact { who: c.slot("p"), dir: Dir::Any, first: First::Start })),
+    ("cuando (contrate|contratamos) a {p}", |c| Some(Intent::FirstContact { who: c.slot("p"), dir: Dir::Any, first: First::Start })),
+    ("cuanto tiempo (llevo|llevamos|hace que) (conozco a|conocemos a) {p}", |c| Some(Intent::FirstContact { who: c.slot("p"), dir: Dir::Any, first: First::Known })),
+    ("cuanto tiempo (llevo|llevamos|hace que) (trabajando con|trabajo con|trabajamos con) {p}", |c| Some(Intent::Relationship { who: c.slot("p"), focus: Focus::Span })),
     ("cuanto (gaste|he gastado|gastamos|hemos gastado|pague|he pagado|pagamos|hemos pagado) (en|a|con|por) {m}", |c| Some(Intent::Spend { merchant: c.slot("m") })),
     ("cuanto (dinero|) (me|nos) (cobro|ha cobrado|cobraron|han cobrado) {m}", |c| Some(Intent::Spend { merchant: c.slot("m") })),
     ("cuantos (correos|emails|mensajes|mails) (me|nos) (envio|mando|escribio|ha enviado|ha mandado) {p}", |c| Some(Intent::Count { who: c.slot("p"), dir: Dir::FromThem, kind: Kind::Any })),
@@ -992,8 +1034,8 @@ const TEMPLATES_FIRST: &[(&str, Build)] = &[
     ("(estoy|estamos) esperando (respuesta|una respuesta|) de {p}", |c| Some(Intent::WaitingOn { who: some_who(c) })),
     ("que (respuestas|correos) (estoy|estamos) esperando", |_| Some(Intent::WaitingOn { who: None })),
     ("a quien (le debo|le tengo que|tengo que|debo) (una respuesta|responder|contestar)", |_| Some(Intent::OweReplies { who: None })),
-    ("(cual es|dame) el <field:telefono|numero|numero de telefono|celular|movil|direccion> de {p}", |c| Some(Intent::ContactInfo { who: c.slot("p"), field: contact_field(c) })),
-    ("(el|) <field:telefono|numero de telefono|celular|movil|direccion> de {p}", |c| Some(Intent::ContactInfo { who: c.slot("p"), field: contact_field(c) })),
+    ("(cual es|dame) el <field:telefono|numero|numero de telefono|celular|movil|direccion|correo|correo electronico|email> de {p}", |c| Some(Intent::ContactInfo { who: c.slot("p"), field: contact_field(c) })),
+    ("(el|) <field:telefono|numero de telefono|celular|movil|direccion|correo|correo electronico|email> de {p}", |c| Some(Intent::ContactInfo { who: c.slot("p"), field: contact_field(c) })),
     ("cuando (es|fue|sera) {t}", |c| Some(Intent::When { topic: c.slot("t") })),
 ];
 
@@ -1084,8 +1126,19 @@ fn bill_what(c: &Caps) -> Option<String> {
 
 fn contact_field(c: &Caps) -> &'static str {
     match c.get("field").unwrap_or("") {
+        f if f.starts_with("email") || f.starts_with("e-mail") || f.contains("correo") => "email",
+        f if f.starts_with("contact") || f == "details" || f == "datos de contacto" => "contact",
         f if f.contains("address") || f.contains("direccion") => "address",
         _ => "phone",
+    }
+}
+
+/// Direction from "the first email from/to/with X".
+fn prep_dir(c: &Caps) -> Dir {
+    match c.get("prep") {
+        Some("from") => Dir::FromThem,
+        Some("to") => Dir::ToThem,
+        _ => Dir::Any,
     }
 }
 
@@ -1301,7 +1354,7 @@ fn tidy(i: Intent) -> Intent {
     match i {
         Intent::Spend { merchant } => {
             let mut w: Vec<&str> = merchant.split_whitespace().collect();
-            while w.len() > 1 && matches!(w[0], "my" | "the" | "our" | "all" | "mis" | "el" | "la") {
+            while w.len() > 1 && matches!(w[0], "my" | "the" | "our" | "all" | "mis" | "el" | "la" | "of") {
                 w.remove(0);
             }
             while w.len() > 1
@@ -1353,7 +1406,7 @@ fn valid(i: &Intent) -> bool {
                             | "average" | "per" | "most" | "least" | "biggest" | "largest"
                             | "highest" | "lowest" | "cheapest" | "last" | "latest" | "first"
                             | "next" | "total" | "month" | "monthly" | "each" | "every" | "more"
-                            | "or" | "than" | "vs"
+                            | "or" | "than" | "vs" | "cost" | "costs" | "sum"
                     )
                 })
         }
@@ -1381,7 +1434,7 @@ fn valid(i: &Intent) -> bool {
         | Intent::Booking { what: x }
         | Intent::Code { service: x }
         | Intent::CountFacts { who: x, .. } => x.as_deref().is_none_or(meaningful),
-        Intent::TopSenders | Intent::Unknown => true,
+        Intent::TopSenders | Intent::Subscriptions | Intent::Unknown => true,
     }
 }
 
@@ -1394,6 +1447,8 @@ pub(crate) fn is_pronoun(who: &str) -> bool {
             | "him"
             | "her"
             | "them"
+            | "his"
+            | "their"
             | "this person"
             | "that person"
             | "this guy"
@@ -1467,6 +1522,27 @@ pub fn looks_like_question(input: &str) -> bool {
                 | "reservations"
                 | "tickets"
         ))
+        // "total cost of my Linear receipts", "sum of my invoices", "add up…"
+        || matches!(
+            (first, second),
+            ("total" | "sum" | "add", "cost" | "of" | "spent" | "spend" | "paid" | "for" | "my" | "up")
+        )
+        // "Linear total this year"
+        || (words.len() >= 3 && second == "total")
+        // "first email with Priya", "oldest email from Dana"
+        || (matches!(first, "first" | "oldest" | "earliest")
+            && matches!(second, "email" | "emails" | "message" | "messages" | "mail"))
+        // "their email", "his phone number"
+        || (matches!(first, "his" | "her" | "their")
+            && matches!(second, "email" | "phone" | "number" | "address" | "contact"))
+        // "Priya's email", "Dana Whitfield's phone number"
+        || (words.len() <= 6
+            && words.iter().position(|w| w == "'s").is_some_and(|i| {
+                i >= 1
+                    && words.get(i + 1).is_some_and(|f| {
+                        matches!(f.as_str(), "email" | "phone" | "number" | "address" | "contact" | "cell" | "mobile")
+                    })
+            }))
         || (t.trim_end().ends_with('?') && words.len() >= 3)
 }
 
@@ -1489,9 +1565,19 @@ mod tests {
         }
     }
     fn fc(who: &str, dir: Dir) -> Intent {
+        fcf(who, dir, First::Email)
+    }
+    fn fcf(who: &str, dir: Dir, first: First) -> Intent {
         Intent::FirstContact {
             who: who.into(),
             dir,
+            first,
+        }
+    }
+    fn contact(who: &str, field: &'static str) -> Intent {
+        Intent::ContactInfo {
+            who: who.into(),
+            field,
         }
     }
     fn rel(who: &str, focus: Focus) -> Intent {
@@ -1512,6 +1598,37 @@ mod tests {
             dir,
             kind,
         }
+    }
+
+    #[test]
+    fn contact_details_and_subscriptions() {
+        let cases: Vec<(&str, Intent)> = vec![
+            ("Priya's email", contact("priya", "email")),
+            ("what's Priya's email address?", contact("priya", "email")),
+            ("email address for Theo", contact("theo", "email")),
+            ("what is the email for Julia Brandt", contact("julia brandt", "email")),
+            ("Mike's email", contact("mike", "email")),
+            ("how do I reach Dana", contact("dana", "contact")),
+            ("how can I contact Ravi", contact("ravi", "contact")),
+            ("how do I get in touch with Linden", contact("linden", "contact")),
+            ("Priya's contact details", contact("priya", "contact")),
+            ("how do I call Dana", contact("dana", "phone")),
+            ("Dana's phone number", contact("dana", "phone")),
+            ("their email", contact("their", "email")),
+            ("what's his phone number", contact("his", "phone")),
+            ("¿cuál es el correo de Lucía?", contact("lucia", "email")),
+            ("what subscriptions do I pay for", Intent::Subscriptions),
+            ("my subscriptions", Intent::Subscriptions),
+            ("how much do I spend on subscriptions a month", Intent::Subscriptions),
+            ("what am I paying for every month", Intent::Subscriptions),
+            ("¿qué suscripciones tengo?", Intent::Subscriptions),
+            ("who emails me about the budget", Intent::WhoAbout { topic: "the budget".into() }),
+        ];
+        for (q, want) in cases {
+            assert_eq!(p(q), want, "{q}");
+        }
+        // "their" needs someone to refer to; the answer asks (run.rs).
+        assert!(is_pronoun("their") && is_pronoun("his"));
     }
 
     #[test]
@@ -1559,13 +1676,28 @@ mod tests {
             ("when did Priya first email me", fc("priya", FromThem)),
             ("when did I meet Dana", fc("dana", Any)),
             ("when was the first message with Linden", fc("linden", Any)),
-            // Relationship.
-            ("how long have I known Priya?", rel("priya", Span)),
-            ("how long have we worked with Linden", rel("linden", Span)),
+            ("oldest email with Priya", fc("priya", Any)),
+            ("the earliest email from Priya", fc("priya", FromThem)),
+            ("first email I sent Priya", fc("priya", ToThem)),
+            ("what was the first email Priya sent me", fc("priya", FromThem)),
+            ("show me the first email between me and Linden", fc("linden", Any)),
+            // When a working relationship began: the first email, framed.
+            ("when did I hire Julia", fcf("julia", Any, First::Start)),
+            ("when did we hire Linden?", fcf("linden", Any, First::Start)),
+            ("when did Fernhill Bakery hire me", fcf("fernhill bakery", Any, First::Start)),
+            ("when did I start working with Tom", fcf("tom", Any, First::Start)),
             (
                 "when did we start working with Linden?",
-                rel("linden", Start),
+                fcf("linden", Any, First::Start),
             ),
+            ("when did we sign with Linden", fcf("linden", Any, First::Start)),
+            ("how long have I known Priya?", fcf("priya", Any, First::Known)),
+            ("how long have we been emailing Linden", fcf("linden", Any, First::Known)),
+            ("cuanto tiempo hace que conozco a Priya", fcf("priya", Any, First::Known)),
+            ("cuando contrate a Julia", fcf("julia", Any, First::Start)),
+            // Relationship.
+            ("how long have we worked with Linden", rel("linden", Span)),
+            ("when did I work with Linden", rel("linden", Span)),
             ("when did we stop working with Linden", rel("linden", End)),
             ("when did Linden let me go", rel("linden", End)),
             ("when did they end the contract", rel("they", End)),
@@ -2043,13 +2175,14 @@ mod tests {
                 "how do I reach Priya",
                 Intent::ContactInfo {
                     who: "priya".into(),
-                    field: "phone",
+                    field: "contact",
                 },
             ),
             (
                 "what is priya's email address",
-                Intent::WhoIs {
+                Intent::ContactInfo {
                     who: "priya".into(),
+                    field: "email",
                 },
             ),
             // Replies and what people said.
@@ -2380,5 +2513,21 @@ mod tests {
         assert!(!looks_like_question("invoice from:mike"));
         assert!(!looks_like_question("when"));
         assert!(!looks_like_question("quarterly report"));
+        // Totals, first emails and contact details are questions too.
+        for q in [
+            "total cost of my linear receipts this year",
+            "sum of my Linear invoices",
+            "add up my uber receipts",
+            "Linear total this year",
+            "first email with Priya",
+            "oldest email from Dana",
+            "their email",
+            "Priya's email",
+            "Dana Whitfield's phone number",
+        ] {
+            assert!(looks_like_question(q), "{q}");
+        }
+        assert!(!looks_like_question("invoice total"));
+        assert!(!looks_like_question("priya's deck"));
     }
 }

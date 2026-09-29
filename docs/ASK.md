@@ -42,6 +42,13 @@ The table below lists the question types, with examples of each.
 | Bills | "what bills are due?", "when is my Brightwave bill due?", "how much do I owe Ledgerly", "¿cuándo vence la factura de la luz?" | Bill cards, soonest first. A bill is paid when a later email from the same biller says so for the same invoice number or amount |
 | Bookings | "when is my dinner reservation", "my tickets for The Lanterns" | Reservation card: when, party size, venue, confirmation |
 | Spending | "how much did I spend at Uber this year?", "how much did I spend on flights in 2025", "¿cuánto gasté en Uber este año?" | "$412.18 across 9 Uber receipts in 2026", the math (per currency), what was left out and why, and the full list of receipts |
+| Totals by merchant | "total cost of my Linear receipts this year", "Linear total this year", "sum of my Linear invoices", "how much have I paid Linear in 2026", "what did I spend on Linear last month", "add up my Linear receipts" | The same sum as Spending, with the reading as chips ("Orders · at linear · 2026 · Total"). A merchant written as a noun modifier ("linear receipts") is the merchant; "receipts", "invoices", "charges", "payments" or "subscription" name the things added up |
+| One charge, or a month's | "how much is my Linear subscription", "how much do I pay for Linear a month" | The latest charge ("Amount of your last purchase at Linear: $24.00"); what it averages a month over the last 12 whole months, shown as an editable date chip |
+| First email | "when did I hire Julia", "when did I start working with Tom", "when did Irene hire me", "first email with Julia", "oldest email with Priya", "when did I meet Dana" | "Your first email with Julia Brandt: Apr 13, 2024, “Fernhill Bakery website copy”", in either direction, cited. For hire/start questions the detail says the mail can't show a hire date. "The first email I sent Priya" and "when did Priya first email me" pick a direction |
+| How long you've known someone | "how long have I known Priya", "how long have we been emailing Linden" | "You've known Priya Shah since Sep 2023 (3 years)", from the same first email |
+| Email addresses | "Priya's email", "what's Julia's email address", "email address for Theo", "how do I reach Dana", "how can I contact Ravi", "their email" | The addresses you've actually exchanged mail with for that person, each with its counts (from the people index), plus the phone and postal address from their signature. "Mike's email" when two Mikes write to you lists both and picks neither. "Their email" uses the person from the previous answer, or asks who |
+| Subscriptions | "what subscriptions do I pay for", "my subscriptions", "how much do I spend on subscriptions a month", "how much did I spend on subscriptions this year" | "2 subscriptions, $25.95 a month: Streamly, Tunewave", one row per recurring charge with its latest amount, and which haven't charged on schedule. With dates: every charge of theirs in them, added up |
+| Who writes about something | "who emails me about the budget", "who emailed me about the lease" | The people, most threads first, each cited |
 | Counts | "how many orders did I place with Paperleaf this year", "how many flights did I take in 2025", "how many emails from Priya" | The count, with duplicates merged, plus the total when the items have amounts |
 | Codes | "latest verification code from Rydeo" | The code and its age. The app shows the code; the CLI and MCP never do |
 | Contact details | "what's Priya's phone number?", "Dana's address", "¿cuál es el teléfono de Lucía?" | The value as written in their signature, how many emails it appears in, and a person card. "Who is Priya" shows it too |
@@ -162,7 +169,7 @@ While the first backfill runs, questions that name something also extract, in me
 - `{slot}` captures;
 - `%MACRO%` word lists.
 
-The first matching template wins, and a validator rejects captures made only of glue words. There are 25 intents (24 question kinds plus "unknown") and 243 templates:
+The first matching template wins, and a validator rejects captures made only of glue words. There are 26 intents (25 question kinds plus "unknown") and 269 templates:
 
 - `TEMPLATES_FIRST`: facts, person + topic, Spanish.
 - The original `TEMPLATES`.
@@ -181,7 +188,7 @@ It then turns Spanish date phrases into the English ones the date parser reads: 
 
 **Slots** are resolved as follows:
 
-- People and companies go through `resolve.rs`: names, addresses, domains (Linden ↔ linden.example), acronyms (KOTK), account nicknames and profile names. The previous answer's person stands in for "he" / "they".
+- People and companies go through `resolve.rs`: names, addresses, domains (Linden ↔ linden.example), acronyms (KOTK), account nicknames and profile names. The previous answer's person stands in for "he" / "they" / "their". When the typed words are, as whole words, the name of more than one person you've exchanged mail with ("Mike": Mike Chen and Mike Delgado), however little mail the others have, the resolution carries them as *namesakes*: each becomes a "did you mean" chip, and the answer's detail says the name is shared and which person it is about ("Mike Delgado has the same name; this is Mike Chen."). A contact-details question lists them all instead of picking.
 - Places go through the airport table.
 - Merchants are matched by the sender domain's organization label ("noreply@email.uber.example" → "uber") and by extracted merchant names.
 - Spending categories ("flights", "hotels", "vuelos") read the bookings.
@@ -201,6 +208,9 @@ These are SQL over the index and the `extracted` table. Every card, sum part and
 
   The answer reads "$78.25 across 4 Uber receipts this year". The card shows the total, what each amount is, what was left out, and the full list with each email's amount and the line it came from.
 - **Counts** of orders, flights, stays and parcels merge emails about the same thing, by reference number or flight number and date.
+- **First email** (`contact`): every message between you and the person (from them, from you, or with them copied), oldest first; the first one in the direction the question asks, or either. "When did I hire X", "when did I start working with X" and "when did X hire me" ask when something began that mail can't date, so they get the first email in either direction and say so ("Your mail can't show when that started; this is the earliest email between you"). "How long have I known X" is the same email, as a span ("since Sep 2023 (3 years)"). The answer's `result.date` is that email's day. "How long have I worked with X" and "when did I work with X" stay relationship questions (the regular stretch of mail, and whether it ended).
+- **Contact details** (`contact_details`): the target's addresses from the people index, the ones with mail in either direction, most mail first, each with how many emails came from it and went to it and the last date (counted over every stored message, in all accounts), and the latest email from it cited. The phone and postal address are the newest ones their signatures give, as for "what's Dana's phone number". "How do I reach X" puts the first address and the phone in the headline.
+- **Subscriptions** (`subscriptions`): the Subscriptions smart view's rule (`store_smart.rs`, `recurring_charges`): receipts from the same merchant in the same currency, at least three (two for yearly) with a steady weekly, monthly, quarterly or yearly gap and the last three within 25% of each other, over the last 800 days. Listed: the running ones and the ones one charge late (flagged "may have stopped"); older ones are named as stopped. "A month" is each one's latest charge, a yearly or weekly one scaled to a month ("about $X"). With a date range, every charge of theirs in it is added up, with the sum block.
 - **Travel** chooses upcoming or past by the question ("when do I fly" = next; "when did I fly" = last; otherwise the next, else the latest) and groups a booking's legs by confirmation code.
 
 ### Topic answers (passages.rs)
@@ -260,6 +270,19 @@ Timeframes are kept as written and read by the date grammar (`read_timeframe`), 
 
 The grammar takes a question only when it names a subject and every content word was understood. Anything else stays with the templates and passages. The templates remain the fast path for one thing (the next flight, where a parcel is). Counts, sums, dated lists, groups and comparisons go to the query layer, which checks every matching fact.
 
+Totals by merchant read compositionally too:
+
+- A merchant written before the noun ("my Linear receipts", "Nimbus Cloud bills") is the merchant: an unexplained run of words next to the subject noun is read as one name.
+- "Total", "sum (of)", "add up" and "subtotal" ask for money when the things have amounts (receipts, orders, bills, payments, charges), and a count when the question counts ("total number of flights"). With no noun at all ("Linear total this year") the subject is spending.
+- "Charges", "payments" and "subscription" name money paid. "My Linear subscription" is Linear's charges; "subscriptions" on its own is a kind of charge the query can't filter on, so the subscriptions answer takes it.
+- "What did I spend on X" asks how much.
+- "How much is my X subscription" (no dates, one thing) is the latest charge.
+- "How much do I pay for X a month" (present tense, per month, no dates) is the average per month over "the last 12 full months", a timeframe the date reader knows ("last/past N full/whole/complete months": whole months, this one left out) and shows as a chip.
+
+A money total at one merchant (spending or orders, no grouping or comparison) is answered by the spending answer over the query's dates, so it has the same math block (each email's amount and the line it came from, one order counted once, refunds negative, invoices still due left out and said so, emails without an amount counted as skipped) plus the reading as chips. The spending template ("how much did I spend at X") gives way to the query when the grammar reads the whole question and names a merchant: the template's merchant slot can't tell "cost of my streamly" from a name. A category ("how much did I spend on hotels") stays with the template.
+
+When a fact template finds nothing (no bill from Streamly to be due, "number of flights I took in july" caught by the "number of X" contact template), the question read as a query is tried before quoted sentences, and its answer is used when it cites something.
+
 **The executor** (`ask/query_exec.rs`) reads every fact of the subject and merges them into one unit per real thing, using the same keys as the counts. Then it filters by time, tense, place, merchant and person, and computes the answer:
 
 - A count or list is "Flights in August 2026: 3", with a card for every flight.
@@ -306,9 +329,12 @@ The source line says whether Penguin's grammar, Apple Intelligence or you wrote 
 - **Parcel card:** a four-step progress bar (shipped → in transit → out for delivery → delivered), the tracking number with a copy button, the expected date, and "Track on UPS", which opens the carrier's page in the browser on click.
 - **Sum block:** the total per currency, what it's made of, and what was left out. The list of every email added is folded to three rows until you ask for more, or until the keyboard selection walks into it.
 - **Quoted passages:** a left rule, the question's words highlighted, and the sender · date · subject underneath.
-- **Person card** for "who is" and "what's X's phone": avatar, addresses, phone and postal address from their signature.
+- **Person card** for "who is" and "what's X's phone": avatar, addresses, phone and postal address from their signature. For a contact-details answer ("Priya's email") each address you've written with is its own row, with a copy button and its counts ("41 from them · 27 from you · last Sep 22, 2026", opening the latest email from it), and the phone has a copy button too.
+- **Subscriptions** render as rows with bars: each merchant and its latest charge.
 
-Each card says where it came from ("schema.org" or "text"). Keyboard selection moves over the answer's cited emails (the search overlay's existing list keys), and the card or passage for the selected email is highlighted. Enter opens it, ⌘-Enter keeps the overlay. `src/lib/mock/ask.ts` has an answer of every kind for `npm run dev:mock` ("when is my flight to Lisbon", "where's my package", "what bills are due", "what did Priya say about pricing", "what is the wifi password", "what's Priya's phone number", "latest verification code").
+Each card says where it came from ("schema.org" or "text"). Keyboard selection moves over the answer's cited emails (the search overlay's existing list keys), and the card or passage for the selected email is highlighted. Enter opens it, ⌘-Enter keeps the overlay. `src/lib/mock/ask.ts` has an answer of every kind for `npm run dev:mock` ("when is my flight to Lisbon", "where's my package", "what bills are due", "what did Priya say about pricing", "what is the wifi password", "what's Priya's phone number", "latest verification code"), and `src/lib/mock/askExtra.ts` the newer ones ("total cost of my Linear receipts this year", "when did I hire Priya", "how long have I known Priya", "Priya's email", "Mike's email", "what subscriptions do I pay for").
+
+The search box asks automatically (`looks_like_question`, mirrored in `AskCard.tsx`) for questions that start like one, and also for totals ("total cost of…", "sum of…", "add up…", "Linear total this year"), first emails ("first email with Dana", "oldest email from…"), and contact details ("Priya's email", "Dana Whitfield's phone number", "their email"). A bare "invoice total" or "priya's deck" stays a search.
 
 ## 5. The semantic seam
 
@@ -455,6 +481,34 @@ The question set is `ask-eval`, 380 questions from real sources ([ASK-QUESTIONS.
 - **Latency** over all 380 questions, median of 3 runs each: before p50 3.9 ms, p95 11.0 ms; after p50 4.1 ms, p95 27.1 ms, max 93 ms. The query layer reads every fact of a subject; the slowest questions are money questions over every order and booking.
 - **The existing Ask eval** (`search-eval run --mode ask`, 200 queries, fresh before and after) moved from nDCG@10 0.683 to 0.698. There were 5 wins ("flights last summer", "swiftcab rides last month", "who is the adjuster on my insurance claim?", …) and 1 loss ("deskcraft order confirmation" 1.00 → 0.83; the right email is still first).
 
+### Numbers: totals by merchant, first email, contact details, subscriptions (2026-09-29)
+
+The questions came from the maintainer's request ("total cost of my linear receipts this year", "when did I hire X", "their email"). Before changing anything, each phrasing and its variants ran against the eval corpus with `ask-eval --probe FILE`, which prints what Ask answers for any list of questions. The corpus has no Linear, so its monthly subscription receipts (Streamly, Tunewave) and SaaS bills (Nimbus Cloud) stand in. Of 20 total phrasings, 6 were right; 3 had the right number under a broken label ("Of My Streamly receipts"); 2 had the right number from a wrong reading (a list whose `result.count` was the dollar amount); "how much do I pay for Streamly a month" listed every month since 2024; "how much is my Streamly subscription" found no bill due; 2 were misread as a person ("I don't know anyone matching “cost of my streamly”"); and 5 weren't understood ("Streamly total this year", "sum of my Tunewave payments in 2025"). "When did I hire X" answered with a relationship span and no date. "Oldest email with X" wasn't understood, and "the first email I sent Priya" gave the first email *from* her. "Priya's email", "email address for Julia", "how can I contact Theo" and "Mike's email" became quoted sentences. "Their email" and "what subscriptions do I pay for" weren't understood.
+
+`ask-eval` first had to run again. Since the edge-case mail was merged into the corpus, its oracle panicked on two hotel bookings written differently ("3 nights, arriving on the 12th", "del 3 al 5 de diciembre") and on a refund with no amount. It now reads those. The corpus's other changes since the earlier table (the edge-case mail, one bill per calendar month) move the baseline: 93.1% tuning and 75.8% held-out on the base commit, down from 98.4% and 80.6% in the table above.
+
+New questions, with gold queries (`ask-eval` grades contact details by the addresses or phone in the answer, and subscriptions by the rows):
+
+- 35 in `questions.tsv` (tuning): 12 totals and one-charge questions, 11 first-email questions, 7 contact-details questions (one of them "Mike's email"), and 5 more: subscriptions, their monthly cost, the largest receipt, emails from someone this year, and the last one from them.
+- 15 in `heldout.tsv`, written before any code changed and not looked at while tuning.
+
+"Before" is the base commit `ded8436` with the fixed eval binary; "after" is this branch. Simulated-parser columns are as above.
+
+| Set | n | Grammar before | Grammar after | + parser before | + parser after |
+|---|---:|---:|---:|---:|---:|
+| Tuning, original | 318 | 296 (93.1%) | 298 (93.7%) | 299 | 300 |
+| Tuning, new | 35 | 18 (51.4%) | 35 (100%) | 21 | 35 |
+| **Held-out, original** | **62** | **47 (75.8%)** | **51 (82.3%)** | 53 | 57 |
+| **Held-out, new** | **15** | **7 (46.7%)** | **13 (86.7%)** | 10 | 14 |
+| All held-out | 77 | 54 (70.1%) | 64 (83.1%) | 63 | 71 |
+
+- **No question that was right before is wrong now** (0 regressions across 430).
+- **The original held-out set went from 47 to 51.** None of these four was a target, and nothing was tuned on them. The fallback from an empty fact answer to the query layer fixed "number of flights I took in july" and "number of Gearloft orders in 2025" (both caught by the "number of X" contact template), and "order number for my most recent Gearloft purchase" and "how much was the last Pinecrest Water bill" (bill and order templates that found nothing). On the tuning side, the same fallback fixed "what was my last Cedar Valley Power bill?" and "how much was my last Brightwave bill".
+- **Held-out misses among the new 15:** "when did Marco first reach out" (no "me" after "reach out": no template reads it, and it gets quoted sentences) and "what email does Irene use" (read as a count of her emails).
+- **Latency** over the 430 questions, 1 run each on the shared box: before p50 1.8 ms, p95 11.4 ms, max 38.5 ms; after p50 1.6 ms, p95 9.8 ms, max 37.9 ms.
+- **The Ask search eval** (`search-eval run --mode ask`, 570 queries, fresh before and after, same corpus) moved nDCG@10 from 0.828 to 0.830: one win ("flights to spain", 0 → 1: the flight template found no flight to "spain" and fell to quoted sentences; the query layer now answers it with the flights to Spain) and no losses. Identifier, operator and name queries are unchanged (1.000, 0.894, 0.880). Keyword search (`Store::search`) isn't touched by these changes.
+- `ask::tests` has end-to-end tests for each new kind on the fictional mailbox ("when did I hire Priya", "Mike's email" with two Mikes, "their email" with and without a previous person, five spellings of the Uber total); `ask::tests_facts` has subscriptions from six monthly receipts; `ask::intent::tests` and `ask::qparse::tests` have the readings.
+
 ## Limits
 
 - **Question coverage.** The grammar reads the question shapes in `ask-eval` and their variants. New phrasings land about 80% of the time (held-out). Without Apple Intelligence, the rest become topic questions. With it, the model's reading is checked first and dropped when it doesn't check out.
@@ -468,6 +522,10 @@ The question set is `ask-eval`, 380 questions from real sources ([ASK-QUESTIONS.
 - **Paid bills** are inferred from a later "payment received" email for the same invoice number or amount. Autopay without an email looks unpaid.
 - **Meaning** needs the real embedding model; with the stand-in or none, passage answers rely on shared words (plus stems), so "plane tickets" won't find "flight" by meaning.
 - **Did they reply** reads only the best-matching thread.
+- **First email is not a hire date.** "When did I hire X" answers with the earliest email between you and says so; mail from before the local window (or another account) isn't seen. "How long have I known X" measures from that email.
+- **Contact details** list only addresses you've exchanged mail with, counted over every stored message in all accounts (the people index isn't per account). A name is ambiguous only when two people's full names contain the typed words as whole words; "Mike" with one Mike and a "Michael" isn't.
+- **Subscriptions** are recurring *receipts*: autopay bills with no receipt (a utility, a SaaS invoice marked due) aren't subscriptions here, though "Nimbus total this year" still adds up what they billed. A subscription whose charge email is missing or late shows as "may have stopped".
+- **Totals by merchant** go through the spending answer, which reads mail from the merchant's domain: a merchant known only by name inside someone else's mail (a marketplace seller) isn't found by name.
 - **Times** are the local wall times written in the email. "In 6 days" compares dates on your calendar, not time zones.
 
 ## Sources

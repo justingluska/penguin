@@ -13,7 +13,7 @@ use std::collections::HashMap;
 use chrono::NaiveDate;
 
 use super::*;
-use crate::store::{extract_now, read_fact, StoredFact, FACT_COLS};
+use crate::store::{extract_now, read_fact, Recurring, StoredFact, FACT_COLS};
 use crate::structured::{airport_names, airports_for_place, Extracted, Source};
 
 /// Most facts of one kind read per question.
@@ -1432,7 +1432,195 @@ pub(super) fn code(cx: &mut Cx, service: Option<&str>) -> Result<AskAnswer> {
 
 // ------------------------------------------------------ contact details
 
+/// One of a person's addresses and the mail you've exchanged at it (the
+/// people index: every message stored, all accounts).
+struct AddressUse {
+    email: String,
+    from_them: i64,
+    to_them: i64,
+    last: i64,
+}
+
+fn address_uses(c: &Connection, emails: &[String]) -> Result<Vec<AddressUse>> {
+    let mut stmt = c.prepare_cached("SELECT from_count, sent_to_count, last_date FROM people WHERE email = ?1 COLLATE NOCASE")?;
+    let mut out = Vec::new();
+    for e in emails {
+        if let Some((f, t, l)) = stmt.query_row([e], |r| Ok((r.get::<_, i64>(0)?, r.get::<_, i64>(1)?, r.get::<_, i64>(2)?))).optional()? {
+            if f + t > 0 {
+                out.push(AddressUse { email: e.clone(), from_them: f, to_them: t, last: l });
+            }
+        }
+    }
+    out.sort_by(|a, b| (b.from_them + b.to_them).cmp(&(a.from_them + a.to_them)).then(b.last.cmp(&a.last)));
+    Ok(out)
+}
+
+/// The latest message from one of `emails`, to cite.
+fn latest_from(c: &Connection, emails: &[String]) -> Result<Option<Row>> {
+    let mut stmt = c.prepare_cached(&format!(
+        "SELECT {ROW_COLS} FROM messages m JOIN threads t ON t.rowid = m.thread_rowid
+         WHERE m.from_email = ?1 COLLATE NOCASE AND m.flags & ?2 = 0 ORDER BY m.date DESC LIMIT 1"
+    ))?;
+    let mut best: Option<Row> = None;
+    for e in emails {
+        if let Some(r) = stmt.query_row(params![e, HIDDEN], read_row).optional()? {
+            if best.as_ref().is_none_or(|b| r.date > b.date) {
+                best = Some(r);
+            }
+        }
+    }
+    Ok(best)
+}
+
+/// "What's Priya's email", "how do I reach Dana": the addresses you've
+/// actually exchanged mail with for them (from the people index), and the
+/// phone and postal address their signatures give. A name several people
+/// share ("Mike") lists each of them instead of picking one.
+fn contact_details(cx: &mut Cx, who: &str, field: &'static str) -> Result<AskAnswer> {
+    let (t, candidates) = match resolve_who(cx, who, AskIntent::ContactInfo)? {
+        Resolved::Found(t, c) => (t, c),
+        Resolved::Answer(a) => return Ok(*a),
+    };
+    let namesakes = std::mem::take(&mut cx.namesakes);
+    let mut a = cx.answer(AskIntent::ContactInfo);
+    a.candidates = candidates;
+    let mut result = AskResult::new(AskResultKind::Item);
+    if !namesakes.is_empty() && t.kind == TargetKind::Person {
+        let people: Vec<&Target> = std::iter::once(&t).chain(namesakes.iter()).collect();
+        let mut listed: Vec<String> = Vec::new();
+        let mut all: Vec<String> = Vec::new();
+        for p in &people {
+            let uses = cx.store.read(|c| address_uses(c, &p.emails))?;
+            let emails: Vec<String> = if uses.is_empty() { p.emails.iter().take(1).cloned().collect() } else { uses.iter().map(|u| u.email.clone()).collect() };
+            let n: i64 = uses.iter().map(|u| u.from_them + u.to_them).sum();
+            listed.push(format!("{} <{}>", p.label, emails.join(", ")));
+            let mut f = cx.fact(&p.label, format!("{} \u{b7} {}", emails.join(", "), plural(n as usize, "email", "emails")));
+            if let Some(r) = cx.store.read(|c| latest_from(c, &p.emails))? {
+                f.cite = Some(r.cite());
+                f.date = Some(r.date);
+                a.items.push(r.item(None));
+            }
+            a.facts.push(f);
+            all.extend(emails);
+        }
+        let typed = who.split_whitespace().map(capitalize).collect::<Vec<_>>().join(" ");
+        a.headline = format!(
+            "{} people match \u{201c}{typed}\u{201d}: {}",
+            people.len(),
+            listed.join(" and ")
+        );
+        // A chip for each, the first one too (nothing was picked).
+        let key = t.emails.first().cloned().unwrap_or_default();
+        let label = format!("{} <{key}>", t.label);
+        if !a.candidates.iter().any(|c| c.label == label) {
+            let q = capitalize(&cx.q.text.replacen(who, &key, 1));
+            a.candidates.insert(0, AskSuggestion { label, question: q });
+        }
+        a.detail = Some("Pick one below to see only theirs.".into());
+        a.confidence = AskConfidence::Medium;
+        result.text = Some(all.join(", "));
+        a.result = Some(result);
+        return Ok(cx.finish(a));
+    }
+    a.person = Some(person_of(&t));
+    a.followups = person_followups(&t, AskIntent::ContactInfo);
+    let name = t.name.clone().unwrap_or(t.label.clone());
+    let emails: Vec<String> = if t.kind == TargetKind::Company {
+        // A company: the people there you've written with.
+        t.emails.iter().take(40).cloned().collect()
+    } else {
+        t.emails.clone()
+    };
+    let uses = cx.store.read(|c| address_uses(c, &emails))?;
+    let latest = cx.store.read(|c| latest_from(c, &emails))?;
+    // Phone and postal address, as their signatures write them.
+    let mut phone: Option<(String, Row)> = None;
+    let mut postal: Option<(String, Row)> = None;
+    if t.kind == TargetKind::Person {
+        for h in contact_facts(cx, &t)? {
+            let Extracted::Contact(c) = &h.f.fact else {
+                continue;
+            };
+            if phone.is_none() {
+                phone = c.phones.first().map(|p| (p.clone(), h.row.clone()));
+            }
+            if postal.is_none() {
+                postal = c.addresses.first().map(|p| (p.clone(), h.row.clone()));
+            }
+        }
+    }
+    if uses.is_empty() {
+        a.headline = format!("You haven't exchanged mail with {name} in your local mail");
+        a.detail = Some(format!("Known as {}.", list_emails(&t.emails)));
+        a.confidence = AskConfidence::Low;
+        result.text = Some(t.emails.join(", "));
+        a.result = Some(result);
+        return Ok(cx.finish(a));
+    }
+    let shown: Vec<&AddressUse> = uses.iter().take(if t.kind == TargetKind::Company { 5 } else { 4 }).collect();
+    let list: Vec<&str> = shown.iter().map(|u| u.email.as_str()).collect();
+    a.headline = match (field, list.len(), &phone) {
+        ("contact", _, Some((p, _))) => format!("Reach {name} at {} or {p}", list[0]),
+        ("contact", _, None) => format!("Reach {name} at {}", list[0]),
+        (_, 1, _) => format!("{name}'s email: {}", list[0]),
+        _ => format!("{name}'s email addresses: {}", list.join(", ")),
+    };
+    let u = shown[0];
+    a.detail = Some(format!(
+        "You've exchanged {} at {} ({} from them, {} from you), the last on {}{}",
+        plural((u.from_them + u.to_them) as usize, "email", "emails"),
+        if shown.len() > 1 { "the first" } else { "this address" },
+        u.from_them,
+        u.to_them,
+        fmt_day(u.last, cx.off),
+        if shown.len() > 1 { "; the others are below" } else { "" }
+    ));
+    for u in &shown {
+        let mut f = cx.fact(
+            "Email",
+            format!(
+                "{} \u{b7} {} from them \u{b7} {} from you \u{b7} last {}",
+                u.email,
+                u.from_them,
+                u.to_them,
+                fmt_day(u.last, cx.off)
+            ),
+        );
+        if let Some(r) = latest.as_ref().filter(|r| r.from_email.eq_ignore_ascii_case(&u.email)) {
+            f.cite = Some(r.cite());
+            f.date = Some(r.date);
+        }
+        a.facts.push(f);
+    }
+    if let Some((p, r)) = &phone {
+        let mut f = cx.date_fact("Phone", r);
+        f.value = format!("{p} \u{b7} signature, {}", fmt_day(r.date, cx.off));
+        a.facts.push(f);
+    }
+    if let Some((ad, r)) = &postal {
+        let mut f = cx.date_fact("Address", r);
+        f.value = ad.clone();
+        a.facts.push(f);
+    }
+    if let Some(r) = &latest {
+        a.items.push(r.item(None));
+    }
+    let mut text: Vec<String> = list.iter().map(|e| e.to_string()).collect();
+    if field == "contact" {
+        text.extend(phone.as_ref().map(|p| p.0.clone()));
+    }
+    result.text = Some(text.join(", "));
+    result.count = Some(uses.iter().map(|u| (u.from_them + u.to_them) as u64).sum());
+    a.result = Some(result);
+    a.search_query = Some(list.iter().map(|e| format!("from:{e}")).collect::<Vec<_>>().join(" OR "));
+    a.confidence = if t.loose || !a.candidates.is_empty() { AskConfidence::Medium } else { AskConfidence::High };
+    Ok(cx.finish(a))
+}
+
 pub(super) fn contact_info(cx: &mut Cx, who: &str, field: &'static str) -> Result<AskAnswer> {
+    if matches!(field, "email" | "contact") {
+        return contact_details(cx, who, field);
+    }
     let (t, candidates) = match resolve_who(cx, who, AskIntent::ContactInfo)? {
         Resolved::Found(t, c) => (t, c),
         Resolved::Answer(a) => return Ok(*a),
@@ -1518,6 +1706,190 @@ pub(super) fn contact_info(cx: &mut Cx, who: &str, field: &'static str) -> Resul
     } else {
         AskConfidence::Medium
     };
+    Ok(cx.finish(a))
+}
+
+/// "What subscriptions do I pay for": recurring charges by the smart
+/// view's rule (the same merchant and currency, charged at least three
+/// times, twice a year, at a steady cadence and a similar amount). Without
+/// dates: the ones still running and what they come to a month. With dates
+/// ("this year"): every charge of theirs in them, added up.
+pub(super) fn subscriptions(cx: &mut Cx) -> Result<AskAnswer> {
+    let scope = cx.scope.clone();
+    let (now, lo, hi) = (cx.now, cx.lo, cx.hi);
+    let dated = lo.is_some() || hi.is_some();
+    let in_range = |ms: i64| lo.is_none_or(|l| ms >= l) && hi.is_none_or(|h| ms < h);
+    let (subs, rows) = cx.store.read(|c| {
+        let subs = crate::store::recurring_charges(c, scope.as_deref(), now)?;
+        let mut stmt = c.prepare_cached(&format!(
+            "SELECT {ROW_COLS} FROM messages m JOIN threads t ON t.rowid = m.thread_rowid WHERE m.rowid = ?1"
+        ))?;
+        let mut rows: HashMap<i64, Row> = HashMap::new();
+        for s in &subs {
+            let last = s.charges.last().map(|x| x.0);
+            for (msg, date, _) in &s.charges {
+                if (dated && in_range(*date)) || Some(*msg) == last {
+                    if let Some(r) = stmt.query_row([msg], read_row).optional()? {
+                        rows.insert(*msg, r);
+                    }
+                }
+            }
+        }
+        Ok((subs, rows))
+    })?;
+    cx.steps.push(format!(
+        "Found {} in your receipts: the same merchant charging at least three times (twice for yearly) at a steady weekly, monthly, quarterly or yearly cadence, the last three within 25% of each other",
+        plural(subs.len(), "recurring charge", "recurring charges")
+    ));
+    let mut a = cx.answer(AskIntent::Subscriptions);
+    let mut result = AskResult::new(if dated { AskResultKind::Sum } else { AskResultKind::List });
+    let add = |totals: &mut Vec<AskTotal>, v: f64, cur: &str| match totals.iter_mut().find(|t| t.currency == cur) {
+        Some(t) => {
+            t.value += v;
+            t.count += 1;
+        }
+        None => totals.push(AskTotal { value: v, currency: cur.to_string(), count: 1 }),
+    };
+    let fmt_totals = |totals: &[AskTotal]| totals.iter().map(|t| money(t.value, &t.currency)).collect::<Vec<_>>().join(" + ");
+    if dated {
+        // Every charge in the dates, from any of them (running or not).
+        let mut totals: Vec<AskTotal> = Vec::new();
+        let mut charged: Vec<(&Recurring, &Row, f64)> = Vec::new();
+        for s in &subs {
+            for (msg, date, v) in &s.charges {
+                if in_range(*date) {
+                    if let Some(r) = rows.get(msg) {
+                        charged.push((s, r, *v));
+                    }
+                }
+            }
+        }
+        charged.sort_by_key(|x| std::cmp::Reverse(x.1.date));
+        for s in &subs {
+            let mine: Vec<&(&Recurring, &Row, f64)> = charged.iter().filter(|x| std::ptr::eq(x.0, s)).collect();
+            if mine.is_empty() {
+                continue;
+            }
+            let mut g = Vec::new();
+            for x in &mine {
+                add(&mut g, x.2, &s.amount.currency);
+                add(&mut totals, x.2, &s.amount.currency);
+            }
+            a.groups.push(AskGroup {
+                label: s.merchant.clone(),
+                count: mine.len(),
+                totals: g,
+                nights: None,
+                cites: mine.iter().map(|x| x.1.cite()).collect(),
+                start: None,
+                best: false,
+            });
+        }
+        a.headline = if charged.is_empty() {
+            format!("No subscription charges{}", cx.range_phrase())
+        } else {
+            format!(
+                "{} on {}{}",
+                fmt_totals(&totals),
+                plural(a.groups.len(), "subscription", "subscriptions"),
+                cx.range_phrase()
+            )
+        };
+        a.detail = Some(format!("Across {}", plural(charged.len(), "charge", "charges")));
+        a.sum = Some(AskSum {
+            totals: totals.clone(),
+            basis: "Each charge from a recurring merchant".into(),
+            duplicates: 0,
+            skipped: 0,
+            unpaid: 0,
+        });
+        a.items = charged
+            .iter()
+            .map(|(s, r, v)| {
+                let mut it = r.item(Some(format!("{} charge", s.cadence)));
+                it.amount = Some(AskAmount { value: *v, currency: s.amount.currency.clone(), source: format!("{} charge", s.cadence) });
+                it
+            })
+            .collect();
+        result.count = Some(charged.len() as u64);
+        result.totals = totals;
+    } else {
+        // Running ones, and ones a charge late (listed, and flagged: the
+        // charge may just not have come yet); older ones have stopped.
+        let listed: Vec<&Recurring> = subs.iter().filter(|s| s.active || s.late).collect();
+        let stopped: Vec<&Recurring> = subs.iter().filter(|s| !s.active && !s.late).collect();
+        let last_day = |s: &Recurring| s.charges.last().map(|x| fmt_day(x.1, cx.off)).unwrap_or_default();
+        let mut monthly: Vec<AskTotal> = Vec::new();
+        for s in &listed {
+            add(&mut monthly, s.per_month, &s.amount.currency);
+            let last = s.charges.last().and_then(|x| rows.get(&x.0));
+            a.groups.push(AskGroup {
+                label: s.merchant.clone(),
+                count: s.charges.len(),
+                totals: vec![AskTotal { value: s.amount.value, currency: s.amount.currency.clone(), count: 1 }],
+                nights: None,
+                cites: last.map(|r| vec![r.cite()]).unwrap_or_default(),
+                start: None,
+                best: false,
+            });
+            let mut f = cx.fact(
+                &s.merchant,
+                format!(
+                    "{} {} \u{b7} last {} \u{b7} {} {}",
+                    money(s.amount.value, &s.amount.currency),
+                    s.cadence.to_lowercase(),
+                    last_day(s),
+                    if s.active { "next about" } else { "was due about" },
+                    fmt_day(s.next, cx.off)
+                ),
+            );
+            if let Some(r) = last {
+                f.cite = Some(r.cite());
+                f.date = Some(r.date);
+                let mut it = r.item(Some(format!("{} \u{b7} {} charges", s.cadence, s.charges.len())));
+                it.amount = Some(AskAmount { value: s.amount.value, currency: s.amount.currency.clone(), source: format!("Latest {} charge", s.cadence.to_lowercase()) });
+                a.items.push(it);
+            }
+            a.facts.push(f);
+        }
+        let all_monthly = listed.iter().all(|s| s.cadence == "Monthly");
+        a.headline = if listed.is_empty() {
+            "No subscriptions running in your receipts".into()
+        } else {
+            format!(
+                "{}, {}{} a month: {}",
+                plural(listed.len(), "subscription", "subscriptions"),
+                if all_monthly { "" } else { "about " },
+                fmt_totals(&monthly),
+                listed.iter().map(|s| s.merchant.as_str()).collect::<Vec<_>>().join(", ")
+            )
+        };
+        let late: Vec<String> = listed.iter().filter(|s| !s.active).map(|s| format!("{} (last {})", s.merchant, last_day(s))).collect();
+        let mut detail = vec![if all_monthly {
+            "Their latest charges.".to_string()
+        } else {
+            "Their latest charges, a yearly or weekly one as a month's worth.".to_string()
+        }];
+        if !late.is_empty() {
+            detail.push(format!(
+                "Not charged on schedule: {}; {} may have stopped.",
+                late.join(", "),
+                if late.len() == 1 { "it" } else { "they" }
+            ));
+        }
+        if !stopped.is_empty() {
+            detail.push(format!(
+                "Stopped: {}.",
+                stopped.iter().map(|s| format!("{} (last {})", s.merchant, last_day(s))).collect::<Vec<_>>().join(", ")
+            ));
+        }
+        a.detail = Some(detail.join(" "));
+        result.count = Some(listed.len() as u64);
+        result.totals = monthly;
+    }
+    a.confidence = if subs.is_empty() { AskConfidence::None } else { AskConfidence::Medium };
+    a.coverage = cx.coverage("receipts")?;
+    a.result = Some(result);
     Ok(cx.finish(a))
 }
 

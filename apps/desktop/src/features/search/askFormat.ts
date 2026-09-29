@@ -93,3 +93,18 @@ export function statusTone(status: string | null): "green" | "amber" | "red" | "
   if (s.includes("ago")) return "gray";
   return "blue";
 }
+
+/**
+ * A contact-details answer's "Email" facts ("priya@linden.example · 41 from
+ * them · 27 from you · last Sep 22, 2026") as rows: the address to copy, and
+ * what you've exchanged at it.
+ */
+export function emailRows<F extends { label: string; value: string }>(facts: F[]): { address: string; detail: string; fact: F }[] {
+  return facts
+    .filter((f) => f.label === "Email")
+    .map((f) => {
+      const [address, ...rest] = f.value.split(" · ");
+      return { address: address.trim(), detail: rest.join(" · "), fact: f };
+    })
+    .filter((r) => r.address.includes("@") && !/[\s,]/.test(r.address));
+}

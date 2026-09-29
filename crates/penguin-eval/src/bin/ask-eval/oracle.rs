@@ -19,7 +19,7 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use chrono::{Datelike, Duration, Local, NaiveDate, TimeZone};
-use penguin_eval::corpus::world::{CITIES, CLIENTS, COLLEAGUES, FRIENDS, PARTNERS};
+use penguin_eval::corpus::world::{BILLERS, CITIES, CLIENTS, COLLEAGUES, FRIENDS, MERCHANTS, PARTNERS};
 use penguin_eval::corpus::{doc_id, Corpus};
 
 pub fn local_day(ms: i64) -> NaiveDate {
@@ -59,6 +59,22 @@ fn day_after(text: &str, from: NaiveDate) -> Option<NaiveDate> {
         }
     }
     None
+}
+
+/// The first US phone number written "(415) 555-0138" in `text`.
+fn us_phone(text: &str) -> Option<String> {
+    (0..text.len().saturating_sub(13)).find_map(|i| {
+        let w = text.get(i..i + 14)?;
+        let ok = w.chars().count() == 14
+            && w.chars().enumerate().all(|(k, c)| match k {
+                0 => c == '(',
+                4 => c == ')',
+                5 => c == ' ',
+                9 => c == '-',
+                _ => c.is_ascii_digit(),
+            });
+        ok.then(|| w.to_string())
+    })
 }
 
 /// The text after `label` up to the end of the line.
@@ -110,6 +126,10 @@ pub struct Truth {
     /// Money actually paid (see the module docs).
     pub spending: Vec<Unit>,
     pub mail: Vec<Mail>,
+    /// Subscription charges ("Amount charged" receipts), by merchant key.
+    pub subscriptions: BTreeMap<String, Vec<Unit>>,
+    /// A person's phone number as their own mail writes it, by address.
+    pub phones: BTreeMap<String, String>,
     /// People in the cast: key → (name, email).
     pub people: BTreeMap<String, (String, String)>,
 }
@@ -131,13 +151,22 @@ impl Truth {
             bookings: vec![],
             spending: vec![],
             mail: vec![],
+            subscriptions: BTreeMap::new(),
+            phones: BTreeMap::new(),
             people: BTreeMap::new(),
         };
         for p in COLLEAGUES.iter().chain(PARTNERS).chain(FRIENDS).chain(CLIENTS) {
             t.people.insert(p.key.to_string(), (p.name.to_string(), p.email.to_string()));
         }
         let mut by_thread: BTreeMap<(String, String), Vec<&penguin_core::Message>> = BTreeMap::new();
+        let cast: BTreeSet<String> = t.people.values().map(|p| p.1.to_lowercase()).collect();
         for m in &c.messages {
+            let from = m.from.email.to_lowercase();
+            if cast.contains(&from) && !t.phones.contains_key(&from) {
+                if let Some(p) = us_phone(&m.body_text) {
+                    t.phones.insert(from, p);
+                }
+            }
             by_thread.entry((m.account_id.clone(), m.thread_id.clone())).or_default().push(m);
             let sent = m.label_ids.iter().any(|l| l == "SENT");
             t.mail.push(Mail {
@@ -216,6 +245,28 @@ impl Truth {
                         let day = day_after(a, email_day);
                         let nights = a.split(", ").find_map(|p| p.strip_suffix(" nights")?.trim().parse().ok());
                         (day, nights)
+                    } else if let Some(s) = after(body, "arriving on the ") {
+                        // The edge-case London booking: "3 nights, arriving
+                        // on the 12th": the next 12th on or after the email.
+                        let n: u32 = s.trim_start_matches(|c: char| !c.is_ascii_digit()).chars().take_while(char::is_ascii_digit).collect::<String>().parse().expect("day of month");
+                        let day = (0..62).map(|k| email_day + Duration::days(k)).find(|d| d.day() == n);
+                        let nights = body.split(" nights").next().and_then(|p| p.rsplit(' ').next()?.parse().ok());
+                        (day, nights)
+                    } else if let Some(s) = body.split(" del ").nth(1).filter(|s| s.contains(" al ")) {
+                        // The edge-case Madrid booking: "del 3 al 5 de
+                        // diciembre".
+                        let w: Vec<&str> = s.split(|c: char| c.is_whitespace() || c == '.').filter(|x| !x.is_empty()).collect();
+                        let (a, b, m) = match w.as_slice() {
+                            [a, "al", b, "de", m, ..] => (a.parse::<u32>().ok(), b.parse::<u32>().ok(), *m),
+                            _ => (None, None, ""),
+                        };
+                        let months = ["enero", "febrero", "marzo", "abril", "mayo", "junio", "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre"];
+                        let m = months.iter().position(|x| *x == m).map(|i| i as u32 + 1);
+                        let day = match (a, m) {
+                            (Some(a), Some(m)) => (email_day.year()..=email_day.year() + 1).filter_map(|y| NaiveDate::from_ymd_opt(y, m, a)).find(|d| *d >= email_day),
+                            _ => None,
+                        };
+                        (day, a.zip(b).map(|(a, b)| b - a))
                     } else {
                         let day = after(body, "Check-in: ").and_then(|s| day_after(s, email_day));
                         let nights = body.lines().find_map(|l| l.split(" nights").next().filter(|_| l.contains(" nights"))?.trim().parse().ok());
@@ -226,7 +277,12 @@ impl Truth {
                     u.country = country_of(&city);
                     u.nights = nights;
                     u.reference = tag(&th.tags, "hotelconf").map(|s| s.to_uppercase());
-                    u.amount = after(body, "Total $").and_then(amount).map(|v| (v, "USD"));
+                    u.amount = after(body, "Total $").and_then(amount).map(|v| (v, "USD")).or_else(|| {
+                        // "Importe total: 1.234,56 €"
+                        let s = after(body, "Importe total: ")?;
+                        let n = s.trim_end_matches(['€', ' ']).replace('.', "").replace(',', ".");
+                        n.parse().ok().map(|v| (v, "EUR"))
+                    });
                     t.stays.push(u.clone());
                     if let Some(a) = u.amount {
                         let mut s = u.clone();
@@ -248,16 +304,35 @@ impl Truth {
                     if th.has("merchant:spokeandchain") {
                         continue;
                     }
+                    // The edge-case theatre booking ("Twelfth Night, Friday
+                    // at 7:30 pm", no price): an event on the next Friday.
+                    if th.has("topic:theatre") {
+                        let mut d = email_day + Duration::days(1);
+                        while d.weekday() != chrono::Weekday::Fri {
+                            d += Duration::days(1);
+                        }
+                        t.bookings.push(unit(d));
+                        continue;
+                    }
                     let cur = if th.has("merchant:mercadosol") { "EUR" } else { "USD" };
                     let mut u = unit(email_day);
                     u.reference = tag(&th.tags, "order").map(|s| s.to_uppercase());
                     if th.has("topic:refund") {
-                        let v = body.split('$').nth(1).and_then(|s| amount(s.split_whitespace().next()?)).expect("refund amount");
+                        // A cancellation that names no amount ("cancelled and
+                        // refunded to your card") has nothing to add up.
+                        let Some(v) = body.split('$').nth(1).and_then(|s| amount(s.split_whitespace().next()?)) else {
+                            continue;
+                        };
                         u.amount = Some((-v, cur));
                         t.spending.push(u);
                         continue;
                     }
-                    u.amount = tag(&th.tags, "amount").and_then(amount).map(|v| (v, cur));
+                    // The edge-case receipts carry no amount tag; their text
+                    // says "Total $329.00" or "Total: $18.99".
+                    u.amount = tag(&th.tags, "amount").and_then(amount).map(|v| (v, cur)).or_else(|| {
+                        let s = after(body, "Total $").or(after(body, "Total: $"))?;
+                        amount(s.split_whitespace().next()?.trim_end_matches('.')).map(|v| (v, cur))
+                    });
                     t.orders.push(u.clone());
                     t.spending.push(u);
                 }
@@ -279,7 +354,8 @@ impl Truth {
                     // already made: a receipt, not a bill to pay.
                     if body.contains("Amount charged") {
                         t.orders.push(u.clone());
-                        t.spending.push(u);
+                        t.spending.push(u.clone());
+                        t.subscriptions.entry(u.merchant.clone().unwrap_or_default()).or_default().push(u);
                         continue;
                     }
                     t.bills.push(u);
@@ -318,7 +394,7 @@ impl Truth {
             Subject::Bills => &self.bills,
             Subject::Bookings => &self.bookings,
             Subject::Spending => &self.spending,
-            Subject::Messages => &[],
+            Subject::Messages | Subject::Contact | Subject::Subscriptions => &[],
         }
     }
 }
@@ -335,6 +411,10 @@ pub enum Subject {
     Bookings,
     Spending,
     Messages,
+    /// A person's contact details (`field=email|phone`).
+    Contact,
+    /// Recurring charges: which merchants, and what they cost a month.
+    Subscriptions,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -431,6 +511,11 @@ pub fn range(s: &str, today: NaiveDate) -> (NaiveDate, NaiveDate, String) {
         "lastwinter" => (ymd(2025, 12, 1), ymd(2026, 3, 1)),
         "last6m" => (today.checked_sub_months(chrono::Months::new(6)).unwrap(), today + Duration::days(1)),
         "last3m" => (today.checked_sub_months(chrono::Months::new(3)).unwrap(), today + Duration::days(1)),
+        // The twelve whole months before this one.
+        "last12full" => {
+            let f = ymd(today.year(), today.month(), 1);
+            (add_m(f, -12), f)
+        }
         "last30d" => (today - Duration::days(30), today + Duration::days(1)),
         "lastweek" => {
             let mon = today - Duration::days(today.weekday().num_days_from_monday() as i64);
@@ -494,6 +579,8 @@ pub fn parse_gold(dsl: &str, today: NaiveDate) -> Gold {
         "bookings" => Subject::Bookings,
         "spending" => Subject::Spending,
         "messages" => Subject::Messages,
+        "contact" => Subject::Contact,
+        "subscriptions" => Subject::Subscriptions,
         "passage" => Subject::Messages,
         s => panic!("subject {s}"),
     };
@@ -602,6 +689,10 @@ pub enum Expect {
     Yes(bool),
     /// A topic question: any of these conversations cited near the top.
     Sources(BTreeSet<String>),
+    /// Every one of these strings in the answer (addresses, a phone).
+    Texts(Vec<String>),
+    /// Exactly these names, as the answer's rows.
+    Labels(BTreeSet<String>),
 }
 
 #[derive(Debug, Clone)]
@@ -663,6 +754,28 @@ pub fn expect(t: &Truth, g: &Gold) -> Expected {
     }
     if g.subject == Subject::Messages {
         return expect_mail(t, g);
+    }
+    if g.subject == Subject::Contact {
+        // `person=mike-w|mike-d`: a name several people share; the answer
+        // must name each of them.
+        let people: Vec<&(String, String)> = g.person.as_deref().unwrap_or("").split('|').map(|k| &t.people[k]).collect();
+        let want: Vec<String> = match g.field.as_deref() {
+            Some("phone") => people.iter().map(|p| t.phones.get(&p.1.to_lowercase()).cloned().expect("a phone in their mail")).collect(),
+            _ => people.iter().map(|p| p.1.to_lowercase()).collect(),
+        };
+        let docs = t.mail.iter().filter(|m| people.iter().any(|p| m.from == p.1.to_lowercase())).map(|m| m.doc.clone()).collect();
+        return Expected { value: Expect::Texts(want), docs };
+    }
+    if g.subject == Subject::Subscriptions {
+        let name = |k: &str| BILLERS.iter().chain(MERCHANTS).find(|s| s.key == k).map(|s| s.name.to_string()).unwrap_or_else(|| k.to_string());
+        let latest: Vec<(&String, &Unit)> = t.subscriptions.iter().filter_map(|(k, v)| Some((k, v.iter().max_by_key(|u| u.ms)?))).collect();
+        let docs = latest.iter().map(|(_, u)| u.doc.clone()).collect();
+        let value = match g.op {
+            // What they cost a month: each one's latest charge.
+            Op::Sum => Expect::Money(money_of(&latest.iter().map(|(_, u)| *u).collect::<Vec<_>>())),
+            _ => Expect::Labels(latest.iter().map(|(k, _)| name(k)).collect()),
+        };
+        return Expected { value, docs };
     }
     let event = matches!(g.subject, Subject::Flights | Subject::Stays | Subject::Bookings);
     // Money is spent when the email says so, not on the day of the trip.

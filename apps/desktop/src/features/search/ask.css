@@ -146,6 +146,13 @@
 .ask-person-sub { font-size: var(--text-xs); max-width: 100%; }
 .ask-person-facts { display: flex; flex-wrap: wrap; gap: 4px 14px; margin-top: 3px; font-size: var(--text-sm); }
 .ask-person-fact a { cursor: pointer; color: var(--text-default); text-decoration: underline dotted var(--text-faint); text-underline-offset: 3px; }
+.ask-person-fact a.faint { margin-left: 6px; color: var(--text-muted); font-size: var(--text-xs); }
+/* Contact details: each address you've written with, copyable, and its counts. */
+.ask-person.has-emails { align-items: flex-start; }
+.ask-person-emails { display: flex; flex-direction: column; gap: 2px; margin: 3px 0 0; padding: 0; list-style: none; font-size: var(--text-sm); min-width: 0; }
+.ask-person-emails li { display: flex; align-items: baseline; gap: 8px; min-width: 0; }
+.ask-person-emails li > .faint { font-size: var(--text-xs); }
+.ask-person-emails li a { cursor: pointer; color: inherit; text-decoration: underline dotted var(--text-faint); text-underline-offset: 3px; }
 
 .ask-items.is-sources { border-top: 0; padding-top: 0; }
 .ask-items-head { margin: 2px 8px 2px; font-size: 11px; }

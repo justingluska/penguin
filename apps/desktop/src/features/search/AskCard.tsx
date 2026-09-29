@@ -28,7 +28,9 @@ import { wantsModel } from "./askQueryModel";
 import "./ask.css";
 
 const QUESTION_START =
-  /^(when|who|whom|how|what|what's|whats|which|where|where's|why|did|do|does|have|has|am|are|is|was|show me the (latest|last)|latest|last (email|thing|time|invoice|receipt|reply)|track(ing)?|my (next |upcoming |last )?(flights?|hotel|stay|orders?|packages?|bills|reservations?|tickets)|upcoming (flights|bills|reservations)|cu[aá]ndo|cu[aá]nt[oa]s?|d[oó]nde|qui[eé]n|qu[eé]|cu[aá]l|mi (vuelo|pedido|paquete|hotel))(\b|\s)/i;
+  /^(when|who|whom|how|what|what's|whats|which|where|where's|why|did|do|does|have|has|am|are|is|was|show me the (latest|last)|latest|last (email|thing|time|invoice|receipt|reply)|track(ing)?|my (next |upcoming |last )?(flights?|hotel|stay|orders?|packages?|bills|reservations?|tickets)|upcoming (flights|bills|reservations)|cu[aá]ndo|cu[aá]nt[oa]s?|d[oó]nde|qui[eé]n|qu[eé]|cu[aá]l|mi (vuelo|pedido|paquete|hotel)|(total|sum|add) (cost|of|spent|spend|paid|for|my|up)|(first|oldest|earliest) (emails?|messages?|mail)|(his|her|their) (email|phone|number|address|contact))(\b|\s)/i;
+/** "Priya's email", "Dana Whitfield's phone number". */
+const CONTACT_OF = /^[^'’\s]+(\s[^'’\s]+){0,2}['’]s (email|phone|number|address|contact|cell|mobile)\b/i;
 
 /** Does the input read like a question (mirror of penguin-core looks_like_question)? */
 export function looksLikeQuestion(q: string): boolean {
@@ -38,7 +40,13 @@ export function looksLikeQuestion(q: string): boolean {
   if (tokenize(t).some((tok) => tok.kind === "op")) return false;
   const words = t.split(/\s+/).filter(Boolean);
   if (words.length < 2) return false;
-  return QUESTION_START.test(t) || (t.endsWith("?") && words.length >= 3);
+  return (
+    QUESTION_START.test(t) ||
+    (CONTACT_OF.test(t) && words.length <= 6) ||
+    // "Linear total this year"
+    (words.length >= 3 && words[1].toLowerCase() === "total") ||
+    (t.endsWith("?") && words.length >= 3)
+  );
 }
 
 /** "auto": ask when the query reads like a question; "ask"/"search": forced by the switch. */
@@ -190,8 +198,9 @@ export function AskCard({ state, onOpen, onAsk, onSearch, activeItem, itemId, on
   const folded = (!!a.sum || a.intent === "query") && a.items.length > COLLAPSED && !listOpen && activeItem < COLLAPSED;
   const shownItems = folded ? a.items.slice(0, COLLAPSED) : a.items;
   const personCard = a.person && !a.person.company && (a.intent === "whoIs" || a.intent === "contactInfo");
-  // The person card already shows their phone and address.
-  const facts = personCard ? a.facts.filter((f) => f.label !== "Phone" && f.label !== "Address") : a.facts;
+  // The person card already shows their phone, address and (for contact
+  // details) the addresses you've written with.
+  const facts = personCard ? a.facts.filter((f) => f.label !== "Phone" && f.label !== "Address" && !(a.intent === "contactInfo" && f.label === "Email")) : a.facts;
   const allCards = personCard && a.intent === "whoIs" ? a.cards.filter((c) => c.fact.kind !== "contact") : a.cards;
   // A list answer ("Flights in 2025: 14") folds its cards like a sum's rows.
   const CARDS = 6;
@@ -228,9 +237,9 @@ export function AskCard({ state, onOpen, onAsk, onSearch, activeItem, itemId, on
         </div>
       )}
 
-      {personCard && a.person && <PeopleCard person={a.person} facts={a.facts} onOpen={onOpen} />}
+      {personCard && a.person && <PeopleCard person={a.person} facts={a.facts} onOpen={onOpen} emails={a.intent === "contactInfo"} />}
       {a.sum && <SumBlock sum={a.sum} count={a.items.length} expanded={!folded} onToggle={() => setListOpen(!listOpen || folded)} />}
-      <GroupRows groups={a.groups} measure={a.understood?.query.measure} compare={a.result?.kind === "compare"} onOpen={(c) => onOpen(c, false)} />
+      <GroupRows groups={a.groups} measure={a.understood?.query.measure ?? (a.intent === "subscriptions" ? "money" : undefined)} compare={a.result?.kind === "compare"} onOpen={(c) => onOpen(c, false)} />
       <FactCards cards={cards} activeCite={activeCite} onOpen={onOpen} />
       {cardsFolded && (
         <button className="ask-more" onMouseDown={(e) => e.preventDefault()} onClick={() => setListOpen(true)}>
