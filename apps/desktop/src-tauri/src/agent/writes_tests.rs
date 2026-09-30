@@ -13,8 +13,10 @@ use penguin_provider::fake::FakeProvider;
 use serde_json::json;
 
 use super::*;
+use crate::actions::ActionHost;
 use crate::agent::ipc::Handler;
 use crate::settings::McpSettings;
+use penguin_provider::MailProvider;
 
 pub(crate) const ADA: &str = "ada@penguin.example";
 pub(crate) const WORK: &str = "ada@work.example";
@@ -30,12 +32,18 @@ pub(crate) struct TestHost {
     pub lock: tokio::sync::Mutex<()>,
     pub queued: Mutex<Vec<QueuedSend>>,
     pub changed: Mutex<Vec<(String, Vec<String>)>>,
+    /// Actions a provider refused (action-failed).
+    pub failures: Mutex<Vec<String>>,
+    /// Organizing an agent did (the toast with Undo).
+    pub organized: Mutex<Vec<crate::agent::organize::AgentOrganized>>,
     pub audit: AuditLog,
     /// Share links as the app holds them; not set up until `set_share`.
     pub share: Mutex<Arc<crate::share::Share>>,
     pub home: PathBuf,
     pub root: PathBuf,
     pub now: i64,
+    /// Added to `now` (a test moving the clock forward).
+    pub later: std::sync::atomic::AtomicI64,
 }
 
 /// A fictional storage key pair for the S3 stub.
@@ -182,9 +190,12 @@ impl TestHost {
             lock: tokio::sync::Mutex::new(()),
             queued: Mutex::new(Vec::new()),
             changed: Mutex::new(Vec::new()),
+            failures: Mutex::new(Vec::new()),
+            organized: Mutex::new(Vec::new()),
             home,
             root,
             now: 1_800_000_000_000,
+            later: Default::default(),
         })
     }
 
@@ -223,21 +234,35 @@ impl Drop for TestHost {
 }
 
 #[async_trait]
-impl WriteHost for TestHost {
+impl ActionHost for TestHost {
     fn store(&self) -> &Store {
         &self.store
-    }
-    fn paths(&self) -> &Paths {
-        &self.paths
-    }
-    fn settings(&self) -> Settings {
-        self.settings.lock().unwrap().clone()
     }
     async fn provider(&self, account_id: &str) -> CmdResult<Arc<dyn MailProvider>> {
         self.fakes
             .get(account_id)
             .map(|f| Arc::new(f.clone()) as Arc<dyn MailProvider>)
             .ok_or_else(|| CmdError::not_found(format!("no account {account_id}")))
+    }
+    fn emit_mail_changed(&self, account_id: &str, thread_ids: Vec<String>) {
+        self.changed
+            .lock()
+            .unwrap()
+            .push((account_id.to_string(), thread_ids));
+    }
+    fn emit_action_failed(&self, message: String) {
+        self.failures.lock().unwrap().push(message);
+    }
+    fn poke(&self, _account_id: &str) {}
+}
+
+#[async_trait]
+impl WriteHost for TestHost {
+    fn paths(&self) -> &Paths {
+        &self.paths
+    }
+    fn settings(&self) -> Settings {
+        self.settings.lock().unwrap().clone()
     }
     fn drafts_lock(&self) -> &tokio::sync::Mutex<()> {
         &self.lock
@@ -250,6 +275,9 @@ impl WriteHost for TestHost {
     }
     fn send_queued(&self, queued: &QueuedSend) {
         self.queued.lock().unwrap().push(queued.clone());
+    }
+    fn organized(&self, event: &crate::agent::organize::AgentOrganized) {
+        self.organized.lock().unwrap().push(event.clone());
     }
     fn audit(&self) -> &AuditLog {
         &self.audit
@@ -264,7 +292,7 @@ impl WriteHost for TestHost {
         Some(self.root.join("logs"))
     }
     fn now_ms(&self) -> i64 {
-        self.now
+        self.now + self.later.load(std::sync::atomic::Ordering::Relaxed)
     }
 }
 

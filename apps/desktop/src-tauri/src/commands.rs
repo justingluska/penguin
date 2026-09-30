@@ -4,7 +4,7 @@
 //! on the network. Mailbox calls go through the account's provider
 //! (`AppState::provider`), whichever backend serves it.
 
-use std::collections::{BTreeMap, HashMap};
+use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::Instant;
 
@@ -31,9 +31,6 @@ use crate::views::{
 };
 
 type AppStateRef<'a> = State<'a, Arc<AppState>>;
-
-/// Concurrent Gmail calls for one bulk action (the client backs off on 429s).
-const ACTION_CONCURRENCY: usize = 6;
 
 // ---------- setup / accounts ----------
 
@@ -549,15 +546,8 @@ pub async fn load_remote_images(
 
 // ---------- acting ----------
 
-/// Per-message label changes the optimistic update actually made, so a
-/// failure restores exactly the previous state (a star on an already
-/// starred message must not be removed on revert).
-struct Applied {
-    target: ThreadRef,
-    /// (message id, labels added, labels removed)
-    changes: Vec<(String, Vec<String>, Vec<String>)>,
-}
-
+/// Archive, label, star, trash… `targets` (the optimistic action path in
+/// actions.rs, shared with snooze, Reply Later, rules and agents).
 #[tauri::command]
 pub async fn modify_threads(
     state: AppStateRef<'_>,
@@ -567,175 +557,16 @@ pub async fn modify_threads(
     apply_thread_action(state.inner().clone(), targets, action).await
 }
 
-/// The optimistic modify path: change local labels now, emit mail-changed,
-/// push to each account's provider in the background (reverted with
-/// action-failed on error). Shared by modify_threads, snooze and the rules
-/// engine.
+/// `actions::apply` for callers that don't need the outcome (the push runs
+/// on in the background).
 pub async fn apply_thread_action(
     state: Arc<AppState>,
     targets: Vec<ThreadRef>,
     action: ThreadAction,
 ) -> CmdResult<()> {
-    if targets.is_empty() {
-        return Ok(());
-    }
-    // Refuse up front rather than change local state we could never push.
-    state
-        .require_providers(targets.iter().map(|t| t.account_id.as_str()))
-        .await?;
-    let (add, remove) = action.local_delta();
-    let store = state.store.clone();
-    let applied = blocking(move || {
-        let mut applied = Vec::new();
-        let mut last_err = None;
-        for target in targets {
-            let before = match store.get_thread(&target.account_id, &target.thread_id) {
-                Ok(Some(t)) => t,
-                Ok(None) => continue,
-                Err(e) => {
-                    last_err = Some(e);
-                    continue;
-                }
-            };
-            if let Err(e) =
-                store.modify_thread_labels(&target.account_id, &target.thread_id, &add, &remove)
-            {
-                last_err = Some(e);
-                continue;
-            }
-            let changes = before
-                .messages
-                .iter()
-                .map(|m| {
-                    let added: Vec<String> = add
-                        .iter()
-                        .filter(|l| !m.label_ids.contains(l))
-                        .cloned()
-                        .collect();
-                    let removed: Vec<String> = remove
-                        .iter()
-                        .filter(|l| m.label_ids.contains(l))
-                        .cloned()
-                        .collect();
-                    (m.id.clone(), added, removed)
-                })
-                .filter(|(_, a, r)| !a.is_empty() || !r.is_empty())
-                .collect();
-            applied.push(Applied { target, changes });
-        }
-        match (applied.is_empty(), last_err) {
-            (true, Some(e)) => Err(e.into()),
-            (_, Some(e)) => {
-                tracing::warn!(error = %e, "some threads could not be updated locally");
-                Ok(applied)
-            }
-            _ => Ok(applied),
-        }
-    })
-    .await?;
-
-    for (account_id, thread_ids) in group_by_account(applied.iter().map(|a| &a.target)) {
-        state.emit_mail_changed(&account_id, thread_ids);
-    }
-
-    tauri::async_runtime::spawn(push_action(state, applied, action));
-    Ok(())
-}
-
-async fn push_action(st: Arc<AppState>, applied: Vec<Applied>, action: ThreadAction) {
-    let limit = Arc::new(tokio::sync::Semaphore::new(ACTION_CONCURRENCY));
-    let mut tasks = tokio::task::JoinSet::new();
-    for item in applied {
-        let (st, action, limit) = (st.clone(), action.clone(), limit.clone());
-        tasks.spawn(async move {
-            let _permit = limit.acquire_owned().await;
-            let result = push_one(&st, &item.target, &action).await;
-            (item, result)
-        });
-    }
-    let mut failed: Vec<Applied> = Vec::new();
-    let mut first_error: Option<CmdError> = None;
-    let mut succeeded_accounts = std::collections::BTreeSet::new();
-    while let Some(joined) = tasks.join_next().await {
-        let Ok((item, result)) = joined else { continue };
-        match result {
-            Ok(()) => {
-                succeeded_accounts.insert(item.target.account_id.clone());
-            }
-            Err(e) => {
-                tracing::warn!(account = %item.target.account_id, thread = %item.target.thread_id, error = %e, "gmail rejected action; reverting");
-                first_error.get_or_insert(e);
-                failed.push(item);
-            }
-        }
-    }
-    // Pull the server's view of what we just changed (e.g. trash side effects).
-    for account_id in succeeded_accounts {
-        st.poke(&account_id);
-    }
-    let Some(err) = first_error else { return };
-
-    let store = st.store.clone();
-    let targets: Vec<ThreadRef> = failed.iter().map(|a| a.target.clone()).collect();
-    let revert = blocking(move || {
-        for item in &failed {
-            for (message_id, added, removed) in &item.changes {
-                store.modify_message_labels(
-                    &item.target.account_id,
-                    std::slice::from_ref(message_id),
-                    removed,
-                    added,
-                )?;
-            }
-        }
-        Ok(())
-    })
-    .await;
-    if let Err(e) = revert {
-        tracing::error!(error = %e, "reverting a failed action failed; next sync will reconcile");
-    }
-    for (account_id, thread_ids) in group_by_account(targets.iter()) {
-        st.emit_mail_changed(&account_id, thread_ids);
-    }
-    let n = targets.len();
-    let noun = if n == 1 {
-        "conversation"
-    } else {
-        "conversations"
-    };
-    st.emit_action_failed(format!(
-        "Couldn't {} {n} {noun}: {}",
-        action.verb(),
-        err.message
-    ));
-}
-
-async fn push_one(st: &AppState, target: &ThreadRef, action: &ThreadAction) -> CmdResult<()> {
-    let provider = st.provider(&target.account_id).await?;
-    let id = target.thread_id.as_str();
-    match action {
-        ThreadAction::Trash => provider.trash_thread(id).await?,
-        // Out of the trash and into the inbox.
-        ThreadAction::Untrash => provider.untrash_thread(id).await?,
-        other => {
-            let (add, remove) = other.local_delta();
-            provider.modify_thread(id, &add, &remove).await?;
-        }
-    }
-    Ok(())
-}
-
-fn group_by_account<'a>(
-    targets: impl Iterator<Item = &'a ThreadRef>,
-) -> BTreeMap<String, Vec<String>> {
-    let mut by_account: BTreeMap<String, Vec<String>> = BTreeMap::new();
-    for t in targets {
-        by_account
-            .entry(t.account_id.clone())
-            .or_default()
-            .push(t.thread_id.clone());
-    }
-    by_account
+    crate::actions::apply(state, targets, action)
+        .await
+        .map(|_| ())
 }
 
 /// Settings → Privacy "Ask for read receipts" decides for a draft whose

@@ -212,8 +212,16 @@ function build(): CalendarEvent[] {
       description: "Final review of the v7 deck before the stakeholder meeting.",
     }),
   );
-  // Today: next up in ~25 min (with a conflicting event), a free lunch.
+  // Today: a train that's under way, next up in ~25 min (with a conflicting
+  // event) during it, a free lunch.
   out.push(
+    ev({
+      account: HL,
+      summary: "Train to Harbor City",
+      start: soon - 70 * MIN,
+      mins: 130,
+      location: "Union Station, Track 9",
+    }),
     ev({
       account: NW,
       summary: "Design crit: onboarding flow",

@@ -1,12 +1,12 @@
 // Settings → Developer → Agents (CLI and MCP) and the command-line tool.
 // Agents reach Penguin through penguin-cli and its MCP server: reading the
-// local index, and (at the higher levels) drafting and sending through the
-// running app, which checks the level on every request. The backend
+// local index, and (at the higher levels) organizing, drafting and sending
+// through the running app, which checks the level on every request. The backend
 // (mcp_info, settings.mcp, enable_agent_send, agent_activity,
 // agent_pending_sends, cli_install_status, install_cli) belongs to
 // app-integration. This is the UI. OWNER: settings agent.
 import { useCallback, useEffect, useRef, useState } from "react";
-import { api, asCommandError, onAgentSendQueued } from "../../lib/api";
+import { api, asCommandError, onAgentOrganized, onAgentSendQueued } from "../../lib/api";
 import { updateSettings, useSetting } from "../../lib/settings";
 import { ago } from "../../lib/format";
 import type { AgentAccess, AgentActivity, AgentPendingSend, AgentSendDelay, CliLinkStatus, McpInfo, McpSettings } from "../../lib/types";
@@ -15,19 +15,35 @@ import { toast } from "../../components/Toast";
 import { Choice, Switch } from "./parts";
 import { openSettings } from "./state";
 
-const LEVELS: { value: AgentAccess; title: string; desc: string; icon: IconName }[] = [
-  { value: "off", title: "Off", desc: "No agent access. The MCP server doesn't start, and penguin-cli can't draft or send.", icon: "lock" },
-  { value: "read", title: "Read only", desc: "Search and read your mail, its pictures and files. Nothing can be changed.", icon: "eye" },
+// What each level lets agents do. The stored values never change meaning
+// ("draft" is the organize-and-draft step); only the names grew when
+// organizing arrived (settings.rs AgentAccess::label, docs/CLI.md).
+const LEVELS: { value: AgentAccess; title: string; can: string[]; note: string; icon: IconName }[] = [
+  { value: "off", title: "Off", can: [], note: "No agent access. The MCP server doesn't start, and penguin-cli can't change anything.", icon: "lock" },
+  {
+    value: "read",
+    title: "Read only",
+    can: ["Search and read your mail, its pictures and files"],
+    note: "Nothing can be changed.",
+    icon: "eye",
+  },
   {
     value: "draft",
-    title: "Read and draft",
-    desc: "Also save drafts, with attachments, in your Drafts for you to review and send. Agents can't send.",
+    title: "Read, organize and draft",
+    can: [
+      "Everything in Read only",
+      "Archive, mark read or unread, star, label, snooze and Reply Later",
+      "Move to Trash and report spam, 25 at a time and 200 an hour",
+      "Save drafts, with attachments, for you to review and send",
+    ],
+    note: "Every change can be undone and shows below. Nothing is ever deleted, and agents can't send.",
     icon: "draft",
   },
   {
     value: "send",
-    title: "Read, draft and send",
-    desc: "Also send email as you. Each send waits in the outbox first, so you can cancel it.",
+    title: "Read, organize, draft and send",
+    can: ["Everything above", "Send email as you"],
+    note: "Each send waits in the outbox first, so you can cancel it.",
     icon: "send",
   },
 ];
@@ -104,7 +120,14 @@ export function McpPanel() {
                   {l.title}
                   {l.value === "send" && !on ? <span className="st-agent-tag">Asks first</span> : null}
                 </span>
-                <span className="st-muted">{l.desc}</span>
+                {l.can.length ? (
+                  <ul className="st-agent-can">
+                    {l.can.map((c) => (
+                      <li key={c}>{c}</li>
+                    ))}
+                  </ul>
+                ) : null}
+                <span className="st-muted">{l.note}</span>
               </span>
             </button>
           );
@@ -115,7 +138,7 @@ export function McpPanel() {
         it sees the tools this level allows. Lowering it applies to the very next request.
       </p>
       <p className="st-muted st-agents-note">
-        Share links have their own switch. At Read and draft or higher, an agent can also upload an attachment and get a link to it, but only
+        Share links have their own switch. At Read, organize and draft or higher, an agent can also upload an attachment and get a link to it, but only
         after you turn on “Let agents (CLI and MCP) create share links” in{" "}
         <button className="st-link" onClick={() => openSettings("sharing")}>
           Settings → Share links
@@ -346,6 +369,22 @@ const TOOL_LABELS: Record<string, string> = {
   send_draft: "Queued a send",
   send_message: "Queued a send",
   create_share_link: "Created a share link",
+  archive: "Archived",
+  unarchive: "Moved to the inbox",
+  mark_read: "Marked read",
+  mark_unread: "Marked unread",
+  star: "Starred",
+  unstar: "Unstarred",
+  add_label: "Added a label",
+  remove_label: "Removed a label",
+  snooze: "Snoozed",
+  unsnooze: "Unsnoozed",
+  reply_later: "Moved to Reply Later",
+  clear_reply_later: "Took out of Reply Later",
+  trash: "Moved to Trash",
+  untrash: "Restored from Trash",
+  report_spam: "Reported spam",
+  not_spam: "Marked not spam",
 };
 
 /** What a write that didn't happen is called. */
@@ -357,6 +396,22 @@ const TRIED: Record<string, string> = {
   send_message: "Tried to send",
   fetch_attachment: "Tried to download an attachment",
   create_share_link: "Tried to create a share link",
+  archive: "Tried to archive",
+  unarchive: "Tried to move to the inbox",
+  mark_read: "Tried to mark read",
+  mark_unread: "Tried to mark unread",
+  star: "Tried to star",
+  unstar: "Tried to unstar",
+  add_label: "Tried to add a label",
+  remove_label: "Tried to remove a label",
+  snooze: "Tried to snooze",
+  unsnooze: "Tried to unsnooze",
+  reply_later: "Tried to move to Reply Later",
+  clear_reply_later: "Tried to take out of Reply Later",
+  trash: "Tried to move to Trash",
+  untrash: "Tried to restore from Trash",
+  report_spam: "Tried to report spam",
+  not_spam: "Tried to mark not spam",
 };
 
 function outcome(a: AgentActivity): string | null {
@@ -378,6 +433,11 @@ function outcome(a: AgentActivity): string | null {
 function details(a: AgentActivity): string {
   const bits: string[] = [];
   if (a.detail) bits.push(`“${a.detail}”`);
+  if (a.threadCount != null) {
+    const n = a.changedCount ?? 0;
+    const convs = (k: number) => `${k} ${k === 1 ? "conversation" : "conversations"}`;
+    bits.push(a.ok && n !== a.threadCount ? `${convs(n)} of ${a.threadCount}` : convs(a.ok ? n : a.threadCount));
+  }
   if (a.recipientCount != null) bits.push(`${a.recipientCount} ${a.recipientCount === 1 ? "recipient" : "recipients"}`);
   if (a.attachmentCount) bits.push(`${a.attachmentCount} ${a.attachmentCount === 1 ? "file" : "files"}`);
   if (a.account) bits.push(a.account);
@@ -394,7 +454,11 @@ function ActivityList() {
   useEffect(() => {
     load();
     const un = onAgentSendQueued(() => load());
-    return () => void un.then((f) => f());
+    const unOrganized = onAgentOrganized(() => load());
+    return () => {
+      void un.then((f) => f());
+      void unOrganized.then((f) => f());
+    };
   }, [load]);
   return (
     <div className="st-agent-activity">

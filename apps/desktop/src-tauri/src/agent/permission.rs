@@ -32,7 +32,8 @@ pub const READ_TOOLS: [&str; 11] = [
 /// `fetch_attachment` downloads an attachment that isn't cached yet.
 pub const APP_READS: [&str; 1] = ["fetch_attachment"];
 
-/// Tools that need "Read and draft". Answered by the app over the socket.
+/// Tools that need "Read, organize and draft" (stored as `draft`).
+/// Answered by the app over the socket.
 pub const DRAFT_TOOLS: [&str; 4] = [
     "create_draft",
     "update_draft",
@@ -40,12 +41,23 @@ pub const DRAFT_TOOLS: [&str; 4] = [
     "delete_draft",
 ];
 
-/// Tools that need "Read, draft and send". Answered by the app over the socket.
+/// Organizing mail (archive, read/unread, star, labels, snooze, Reply
+/// Later, Trash, spam) needs "Read, organize and draft", the same step as
+/// drafting: both change the mailbox without anything leaving it, and both
+/// can be undone (every organizing change is reversible; nothing is ever
+/// deleted). Read only promises that nothing changes, so they can't go
+/// there, and they don't need the send level's confirmation because
+/// nothing reaches anyone. Trash and spam reports carry their own caps
+/// (agent/organize.rs). Answered by the app over the socket.
+pub use super::organize::ORGANIZE_TOOLS;
+
+/// Tools that need "Read, organize, draft and send". Answered by the app
+/// over the socket.
 pub const SEND_TOOLS: [&str; 2] = ["send_draft", "send_message"];
 
 /// Publishing a file: `create_share_link` uploads an attachment to the
 /// user's storage and returns a link anyone holding it can open. It needs
-/// "Read and draft", not "Read only": the read level promises that nothing
+/// "Read, organize and draft", not "Read only": the read level promises that nothing
 /// is changed and nothing leaves the Mac on the agent's word, and a share
 /// link does both (a new object in the user's storage, made with the user's
 /// key, reachable from the internet). It doesn't need the send level: it
@@ -58,7 +70,10 @@ pub const SHARE_TOOLS: [&str; 1] = ["create_share_link"];
 pub fn required(tool: &str) -> Option<AgentAccess> {
     if READ_TOOLS.contains(&tool) || APP_READS.contains(&tool) {
         Some(AgentAccess::Read)
-    } else if DRAFT_TOOLS.contains(&tool) || SHARE_TOOLS.contains(&tool) {
+    } else if DRAFT_TOOLS.contains(&tool)
+        || SHARE_TOOLS.contains(&tool)
+        || ORGANIZE_TOOLS.contains(&tool)
+    {
         Some(AgentAccess::Draft)
     } else if SEND_TOOLS.contains(&tool) {
         Some(AgentAccess::Send)
@@ -83,6 +98,7 @@ pub fn check(level: AgentAccess, tool: &str) -> CmdResult<()> {
     }
     let what = match need {
         _ if SHARE_TOOLS.contains(&tool) => "Creating share links",
+        _ if ORGANIZE_TOOLS.contains(&tool) => "Organizing mail",
         AgentAccess::Send => "Sending",
         AgentAccess::Draft => "Drafting",
         _ => "Reading mail",
@@ -112,6 +128,7 @@ mod tests {
             .iter()
             .chain(&DRAFT_TOOLS)
             .chain(&SHARE_TOOLS)
+            .chain(&ORGANIZE_TOOLS)
             .chain(&SEND_TOOLS)
             .copied()
             .collect()
@@ -128,6 +145,7 @@ mod tests {
             if level >= AgentAccess::Draft {
                 v.extend(DRAFT_TOOLS);
                 v.extend(SHARE_TOOLS);
+                v.extend(ORGANIZE_TOOLS);
             }
             if level >= AgentAccess::Send {
                 v.extend(SEND_TOOLS);
@@ -145,7 +163,14 @@ mod tests {
             }
         }
         assert!(!allows(AgentAccess::Off, "search"));
-        assert_eq!(expect(AgentAccess::Draft).len(), 16);
+        assert_eq!(expect(AgentAccess::Draft).len(), 32);
+        // Organizing is a write: never at the read level, and not waiting
+        // for the send level either.
+        for t in ORGANIZE_TOOLS {
+            assert!(check(AgentAccess::Read, t).is_err(), "{t}");
+            assert!(check(AgentAccess::Draft, t).is_ok(), "{t}");
+            assert!(check(AgentAccess::Send, t).is_ok(), "{t}");
+        }
         // Publishing a file is a write: not at the read level.
         assert!(check(AgentAccess::Read, "create_share_link").is_err());
         assert!(check(AgentAccess::Draft, "create_share_link").is_ok());
@@ -158,8 +183,12 @@ mod tests {
     fn a_denial_is_typed_and_says_where_to_change_it() {
         let e = check(AgentAccess::Draft, "send_message").unwrap_err();
         assert_eq!(e.code, ErrorCode::PermissionDenied);
-        assert!(e.message.contains("Read and draft"), "{}", e.message);
-        assert!(e.message.contains("Read, draft and send"));
+        assert!(
+            e.message.contains("\"Read, organize and draft\""),
+            "{}",
+            e.message
+        );
+        assert!(e.message.contains("\"Read, organize, draft and send\""));
         assert!(e.message.contains("Settings → Developer → Agents"));
         let e = check(AgentAccess::Read, "create_draft").unwrap_err();
         assert!(e.message.starts_with("Drafting isn't allowed"));
@@ -169,7 +198,15 @@ mod tests {
             "{}",
             e.message
         );
-        assert!(e.message.contains("\"Read and draft\""));
+        assert!(e.message.contains("\"Read, organize and draft\""));
+        let e = check(AgentAccess::Read, "trash").unwrap_err();
+        assert_eq!(e.code, ErrorCode::PermissionDenied);
+        assert!(
+            e.message.starts_with("Organizing mail isn't allowed"),
+            "{}",
+            e.message
+        );
+        assert!(e.message.contains("Settings → Developer → Agents"));
         // Unknown names are never allowed, at any level.
         for level in LEVELS {
             assert!(!allows(level, "delete_everything"));

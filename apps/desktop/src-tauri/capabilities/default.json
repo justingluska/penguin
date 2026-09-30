@@ -104,6 +104,7 @@
     "allow-enable-agent-send",
     "allow-agent-activity",
     "allow-agent-pending-sends",
+    "allow-agent-undo",
     "allow-sync-window-estimate",
     "allow-sync-coverage",
     "allow-free-up-space",

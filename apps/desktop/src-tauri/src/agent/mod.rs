@@ -5,11 +5,12 @@
 //! - **Reads** (the CLI process): the database opened with
 //!   `Store::open_read_only`; nothing on this side can change mail or holds
 //!   credentials ([`AgentCtx`], queries, output, context, mcp).
-//! - **Writes** (the Penguin app): drafts, sends, attachment downloads and
-//!   share links are requests over a private local socket ([`ipc`]) that
-//!   the running app answers after checking the agent level in Settings →
-//!   Developer ([`permission`], [`writes`], [`attach`], [`markdown`],
-//!   [`sharing`]).
+//! - **Writes** (the Penguin app): drafts, sends, attachment downloads,
+//!   share links and organizing mail (archive, labels, snooze, Trash…) are
+//!   requests over a private local socket ([`ipc`]) that the running app
+//!   answers after checking the agent level in Settings → Developer
+//!   ([`permission`], [`writes`], [`attach`], [`markdown`], [`sharing`],
+//!   [`organize`]).
 //!
 //! Output shapes are versioned (`output::SCHEMA_VERSION`) and documented in
 //! docs/CLI.md.
@@ -21,6 +22,7 @@ pub mod files;
 pub mod ipc;
 pub mod markdown;
 pub mod mcp;
+pub mod organize;
 pub mod output;
 pub mod permission;
 pub mod queries;

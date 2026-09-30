@@ -1,7 +1,7 @@
 //! What the Penguin app does for an agent over the agent socket
-//! (agent/ipc.rs): drafts, sends, attachment downloads and share links
-//! (agent/sharing.rs), each checked against the agent level
-//! (agent/permission.rs) at the moment it arrives.
+//! (agent/ipc.rs): drafts, sends, attachment downloads, share links
+//! (agent/sharing.rs) and organizing mail (agent/organize.rs), each checked
+//! against the agent level (agent/permission.rs) at the moment it arrives.
 //!
 //! - **Drafts** go through the same path as the composer's
 //!   (`outgoing::save_draft`): the provider's real Drafts, mirrored locally
@@ -34,8 +34,8 @@ use std::time::Instant;
 
 use penguin_core::store::AgentDraft;
 use penguin_core::{Account, Address, Message, Store};
+use penguin_provider::async_trait;
 use penguin_provider::compose::{Draft, OutgoingAttachment};
-use penguin_provider::{async_trait, MailProvider};
 use rmcp::schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -44,6 +44,7 @@ use super::attach::{self, AttachPolicy, AttachmentArg};
 use super::audit::{AppAuditEntry, AuditLog};
 use super::output::{envelope, iso, AttachmentOut};
 use super::{ipc, markdown, permission};
+use crate::actions::ActionHost;
 use crate::error::{CmdError, CmdResult, ErrorCode};
 use crate::ops::{self, Paths};
 use crate::settings::{AgentAccess, Settings};
@@ -56,19 +57,22 @@ const MAX_NAME_CHARS: usize = 200;
 /// Largest attachment `fetch_attachment` hands to a client.
 pub const MAX_FETCH_BYTES: u64 = 25 * 1024 * 1024;
 
-/// What the handlers need from the app.
+/// What the handlers need from the app. The store, the providers and the
+/// mail-changed events come from [`ActionHost`]: organizing mail goes
+/// through the app's own action path (crate::actions).
 #[async_trait]
-pub trait WriteHost: Send + Sync + 'static {
-    fn store(&self) -> &Store;
+pub trait WriteHost: ActionHost {
     fn paths(&self) -> &Paths;
     /// The live settings (in memory: a change applies to the next request).
     fn settings(&self) -> Settings;
-    async fn provider(&self, account_id: &str) -> CmdResult<Arc<dyn MailProvider>>;
     /// Serializes draft saves with the composer's autosaves.
     fn drafts_lock(&self) -> &tokio::sync::Mutex<()>;
+    /// A draft changed: tell the UI and ask the account's sync to look.
     fn mail_changed(&self, account_id: &str, thread_ids: Vec<String>);
     /// An agent's send was queued: tell the user (notification, toast).
     fn send_queued(&self, queued: &QueuedSend);
+    /// An agent organized mail: tell the user, with Undo (a toast).
+    fn organized(&self, _event: &super::organize::AgentOrganized) {}
     fn audit(&self) -> &AuditLog;
     /// The share-link state (settings, Keychain secret, upload records), for
     /// `create_share_link` (agent/sharing.rs).
@@ -282,11 +286,16 @@ pub struct AttachmentBytesOut {
 
 pub struct AgentService<H: WriteHost> {
     host: Arc<H>,
+    /// The hourly caps on trash and report_spam (agent/organize.rs).
+    limits: super::organize::Limits,
 }
 
 impl<H: WriteHost> AgentService<H> {
     pub fn new(host: Arc<H>) -> Self {
-        AgentService { host }
+        AgentService {
+            host,
+            limits: Default::default(),
+        }
     }
 }
 
@@ -393,6 +402,11 @@ impl<H: WriteHost> AgentService<H> {
                 let a: super::sharing::ShareLinkArgs = parse(tool, args)?;
                 let out = super::sharing::create(self.host.as_ref(), a, audit).await?;
                 to_value(envelope("shareLink", out))
+            }
+            t if super::organize::is_tool(t) => {
+                let out =
+                    super::organize::run(&self.host, &self.limits, client, t, args, audit).await?;
+                to_value(envelope("organized", out))
             }
             other => Err(CmdError::invalid(format!(
                 "{other} isn't something Penguin does for agents"

@@ -117,10 +117,23 @@ test("next up skips all-day, declined and free events; prefers the running one",
     ev("sync", now + 25 * MIN, 30),
     ev("far", now + 13 * HOUR, 30),
   ];
-  assert.deepEqual(nextUp(events, now), { event: events[3], running: false });
+  assert.deepEqual(nextUp(events, now), { running: [], next: events[3] });
   const running = ev("running", now - 10 * MIN, 30);
-  assert.equal(nextUp([...events, running], now)?.event.id, "running");
+  const both = nextUp([...events, running], now);
+  assert.deepEqual(both?.running.map((e) => e.id), ["running"]);
+  assert.equal(both?.next?.id, "sync", "a meeting within the hour still shows beside the running one");
   assert.equal(nextUp([events[4]], now), null, "beyond 12 hours");
+});
+
+test("next up: a long running block keeps the meeting inside it; overlapping events all count", () => {
+  const now = today + 10 * HOUR;
+  const train = ev("train", now - 45 * MIN, 127);
+  const meeting = ev("meeting", now + 70 * MIN, 30);
+  const later = ev("later", now + 5 * HOUR, 30);
+  assert.equal(nextUp([train, meeting], now)?.next?.id, "meeting", "starts before the train arrives");
+  assert.equal(nextUp([train, later], now)?.next, null, "after the train and hours away");
+  const call = ev("call", now - 5 * MIN, 30);
+  assert.deepEqual(nextUp([train, call], now)?.running.map((e) => e.id), ["call", "train"], "latest started first");
 });
 
 test("the same meeting on two calendars shows once", () => {

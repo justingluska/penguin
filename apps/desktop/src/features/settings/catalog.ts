@@ -225,7 +225,7 @@ export const SETTINGS_INDEX: SettingEntry[] = [
   { page: "diagnostics", label: "Demo mode", desc: "Fictional accounts and mail", keywords: ["demo", "screenshots", "fake", "sample data", "fictional"] },
   { page: "diagnostics", label: "Gmail quota (units per minute per account)", keywords: ["quota", "rate limit", "api", "throttle", "google cloud"] },
   { page: "diagnostics", label: "Agents (CLI and MCP)", keywords: ["mcp", "model context protocol", "claude", "ai tools", "agent"] },
-  { page: "diagnostics", label: "What agents may do", desc: "Off, read, draft or send", keywords: ["mcp", "claude", "agent", "draft", "send", "permission", "access"] },
+  { page: "diagnostics", label: "What agents may do", desc: "Off, read, organize and draft, or send", keywords: ["mcp", "claude", "agent", "draft", "send", "organize", "archive", "label", "trash", "permission", "access"] },
   { page: "diagnostics", label: "Let agents send", keywords: ["agent", "send", "mcp", "outbox", "delay"] },
   { page: "diagnostics", label: "Wait before an agent's email goes", keywords: ["agent", "send", "delay", "outbox", "cancel"] },
   { page: "diagnostics", label: "Only to people I've emailed", desc: "Agents send only to people you've written to", keywords: ["agent", "send", "recipients", "known"] },

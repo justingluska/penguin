@@ -6,7 +6,7 @@
 //! touches the storage or its secret.
 //!
 //! Two gates, both checked by the app on every request:
-//! - the agent level is at least "Read and draft" (agent/permission.rs,
+//! - the agent level is at least "Read, organize and draft" (agent/permission.rs,
 //!   `SHARE_TOOLS`: publishing a file is a write);
 //! - share links are set up and "Let agents (CLI and MCP) create share
 //!   links" is on (`share::agent_gate`, Settings → Share links).

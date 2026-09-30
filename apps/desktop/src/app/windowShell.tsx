@@ -55,7 +55,7 @@ import { ShortcutSheet } from "./ShortcutSheet";
 import { registerOtpShortcuts } from "../features/otp/otp";
 import { contextKey, drafts } from "../features/compose/draft";
 import { flushAllSavers, saverFor, unsavedDrafts } from "../features/compose/autosave";
-import { handOffPendingSend, handoffsSettled, sendSettled } from "../features/compose/send";
+import { handOffPendingSend, handoffsSettled, sendPending, sendSettled } from "../features/compose/send";
 import { asComposeSeed, type ComposeSeed } from "../features/compose/seed";
 import { registerAppShortcuts } from "./shortcuts";
 import { closeThisWindow, CLOSE_REQUEST, installMenu } from "./menu";
@@ -86,10 +86,15 @@ function finish(): Promise<boolean> {
   finishing ??= (async () => {
     try {
       // A message counting down here goes on counting in the main window.
+      const sending = sendPending();
       await handOffPendingSend();
       await handoffsSettled();
       await sendSettled();
-      if (windowRoute.kind === "compose" && getUi().overlay === "compose") return false;
+      // Stay only when a send was counting down here and its Undo brought the
+      // message back into this window (the main window didn't take it). A
+      // composer that's simply open is a draft: it's saved below and the
+      // window closes, as the red button and ⌘W promise.
+      if (sending && windowRoute.kind === "compose" && getUi().overlay === "compose") return false;
       // Drafts open here are saved; one that can't be (offline) is kept by the main window.
       await flushAllSavers();
       for (const state of unsavedDrafts()) {

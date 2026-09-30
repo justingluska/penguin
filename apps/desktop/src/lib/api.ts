@@ -23,8 +23,10 @@ import type {
   MessageDetails,
   McpInfo,
   AgentActivity,
+  AgentOrganized,
   AgentPendingSend,
   AgentSendQueued,
+  AgentUndoStep,
   SemanticIndexStatus,
   CliLinkStatus,
   AttachmentPreview,
@@ -134,6 +136,7 @@ export const EVENTS = {
   scheduledSent: "penguin://scheduled-sent",
   reminderDue: "penguin://reminder-due",
   agentSendQueued: "penguin://agent-send-queued",
+  agentOrganized: "penguin://agent-organized",
   snoozeWoke: "penguin://snooze-woke",
   avatarsChanged: "penguin://avatars-changed",
   rulesChanged: "penguin://rules-changed",
@@ -608,6 +611,8 @@ export const api = {
   agentActivity: (limit = 30) => call<AgentActivity[]>("agent_activity", { limit }),
   /** Sends agents queued that haven't gone yet, soonest first. Cancel with cancelScheduledSend. */
   agentPendingSends: () => call<AgentPendingSend[]>("agent_pending_sends"),
+  /** Undo an agent's organizing (the toast after penguin://agent-organized): runs its undo steps in order, in the background. */
+  agentUndo: (steps: AgentUndoStep[]) => call<void>("agent_undo", { steps }),
   /** Search by meaning: model download and indexing progress (local, instant). */
   semanticStatus: () => call<SemanticIndexStatus>("semantic_status"),
   /** Welcome setup: search by meaning confirmed on, so the one-time model download may start now (docs/ONBOARDING.md). */
@@ -834,6 +839,12 @@ export function onReminderDue(cb: (e: ReminderDue) => void): Promise<UnlistenFn>
 export function onAgentSendQueued(cb: (e: AgentSendQueued) => void): Promise<UnlistenFn> {
   if (isMock) return mockBackend().then((m) => m.listen(EVENTS.agentSendQueued, cb as (p: unknown) => void));
   return listenHere<AgentSendQueued>(EVENTS.agentSendQueued, (e) => cb(e.payload));
+}
+
+/** An agent organized mail (archive, labels, snooze, Trash…); the payload carries its undo. */
+export function onAgentOrganized(cb: (e: AgentOrganized) => void): Promise<UnlistenFn> {
+  if (isMock) return mockBackend().then((m) => m.listen(EVENTS.agentOrganized, cb as (p: unknown) => void));
+  return listenHere<AgentOrganized>(EVENTS.agentOrganized, (e) => cb(e.payload));
 }
 
 /** A new-mail notification was clicked (src-tauri/src/notify.rs). */

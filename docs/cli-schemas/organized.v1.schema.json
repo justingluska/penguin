@@ -1,0 +1,235 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Envelope",
+  "description": "Every payload: `{\"schemaVersion\": 1, \"kind\": \"...\", \"data\": {...}}`.",
+  "type": "object",
+  "properties": {
+    "data": {
+      "$ref": "#/$defs/OrganizedOut"
+    },
+    "kind": {
+      "description": "\"search\" | \"thread\" | \"threads\" | \"labels\" | \"people\" | \"accounts\" | \"attachmentText\" | \"attachments\" | \"attachment\" | \"ask\" | \"draft\" | \"drafts\" | \"draftDeleted\" | \"sendQueued\" | \"shareLink\" | \"ruleMatch\" | \"error\"",
+      "type": "string"
+    },
+    "schemaVersion": {
+      "type": "integer",
+      "format": "uint32",
+      "minimum": 0
+    }
+  },
+  "required": [
+    "schemaVersion",
+    "kind",
+    "data"
+  ],
+  "$defs": {
+    "FailedOut": {
+      "description": "A provider refused the change for these conversations; Penguin put them\nback as they were.",
+      "type": "object",
+      "properties": {
+        "accountId": {
+          "type": "string"
+        },
+        "error": {
+          "type": "string"
+        },
+        "threadId": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "accountId",
+        "threadId",
+        "error"
+      ]
+    },
+    "OrganizedOut": {
+      "description": "`organized`: what an organizing tool did, conversation by conversation.",
+      "type": "object",
+      "properties": {
+        "changed": {
+          "description": "Changed, in Penguin and on the provider.",
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ThreadChangeOut"
+          }
+        },
+        "failed": {
+          "description": "The provider refused: put back as they were.",
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/FailedOut"
+          }
+        },
+        "notFound": {
+          "description": "Not in Penguin's index (or an unknown account): not touched.",
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ThreadTarget"
+          }
+        },
+        "note": {
+          "type": "string"
+        },
+        "previous": {
+          "description": "Every conversation found, as it was before this call.",
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ThreadBeforeOut"
+          }
+        },
+        "tool": {
+          "type": "string"
+        },
+        "unchanged": {
+          "description": "Already that way: nothing to change.",
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ThreadTarget"
+          }
+        },
+        "undo": {
+          "description": "Calls that put back what this one changed, in order.",
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/UndoStep"
+          }
+        }
+      },
+      "required": [
+        "tool",
+        "changed",
+        "unchanged",
+        "notFound",
+        "failed",
+        "previous",
+        "undo",
+        "note"
+      ]
+    },
+    "ThreadBeforeOut": {
+      "description": "A conversation as it was before the call.",
+      "type": "object",
+      "properties": {
+        "accountId": {
+          "type": "string"
+        },
+        "labelIds": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "snoozedUntil": {
+          "description": "When it was snoozed until (Unix ms), if it was.",
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "int64"
+        },
+        "threadId": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "accountId",
+        "threadId",
+        "labelIds"
+      ]
+    },
+    "ThreadChangeOut": {
+      "description": "A conversation the call changed: the labels it added and removed\n(label ids, as list_labels shows them).",
+      "type": "object",
+      "properties": {
+        "accountId": {
+          "type": "string"
+        },
+        "added": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "removed": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "threadId": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "accountId",
+        "threadId",
+        "added",
+        "removed"
+      ]
+    },
+    "ThreadTarget": {
+      "description": "A conversation: its account (email) and thread id, as `search` and\n`list_threads` return them.",
+      "type": "object",
+      "properties": {
+        "accountId": {
+          "type": "string"
+        },
+        "threadId": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "accountId",
+        "threadId"
+      ]
+    },
+    "UndoArgs": {
+      "description": "The arguments of an undo call: the tool's own arguments.",
+      "type": "object",
+      "properties": {
+        "label": {
+          "description": "add_label / remove_label: the label id.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "targets": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ThreadTarget"
+          }
+        },
+        "until": {
+          "description": "snooze: when (Unix ms).",
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "int64"
+        }
+      },
+      "required": [
+        "targets"
+      ]
+    },
+    "UndoStep": {
+      "description": "One call that undoes part of this one: `tool` with `arguments`.",
+      "type": "object",
+      "properties": {
+        "arguments": {
+          "$ref": "#/$defs/UndoArgs"
+        },
+        "tool": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "tool",
+        "arguments"
+      ]
+    }
+  }
+}

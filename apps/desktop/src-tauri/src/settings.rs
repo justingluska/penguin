@@ -1257,10 +1257,13 @@ pub enum AgentAccess {
     Off,
     /// Search and read the local index (the MCP server's read-only tools).
     Read,
-    /// Read, plus create / update / list / delete its own drafts.
+    /// Read, plus organize mail (archive, labels, snooze, Trash… all
+    /// reversible) and create / update / list / delete its own drafts.
+    /// Stored as `draft` (the name from before organizing existed).
     Draft,
-    /// Read and draft, plus send (through the outbox, after a delay the
-    /// user can cancel). Only `SettingsState::grant_agent_send` sets it.
+    /// Read, organize and draft, plus send (through the outbox, after a
+    /// delay the user can cancel). Only `SettingsState::grant_agent_send`
+    /// sets it.
     Send,
 }
 
@@ -1279,8 +1282,8 @@ impl AgentAccess {
         match self {
             AgentAccess::Off => "Off",
             AgentAccess::Read => "Read only",
-            AgentAccess::Draft => "Read and draft",
-            AgentAccess::Send => "Read, draft and send",
+            AgentAccess::Draft => "Read, organize and draft",
+            AgentAccess::Send => "Read, organize, draft and send",
         }
     }
 }

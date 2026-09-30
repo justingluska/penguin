@@ -226,6 +226,7 @@ mod app {
     use std::sync::{Arc, Mutex};
 
     use penguin_core::{AccountProvider, Store};
+    use penguin_desktop_lib::actions::ActionHost;
     use penguin_desktop_lib::agent::audit::AuditLog;
     use penguin_desktop_lib::agent::ipc;
     use penguin_desktop_lib::agent::writes::{AgentService, QueuedSend, WriteHost};
@@ -277,15 +278,9 @@ mod app {
     }
 
     #[async_trait]
-    impl WriteHost for Host {
+    impl ActionHost for Host {
         fn store(&self) -> &Store {
             &self.store
-        }
-        fn paths(&self) -> &Paths {
-            &self.paths
-        }
-        fn settings(&self) -> Settings {
-            self.settings.lock().unwrap().clone()
         }
         async fn provider(&self, account_id: &str) -> CmdResult<Arc<dyn MailProvider>> {
             if account_id == super::ADA {
@@ -293,6 +288,19 @@ mod app {
             } else {
                 Err(CmdError::not_found(account_id.to_string()))
             }
+        }
+        fn emit_mail_changed(&self, _: &str, _: Vec<String>) {}
+        fn emit_action_failed(&self, _: String) {}
+        fn poke(&self, _: &str) {}
+    }
+
+    #[async_trait]
+    impl WriteHost for Host {
+        fn paths(&self) -> &Paths {
+            &self.paths
+        }
+        fn settings(&self) -> Settings {
+            self.settings.lock().unwrap().clone()
         }
         fn drafts_lock(&self) -> &tokio::sync::Mutex<()> {
             &self.lock
@@ -546,7 +554,7 @@ async fn share_link_through_the_app_with_typed_exit_codes() {
     let v: serde_json::Value = serde_json::from_str(&stdout).unwrap();
     assert_eq!(v["data"]["code"], "permissionDenied");
     assert!(stderr.contains("Settings → Developer → Agents"), "{stderr}");
-    // Read and draft, the share-link switch off: 77, naming Share links.
+    // Read, organize and draft, the share-link switch off: 77, naming Share links.
     host.set_level(AgentAccess::Draft);
     host.set_share(&stub.endpoint, false);
     let (code, _, stderr) = cli_async(&root, &args).await;
@@ -597,6 +605,160 @@ async fn share_link_through_the_app_with_typed_exit_codes() {
     assert!(log.contains(&format!("\"account\":\"{ADA}\"")));
     let key = url.split('?').next().unwrap().rsplit('/').nth(1).unwrap();
     for secret in [url.as_str(), key, "Walrus plan", "Walrus-plan", "X-Amz"] {
+        assert!(!log.contains(secret), "audit log has {secret:?}");
+    }
+    server.abort();
+    let _ = std::fs::remove_dir_all(home_of(&root));
+    let _ = std::fs::remove_dir_all(root);
+}
+
+/// `cli`, with `input` on stdin.
+async fn cli_stdin(root: &Path, args: &[&str], input: &str) -> (i32, String, String) {
+    let (root, input) = (root.to_path_buf(), input.to_string());
+    let args: Vec<String> = args.iter().map(|s| s.to_string()).collect();
+    tokio::task::spawn_blocking(move || {
+        let mut child = Command::new(env!("CARGO_BIN_EXE_penguin-cli"))
+            .args(&args)
+            .env("PENGUIN_DATA_DIR", &root)
+            .env_remove("PENGUIN_LOG")
+            .stdin(Stdio::piped())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            .spawn()
+            .unwrap();
+        child
+            .stdin
+            .take()
+            .unwrap()
+            .write_all(input.as_bytes())
+            .unwrap();
+        let out = child.wait_with_output().unwrap();
+        (
+            out.status.code().unwrap_or(-1),
+            String::from_utf8(out.stdout).unwrap(),
+            String::from_utf8(out.stderr).unwrap(),
+        )
+    })
+    .await
+    .unwrap()
+}
+
+/// Organizing: the real binary → the agent socket → the stand-in app → the
+/// fake provider. 69 without Penguin, 77 below "Read, organize and draft",
+/// 64 for bad arguments, 2 when nothing named exists, 0 with the result
+/// and the command that undoes it; the audit log keeps counts only.
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn organizing_through_the_app_with_typed_exit_codes() {
+    use penguin_desktop_lib::settings::AgentAccess;
+    let root = short_dir("org");
+    let inbox = |host: &app::Host| {
+        host.store
+            .get_thread(ADA, "t1")
+            .unwrap()
+            .unwrap()
+            .label_ids
+            .contains(&"INBOX".to_string())
+    };
+
+    // Penguin isn't running: 69.
+    let (code, stdout, stderr) = cli_async(&root, &["archive", ADA, "t1", "--json"]).await;
+    assert_eq!(code, 69, "{stderr}");
+    let v: serde_json::Value = serde_json::from_str(&stdout).unwrap();
+    assert_eq!(v["data"]["code"], "unavailable");
+
+    let (host, server) = app::start(&root, AgentAccess::Read);
+    host.fake
+        .seed(host.store.get_message(ADA, "m1").unwrap().unwrap());
+    host.store
+        .replace_labels(
+            ADA,
+            &[penguin_core::Label {
+                account_id: ADA.into(),
+                id: "Label_7".into(),
+                name: "Walrus Project".into(),
+                kind: "user".into(),
+                color: None,
+                unread_count: None,
+                hidden: false,
+            }],
+        )
+        .unwrap();
+    // Read only: 77, naming the level it needs.
+    let (code, stdout, stderr) = cli_async(&root, &["archive", ADA, "t1", "--json"]).await;
+    assert_eq!(code, 77, "{stderr}");
+    let v: serde_json::Value = serde_json::from_str(&stdout).unwrap();
+    assert_eq!(v["data"]["code"], "permissionDenied");
+    assert!(stderr.contains("Read, organize and draft"), "{stderr}");
+    assert!(inbox(&host));
+
+    // Read, organize and draft: done, the JSON says what changed.
+    host.set_level(AgentAccess::Draft);
+    let (code, stdout, stderr) = cli_async(&root, &["archive", ADA, "t1", "--json"]).await;
+    assert_eq!(code, 0, "{stderr}");
+    let v: serde_json::Value = serde_json::from_str(&stdout).unwrap();
+    assert_eq!(v["kind"], "organized");
+    assert_eq!(v["data"]["changed"][0]["threadId"], "t1");
+    assert_eq!(v["data"]["undo"][0]["tool"], "unarchive");
+    assert!(!inbox(&host));
+    // Human mode, targets on stdin: a line per conversation, and the undo
+    // command on stderr.
+    let (code, stdout, stderr) = cli_stdin(
+        &root,
+        &["unarchive", "--stdin"],
+        &format!("# from a search\n{ADA} t1\n\n"),
+    )
+    .await;
+    assert_eq!(code, 0, "{stderr}");
+    assert!(stdout.starts_with("changed"), "{stdout}");
+    assert!(stdout.contains("t1"));
+    assert!(
+        stderr.contains(&format!("undo: penguin-cli archive {ADA} t1")),
+        "{stderr}"
+    );
+    assert!(inbox(&host));
+    // A label by name.
+    let (code, _, stderr) = cli_async(&root, &["add-label", "walrus project", ADA, "t1"]).await;
+    assert_eq!(code, 0, "{stderr}");
+    assert!(
+        stderr.contains("undo: penguin-cli remove-label Label_7"),
+        "{stderr}"
+    );
+    let t1 = host.store.get_thread(ADA, "t1").unwrap().unwrap();
+    assert!(t1.label_ids.contains(&"Label_7".to_string()));
+    // `labels` lists it (read-only, from the database).
+    let (code, stdout, _) = cli_async(&root, &["labels", "--json"]).await;
+    assert_eq!(code, 0);
+    let v: serde_json::Value = serde_json::from_str(&stdout).unwrap();
+    assert_eq!(v["kind"], "labels");
+    assert_eq!(v["data"]["labels"][0]["name"], "Walrus Project");
+
+    // Nothing named exists: 2, with the result still on stdout.
+    let (code, stdout, _) = cli_async(&root, &["star", ADA, "nope", "--json"]).await;
+    assert_eq!(code, 2);
+    let v: serde_json::Value = serde_json::from_str(&stdout).unwrap();
+    assert_eq!(v["data"]["notFound"][0]["threadId"], "nope");
+    // Usage: no conversations, no label, no time, too many to trash: 64.
+    for args in [
+        vec!["archive"],
+        vec!["archive", ADA],
+        vec!["add-label"],
+        vec!["snooze", ADA, "t1"],
+    ] {
+        let (code, _, stderr) = cli_async(&root, &args).await;
+        assert_eq!(code, 64, "{args:?}: {stderr}");
+    }
+    let many: Vec<String> = (0..26).map(|i| format!("x{i}")).collect();
+    let mut args = vec!["trash", ADA];
+    args.extend(many.iter().map(String::as_str));
+    let (code, _, stderr) = cli_async(&root, &args).await;
+    assert_eq!(code, 64, "{stderr}");
+    assert!(stderr.contains("at most 25"), "{stderr}");
+
+    // The audit log: tools and counts, never the subject or label name.
+    let log = std::fs::read_to_string(root.join("logs").join("mcp-audit.log")).unwrap();
+    assert!(log.contains("\"tool\":\"archive\""), "{log}");
+    assert!(log.contains("\"threadCount\":1"), "{log}");
+    for secret in ["Walrus", "walrus"] {
         assert!(!log.contains(secret), "audit log has {secret:?}");
     }
     server.abort();

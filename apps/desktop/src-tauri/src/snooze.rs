@@ -1,26 +1,25 @@
 //! Snooze commands and what the scheduler reports when snoozes wake.
 //!
 //! Snoozing = a local record (penguin-core `snoozes`) + the normal archive
-//! (`commands::apply_thread_action`: optimistic, pushed to the provider,
-//! reverted on failure — and a revert puts the thread back in the inbox,
-//! which ends the snooze by itself). Waking runs in the outbox scheduler
+//! (`actions::snooze`: optimistic, pushed to the provider, reverted on
+//! failure — and a revert puts the thread back in the inbox, which ends the
+//! snooze by itself). Waking runs in the outbox scheduler
 //! loop (`outbox.rs`), with the rules in `penguin_provider::snooze`; this module
 //! turns its results into `mail-changed`, `penguin://snooze-woke` and, when
 //! the window is in the background, a notification.
 
 use std::sync::Arc;
 
-use penguin_core::{account_scope, AccountId, Snooze};
-use penguin_provider::snooze::{self as rules, Woke};
+use penguin_core::{account_scope, Snooze};
+use penguin_provider::snooze::Woke;
 use serde::Serialize;
 use tauri::{AppHandle, Emitter, Manager, State};
 
-use crate::commands::apply_thread_action;
-use crate::error::{CmdError, CmdResult};
+use crate::actions;
+use crate::error::CmdResult;
 use crate::ops;
-use crate::outbox;
 use crate::state::{blocking, AppState};
-use crate::views::{ThreadAction, ThreadRef};
+use crate::views::ThreadRef;
 
 /// One per scheduler pass that woke something.
 pub const SNOOZE_WOKE_EVENT: &str = "penguin://snooze-woke";
@@ -113,46 +112,16 @@ pub fn publish(app: &AppHandle, state: &AppState, woke: Vec<Woke>, launched_at: 
 type AppStateRef<'a> = State<'a, Arc<AppState>>;
 
 /// Snooze `targets` until `until` (unix ms, future, within a year): record
-/// the snooze, then archive them (optimistic; reverted with action-failed if
-/// Gmail refuses, which also ends the snooze). Replaces an existing snooze.
+/// the snooze, then archive them (actions::snooze).
 #[tauri::command]
 pub async fn snooze_threads(
     state: AppStateRef<'_>,
     targets: Vec<ThreadRef>,
     until: i64,
 ) -> CmdResult<()> {
-    rules::check_until(until, ops::now_ms()).map_err(CmdError::invalid)?;
-    if targets.is_empty() {
-        return Ok(());
-    }
-    // Refuse before writing records we could never act on.
-    state
-        .require_providers(targets.iter().map(|t| t.account_id.as_str()))
-        .await?;
-    let store = state.store.clone();
-    let pairs: Vec<(AccountId, String)> = targets
-        .iter()
-        .map(|t| (t.account_id.clone(), t.thread_id.clone()))
-        .collect();
-    let rows = pairs.clone();
-    blocking(move || Ok(store.snooze_threads(&rows, until, ops::now_ms())?)).await?;
-    if let Err(e) = apply_thread_action(state.inner().clone(), targets, ThreadAction::Archive).await
-    {
-        let store = state.store.clone();
-        let undo = blocking(move || {
-            for (a, t) in &pairs {
-                store.unsnooze(a, t)?;
-            }
-            Ok(())
-        })
-        .await;
-        if let Err(u) = undo {
-            tracing::warn!(error = %u.message, "could not drop snoozes after a failed archive");
-        }
-        return Err(e);
-    }
-    outbox::schedule_changed();
-    Ok(())
+    actions::snooze(state.inner().clone(), targets, until, ops::now_ms())
+        .await
+        .map(|_| ())
 }
 
 /// End the snooze of `targets` now. `toInbox`: also move them to the inbox
@@ -164,34 +133,9 @@ pub async fn unsnooze_threads(
     targets: Vec<ThreadRef>,
     to_inbox: bool,
 ) -> CmdResult<()> {
-    if targets.is_empty() {
-        return Ok(());
-    }
-    let store = state.store.clone();
-    let rows = targets.clone();
-    blocking(move || {
-        for t in &rows {
-            store.unsnooze(&t.account_id, &t.thread_id)?;
-        }
-        Ok(())
-    })
-    .await?;
-    outbox::schedule_changed();
-    if to_inbox {
-        return apply_thread_action(state.inner().clone(), targets, ThreadAction::MoveToInbox)
-            .await;
-    }
-    let mut by_account: std::collections::BTreeMap<String, Vec<String>> = Default::default();
-    for t in targets {
-        by_account
-            .entry(t.account_id)
-            .or_default()
-            .push(t.thread_id);
-    }
-    for (account, threads) in by_account {
-        state.emit_mail_changed(&account, threads);
-    }
-    Ok(())
+    actions::unsnooze(state.inner().clone(), targets, to_inbox)
+        .await
+        .map(|_| ())
 }
 
 /// Active snoozes, soonest first; `accountIds` narrows to a set (null =

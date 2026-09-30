@@ -310,6 +310,9 @@
 .st-agent-level.is-send.is-on .st-agent-radio { border-color: var(--amber-a11); }
 .st-agent-level-text { display: flex; flex-direction: column; min-width: 0; }
 .st-agent-level-text .st-muted { margin-top: 2px; font-size: var(--text-xs); }
+.st-agent-can { margin: 3px 0 0; padding: 0 0 0 14px; font-size: var(--text-xs); color: var(--text-muted); list-style: disc; }
+.st-agent-can li + li { margin-top: 1px; }
+.st-agent-level.is-on .st-agent-can { color: var(--text-default); }
 .st-agent-level-title { display: inline-flex; align-items: center; gap: 8px; font-size: var(--text-sm); color: var(--text-emphasis); font-weight: 500; }
 .st-agent-tag {
   font-size: 10px; font-weight: 600; letter-spacing: .02em; padding: 1px 6px; border-radius: 999px;

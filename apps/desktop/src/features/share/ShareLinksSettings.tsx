@@ -275,7 +275,7 @@ export function ShareLinksSettings() {
           <span className="setting-label">Let agents (CLI and MCP) create share links</span>
           <p className="st-muted">
             An agent could then upload an attachment and get a link to it. A link makes that file downloadable by anyone who has it, and text inside an email
-            can try to trick an agent into sharing things. Leave this off unless you trust what your agents read. Agents also need Read and draft or
+            can try to trick an agent into sharing things. Leave this off unless you trust what your agents read. Agents also need Read, organize and draft or
             higher in{" "}
             <button className="st-link" onClick={() => openSettings("diagnostics")}>
               Settings → Developer → Agents

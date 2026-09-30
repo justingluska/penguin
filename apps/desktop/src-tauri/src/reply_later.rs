@@ -2,8 +2,9 @@
 //! penguin-core `store_triage.rs`).
 //!
 //! Reply Later is a real label so the providers' own apps show it too: each
-//! account's [`REPLY_LATER_LABEL`] (Gmail user label, IMAP folder, Microsoft
-//! category), created on first use through `MailProvider::ensure_label`.
+//! account's [`penguin_core::REPLY_LATER_LABEL`] (Gmail user label, IMAP
+//! folder, Microsoft category), created on first use through
+//! `MailProvider::ensure_label` (`actions::ensure_reply_later_label`).
 //! Marking = add the label + archive + mark read in one optimistic action
 //! (`ThreadAction::ReplyLater`; on IMAP that's a single move into the
 //! folder, on Microsoft a category plus the move to Archive). Sending from
@@ -17,9 +18,7 @@
 use std::collections::BTreeMap;
 use std::sync::Arc;
 
-use penguin_core::{
-    account_scope, AccountId, ListQuery, ThreadSummary, TriageCount, REPLY_LATER_LABEL,
-};
+use penguin_core::{account_scope, AccountId, ListQuery, ThreadSummary, TriageCount};
 use tauri::State;
 
 use crate::commands::apply_thread_action;
@@ -38,59 +37,19 @@ fn by_account(targets: Vec<ThreadRef>) -> BTreeMap<String, Vec<ThreadRef>> {
     out
 }
 
-/// The account's Reply Later label id: the stored one, else found or
-/// created on the provider and stored. One at a time, so two quick marks
-/// on a new account don't both create it.
-async fn ensure_label(state: &AppState, account_id: &str) -> CmdResult<String> {
-    static CREATING: tokio::sync::Mutex<()> = tokio::sync::Mutex::const_new(());
-    let _one = CREATING.lock().await;
-    let (store, acct) = (state.store.clone(), account_id.to_string());
-    if let Some(id) = blocking(move || Ok(store.reply_later_label(&acct)?)).await? {
-        return Ok(id);
-    }
-    let provider = state.provider(account_id).await?;
-    let mut label = provider.ensure_label(REPLY_LATER_LABEL).await?;
-    label.account_id = account_id.to_string();
-    let id = label.id.clone();
-    let store = state.store.clone();
-    blocking(move || Ok(store.upsert_label(&label)?)).await?;
-    tracing::info!(account = %account_id, "reply later label ready");
-    Ok(id)
-}
-
 /// Mark (`on`) conversations Reply Later: out of the inbox, read, labelled.
 /// `on: false` only takes the label off (undo puts the inbox and unread
-/// state back with `modify_threads`). Optimistic like `modify_threads`.
+/// state back with `modify_threads`). Optimistic like `modify_threads`
+/// (actions::reply_later).
 #[tauri::command]
 pub async fn reply_later(
     state: AppStateRef<'_>,
     targets: Vec<ThreadRef>,
     on: bool,
 ) -> CmdResult<()> {
-    if targets.is_empty() {
-        return Ok(());
-    }
-    state
-        .require_providers(targets.iter().map(|t| t.account_id.as_str()))
-        .await?;
-    for (account_id, refs) in by_account(targets) {
-        let label_id = if on {
-            ensure_label(&state, &account_id).await?
-        } else {
-            let (store, acct) = (state.store.clone(), account_id.clone());
-            match blocking(move || Ok(store.reply_later_label(&acct)?)).await? {
-                Some(id) => id,
-                None => continue,
-            }
-        };
-        let action = if on {
-            ThreadAction::ReplyLater { label_id }
-        } else {
-            ThreadAction::RemoveLabel { label_id }
-        };
-        apply_thread_action(state.inner().clone(), refs, action).await?;
-    }
-    Ok(())
+    crate::actions::reply_later(state.inner().clone(), targets, on)
+        .await
+        .map(|_| ())
 }
 
 /// A message went out in `threads` (a reply from Penguin, now or scheduled):

@@ -9,6 +9,11 @@
 //!   penguin-cli draft create|update|list|delete …   (asks the running app; Settings → Developer → Agents)
 //!   penguin-cli send <draftId> | send --to … (queued in the app's outbox; needs the send level)
 //!   penguin-cli share-link <account> <messageId> <attachmentId> [--json]   (made by the app; Settings → Share links)
+//!   penguin-cli labels [--json] [--account <email>] [--profile <name>]
+//!   penguin-cli archive|unarchive|mark-read|mark-unread|star|unstar|trash|untrash|report-spam|not-spam
+//!               |reply-later|clear-reply-later|unsnooze <account> <threadId>… [--stdin] [--json]
+//!   penguin-cli add-label|remove-label <label> <account> <threadId>… [--stdin] [--json]
+//!   penguin-cli snooze --until <time> <account> <threadId>… [--stdin] [--json]   (organizing: done by the app)
 //!   penguin-cli mcp                       (stdio MCP server; enable in Settings → Developer → Agents)
 //!   penguin-cli set-client <google-oauth-client.json>
 //!   penguin-cli add-account
@@ -23,7 +28,7 @@
 //! level in Settings → Developer → Agents, or share links for agents in
 //! Settings → Share links).
 //!
-//! Drafting, sending and share links never happen in this process: they are
+//! Drafting, sending, share links and organizing never happen in this process: they are
 //! requests to the running Penguin app over its private socket
 //! (agent/ipc.rs), which checks the level and uses its own credentials (and,
 //! for share links, its own storage secret). penguin-cli never starts the
@@ -39,6 +44,9 @@ use std::time::Instant;
 
 use penguin_core::{Store, SyncStatus};
 use penguin_desktop_lib::agent::attach::AttachmentArg;
+use penguin_desktop_lib::agent::organize::{
+    LabelArgs, SnoozeArgs, TargetsArgs, ThreadTarget, Until, ORGANIZE_TOOLS,
+};
 use penguin_desktop_lib::agent::output::{self as out, envelope, ThreadOptions};
 use penguin_desktop_lib::agent::sharing::ShareLinkArgs;
 use penguin_desktop_lib::agent::writes::{
@@ -67,6 +75,12 @@ const USAGE: &str = "usage:
   penguin-cli send <draftId> [--account <email>] [--json]
   penguin-cli send [DRAFT FIELDS] [--json]
   penguin-cli share-link <account> <messageId> <attachmentId> [--json]
+  penguin-cli labels [--json] [--account <email>] [--profile <name>]
+  penguin-cli archive|unarchive|mark-read|mark-unread|star|unstar <account> <threadId>… [TARGETS]
+  penguin-cli add-label|remove-label <label> <account> <threadId>… [TARGETS]
+  penguin-cli snooze --until <time> <account> <threadId>… [TARGETS]
+  penguin-cli unsnooze|reply-later|clear-reply-later <account> <threadId>… [TARGETS]
+  penguin-cli trash|untrash|report-spam|not-spam <account> <threadId>… [TARGETS]
   penguin-cli mcp
   penguin-cli set-client <google-oauth-client.json>
   penguin-cli add-account
@@ -80,10 +94,16 @@ DRAFT FIELDS: --from <email> --to <addr>… --cc <addr>… --bcc <addr>… --sub
   Settings → Developer → Agents; a send waits in its outbox before it goes)
 share-link: the running Penguin uploads that attachment (or cid: picture) to your
   storage and prints a link anyone holding it can use until it expires; needs
-  \"Read and draft\" and \"Let agents (CLI and MCP) create share links\" in Settings → Share links
+  \"Read, organize and draft\" and \"Let agents (CLI and MCP) create share links\" in Settings → Share links
+TARGETS: conversations as <account> <threadId>… (one account), or --stdin with one
+  \"<account> <threadId>\" per line (up to 100; trash and report-spam 25, and 200 an hour);
+  --json for the result. Organizing is done by the running Penguin at \"Read, organize
+  and draft\"; nothing is deleted, and each result prints the commands that undo it.
+  snooze --until: RFC 3339 with an offset (2026-10-01T09:00:00-04:00) or Unix ms
 
 exit codes: 0 ok, 1 error, 2 nothing found, 3 needs sign-in, 64 usage,
-  69 Penguin isn't running, 77 not allowed (agent level, share links for agents)
+  69 Penguin isn't running, 77 not allowed (agent level, share links for agents,
+  the hourly trash and spam limits)
 env: PENGUIN_DATA_DIR=<dir> (isolated data), PENGUIN_LOG=<filter> (stderr logs)
 docs: docs/CLI.md";
 
@@ -179,6 +199,8 @@ async fn main() -> ExitCode {
         Some("draft") => draft(rest).await,
         Some("send") => send(rest).await,
         Some("share-link") => share_link(rest).await,
+        Some("labels") => labels(rest),
+        Some(cmd) if organize_tool(cmd).is_some() => organize(cmd, rest).await,
         Some("mcp") => mcp().await,
         Some("set-client") => set_client(rest).map_err(Failure::from),
         Some("add-account") => add_account().await.map_err(Failure::from),
@@ -402,6 +424,28 @@ fn accounts(args: &[String]) -> Outcome {
         println!("profile {:<20} {}", p.name, p.account_ids.join(", "));
     }
     eprintln!("db: {}", ctx.paths.db_path().display());
+    Ok(())
+}
+
+fn labels(args: &[String]) -> Outcome {
+    let pos = positionals(args, &["--account", "--profile"]);
+    if !pos.is_empty() {
+        return Err(Failure::usage(
+            "usage: penguin-cli labels [--json] [--account <email>] [--profile <name>]",
+        ));
+    }
+    let ctx = agent_ctx()?;
+    let scope = ctx.scope(flag(args, "--account"), flag(args, "--profile"))?;
+    let out = queries::labels(&ctx, &scope)?;
+    if args.iter().any(|a| a == "--json") {
+        return print_json("labels", &out);
+    }
+    for l in &out.labels {
+        println!("{:<32} {:<28} {:<7} {}", l.account_id, l.name, l.kind, l.id);
+    }
+    if out.labels.is_empty() {
+        return Err(Failure::nothing_after_output("no labels"));
+    }
     Ok(())
 }
 
@@ -656,6 +700,42 @@ fn report(args: &[String], v: &serde_json::Value) -> Outcome {
                 d["expiresAtIso"].as_str().unwrap_or_default()
             );
         }
+        Some("organized") => {
+            let line = |status: &str, t: &serde_json::Value| {
+                println!(
+                    "{status:<10} {}  {}",
+                    t["accountId"].as_str().unwrap_or_default(),
+                    t["threadId"].as_str().unwrap_or_default()
+                )
+            };
+            for t in d["changed"].as_array().into_iter().flatten() {
+                line("changed", t);
+            }
+            for t in d["unchanged"].as_array().into_iter().flatten() {
+                line("unchanged", t);
+            }
+            for t in d["notFound"].as_array().into_iter().flatten() {
+                line("not found", t);
+            }
+            for t in d["failed"].as_array().into_iter().flatten() {
+                line("failed", t);
+            }
+            let n = |k: &str| d[k].as_array().map_or(0, Vec::len);
+            eprintln!(
+                "{}: {} changed, {} already so, {} not found, {} refused by the provider.",
+                d["tool"].as_str().unwrap_or_default().replace('_', "-"),
+                n("changed"),
+                n("unchanged"),
+                n("notFound"),
+                n("failed")
+            );
+            if let Some(note) = d["note"].as_str() {
+                eprintln!("{note}");
+            }
+            for cmd in undo_commands(d) {
+                eprintln!("undo: {cmd}");
+            }
+        }
         Some("sendQueued") => {
             println!(
                 "queued draft {}: goes at {} (in {} s) unless cancelled in Penguin",
@@ -733,6 +813,164 @@ async fn send(args: &[String]) -> Outcome {
         }
     };
     report(args, &v)
+}
+
+/// The organizing tool a command names (`mark-read` → `mark_read`).
+fn organize_tool(cmd: &str) -> Option<&'static str> {
+    let tool = cmd.replace('-', "_");
+    ORGANIZE_TOOLS.iter().copied().find(|t| *t == tool)
+}
+
+/// Conversations from `<account> <threadId>…`, or with --stdin one
+/// `<account> <threadId>` per line (blank lines and # comments skipped).
+fn targets(pos: &[&str], stdin: bool) -> Result<Vec<ThreadTarget>, Failure> {
+    let mut out = Vec::new();
+    if let [account, threads @ ..] = pos {
+        if threads.is_empty() {
+            return Err(Failure::usage("name the threads after the account"));
+        }
+        out.extend(threads.iter().map(|t| ThreadTarget {
+            account_id: account.to_string(),
+            thread_id: t.to_string(),
+        }));
+    }
+    if stdin {
+        let mut text = String::new();
+        std::io::Read::read_to_string(&mut std::io::stdin(), &mut text)
+            .map_err(|e| format!("reading targets from stdin: {e}"))?;
+        for (n, line) in text.lines().enumerate() {
+            let line = line.trim();
+            if line.is_empty() || line.starts_with('#') {
+                continue;
+            }
+            let mut words = line.split_whitespace();
+            match (words.next(), words.next(), words.next()) {
+                (Some(a), Some(t), None) => out.push(ThreadTarget {
+                    account_id: a.to_string(),
+                    thread_id: t.to_string(),
+                }),
+                _ => {
+                    return Err(Failure::usage(format!(
+                        "stdin line {}: expected \"<account> <threadId>\"",
+                        n + 1
+                    )))
+                }
+            }
+        }
+    }
+    if out.is_empty() {
+        return Err(Failure::usage(
+            "name the conversations: <account> <threadId>…, or --stdin with \"<account> <threadId>\" lines",
+        ));
+    }
+    Ok(out)
+}
+
+/// archive, add-label, snooze, trash…: asked of the running app, which
+/// does them through its own action path at "Read, organize and draft".
+async fn organize(cmd: &str, args: &[String]) -> Outcome {
+    let tool = organize_tool(cmd).expect("checked by the caller");
+    let pos = positionals(args, &["--until"]);
+    let stdin = args.iter().any(|a| a == "--stdin");
+    let v = match tool {
+        "add_label" | "remove_label" => {
+            let Some((label, rest)) = pos.split_first() else {
+                return Err(Failure::usage(format!(
+                    "usage: penguin-cli {cmd} <label> <account> <threadId>… [--stdin] [--json]"
+                )));
+            };
+            let a = LabelArgs {
+                targets: targets(rest, stdin)?,
+                label: label.to_string(),
+            };
+            ask_app(tool, to_json(&a)?).await?
+        }
+        "snooze" => {
+            let Some(until) = flag(args, "--until") else {
+                return Err(Failure::usage(
+                    "usage: penguin-cli snooze --until <RFC 3339 time | Unix ms> <account> <threadId>… [--stdin] [--json]",
+                ));
+            };
+            let until = match until.parse::<i64>() {
+                Ok(ms) => Until::Ms(ms),
+                Err(_) => Until::Iso(until.to_string()),
+            };
+            let a = SnoozeArgs {
+                targets: targets(&pos, stdin)?,
+                until,
+            };
+            ask_app(tool, to_json(&a)?).await?
+        }
+        _ => {
+            let a = TargetsArgs {
+                targets: targets(&pos, stdin)?,
+            };
+            ask_app(tool, to_json(&a)?).await?
+        }
+    };
+    report(args, &v)?;
+    let d = &v["data"];
+    let count = |k: &str| d[k].as_array().map_or(0, Vec::len);
+    if count("failed") > 0 {
+        return Err(Failure {
+            exit: EXIT_ERROR,
+            code: "other",
+            message: format!(
+                "the provider refused {} of them; Penguin put those back",
+                count("failed")
+            ),
+            payload_written: true,
+        });
+    }
+    if count("changed") + count("unchanged") == 0 {
+        return Err(Failure::nothing_after_output(
+            "none of those conversations are in Penguin",
+        ));
+    }
+    Ok(())
+}
+
+/// The shell commands that run an `organized` result's undo calls.
+fn undo_commands(d: &serde_json::Value) -> Vec<String> {
+    let mut out = Vec::new();
+    for step in d["undo"].as_array().into_iter().flatten() {
+        let tool = step["tool"].as_str().unwrap_or_default().replace('_', "-");
+        let a = &step["arguments"];
+        let mut by_account: std::collections::BTreeMap<&str, Vec<&str>> = Default::default();
+        for t in a["targets"].as_array().into_iter().flatten() {
+            by_account
+                .entry(t["accountId"].as_str().unwrap_or_default())
+                .or_default()
+                .push(t["threadId"].as_str().unwrap_or_default());
+        }
+        for (account, threads) in by_account {
+            let mut cmd = format!("penguin-cli {tool}");
+            if let Some(l) = a["label"].as_str() {
+                cmd.push_str(&format!(" {}", shell_word(l)));
+            }
+            if let Some(u) = a["until"].as_i64() {
+                cmd.push_str(&format!(" --until {u}"));
+            }
+            cmd.push_str(&format!(" {}", shell_word(account)));
+            for t in threads {
+                cmd.push_str(&format!(" {}", shell_word(t)));
+            }
+            out.push(cmd);
+        }
+    }
+    out
+}
+
+/// `s` quoted for a POSIX shell when it needs it.
+fn shell_word(s: &str) -> String {
+    if !s.is_empty()
+        && s.chars()
+            .all(|c| c.is_ascii_alphanumeric() || "@._-+:/=".contains(c))
+    {
+        s.to_string()
+    } else {
+        format!("'{}'", s.replace('\'', "'\\''"))
+    }
 }
 
 /// A share link for one attachment or embedded (cid:) picture, made by the

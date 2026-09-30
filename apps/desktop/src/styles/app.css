@@ -482,13 +482,13 @@ html.is-resizing iframe { pointer-events: none; }
   align-content: center; column-gap: 10px; row-gap: 2px;
   height: 100%; padding: 0 12px 0 calc(12px + var(--sel-gutter, 0px));
 }
-.msg.stacked .from { grid-area: 1 / 1; font-weight: 500; color: var(--text-emphasis); }
+.msg.stacked .from { grid-area: 1 / 1; font-weight: 400; color: var(--text-default); }
 .msg.stacked .time { grid-area: 1 / 2; }
 .msg.stacked .subj { grid-area: 2 / 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .msg.stacked .meta { grid-area: 2 / 2; justify-content: flex-end; }
 .msg.stacked .snip { grid-area: 3 / 1 / 4 / 3; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .msg.stacked .meta .badge { height: 18px; max-width: 108px; }
-.msg.stacked.unread .from { font-weight: 600; }
+.msg.stacked.unread .from { font-weight: 650; color: var(--text-emphasis); }
 /* Hover: the actions take the time's place on the sender line (icons only;
    keys are in the tooltips). Meta stays put. */
 .msg.stacked:hover .meta { display: flex; }
@@ -742,6 +742,7 @@ button.pc-row:hover, button.pc-row:focus-visible { background: var(--bg-row-hove
 }
 .row-check .i { width: 11px; height: 11px; stroke-width: 3; }
 .msg:hover .row-check, .list.has-selection .row-check { opacity: 1; }
+[data-theme="dark"] .row-check { border-color: var(--text-faint); }
 .msg.is-checked .row-check { background: var(--accent); border-color: var(--accent); }
 /* Large faces: a badge on the corner, ringed in the row's own fill. */
 .row-av .row-check { left: -4px; top: -4px; box-shadow: 0 0 0 2px var(--row-bg, var(--background)); }

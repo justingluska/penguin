@@ -2068,6 +2068,28 @@ Object.assign(mailHandlers, {
   },
   agent_activity: ({ limit }): import("../types").AgentActivity[] =>
     mockSettings.mcp.access === "off" ? [] : mockAgentActivity().slice(0, Number(limit) || 30),
+  // The toast's Undo after an agent organized mail: each step through the
+  // same mock handlers the UI uses.
+  agent_undo: ({ steps }) => {
+    for (const s of (steps ?? []) as import("../types").AgentUndoStep[]) {
+      const targets = s.arguments.targets;
+      const action: Record<string, import("../types").ThreadAction> = {
+        archive: { kind: "archive" },
+        unarchive: { kind: "moveToInbox" },
+        mark_read: { kind: "markRead" },
+        mark_unread: { kind: "markUnread" },
+        star: { kind: "star" },
+        unstar: { kind: "unstar" },
+        trash: { kind: "trash" },
+        untrash: { kind: "untrash" },
+        report_spam: { kind: "reportSpam" },
+        not_spam: { kind: "notSpam" },
+      };
+      if (s.tool === "add_label" && s.arguments.label) mailHandlers.modify_threads({ targets, action: { kind: "addLabel", labelId: s.arguments.label } });
+      else if (s.tool === "remove_label" && s.arguments.label) mailHandlers.modify_threads({ targets, action: { kind: "removeLabel", labelId: s.arguments.label } });
+      else if (action[s.tool]) mailHandlers.modify_threads({ targets, action: action[s.tool] });
+    }
+  },
   agent_pending_sends: (): import("../types").AgentPendingSend[] =>
     mockSettings.mcp.access === "send" ? [...mockAgentPending].sort((a, b) => a.sendAt - b.sendAt) : [],
   cli_install_status: (): import("../types").CliLinkStatus => mockCli(),
@@ -2123,18 +2145,23 @@ function mockAgentActivity(): import("../types").AgentActivity[] {
     draftId: null,
     sendAt: null,
     resultCount: null,
+    threadCount: null,
+    changedCount: null,
     detail: null,
     ...p,
   });
   const send = mockSettings.mcp.access === "send";
   return [
     ...(send ? [row({ ts: at(0.2), tool: "send_draft", account: "sam@northwind.example", recipientCount: 1, draftId: "agent-draft-1", sendAt: at(-1) })] : []),
+    row({ ts: at(0.6), tool: "archive", account: "sam@northwind.example", threadCount: 6, changedCount: 6, resultCount: 6 }),
+    row({ ts: at(0.8), tool: "add_label", account: "sam@northwind.example", threadCount: 4, changedCount: 3, resultCount: 3 }),
     row({ ts: at(1), tool: "create_draft", account: "sam@northwind.example", recipientCount: 1, attachmentCount: 1, draftId: "agent-draft-1" }),
     row({ ts: at(1.5), tool: "create_share_link", account: "sam@northwind.example", resultCount: 1 }),
     row({ ts: at(2), tool: "get_attachment", resultCount: 1 }),
     row({ ts: at(2.5), tool: "thread_context", resultCount: 4 }),
     row({ ts: at(3), tool: "search", resultCount: 6, detail: "from:dana vendor review" }),
     row({ ts: at(9), tool: "send_message", via: "cli", ok: false, errorCode: "permissionDenied", account: "sam@harbor-labs.example", recipientCount: 2 }),
+    row({ ts: at(14), tool: "trash", via: "cli", ok: false, errorCode: "permissionDenied", account: "sam@northwind.example", threadCount: 30 }),
     row({ ts: at(26), tool: "list_drafts", via: "cli", resultCount: 2 }),
   ];
 }

@@ -99,6 +99,7 @@ const COMMANDS: &[&str] = &[
     "enable_agent_send",
     "agent_activity",
     "agent_pending_sends",
+    "agent_undo",
     "sync_window_estimate",
     "sync_coverage",
     "free_up_space",

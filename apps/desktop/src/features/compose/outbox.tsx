@@ -2,7 +2,8 @@
 // for what the app's local scheduler does (it only runs while Penguin does,
 // which the UI says wherever you schedule something).
 import { useEffect, useMemo, useRef, useState } from "react";
-import { api, asCommandError, onAgentSendQueued, onReminderDue, onScheduledSent } from "../../lib/api";
+import { api, asCommandError, onAgentOrganized, onAgentSendQueued, onReminderDue, onScheduledSent } from "../../lib/api";
+import { agentOrganizedDetail, agentOrganizedMessage } from "../settings/agentOrganized";
 import { openThread } from "../../lib/ui";
 import { useSetting } from "../../lib/settings";
 import { parseWhen, sendLaterPresets } from "./when";
@@ -300,6 +301,20 @@ export function useOutboxToasts(open: { draft: (accountId: string, draftId: stri
         duration: Math.max(5_000, q.sendAt - Date.now()),
       });
     });
+    // An agent archived, labelled, trashed… mail: say so, with the usual
+    // Undo (the backend runs the agent's own undo steps, in order).
+    const unOrganized = onAgentOrganized((e) => {
+      toast({
+        kind: "action",
+        message: agentOrganizedMessage(e),
+        detail: agentOrganizedDetail(e),
+        action: {
+          label: "Undo",
+          run: () => api.agentUndo(e.undo).catch((err) => toast({ tone: "error", message: `Couldn't undo: ${asCommandError(err).message}` })),
+        },
+        duration: 10_000,
+      });
+    });
     const unDue = onReminderDue((r) =>
       toast({
         kind: "action",
@@ -313,6 +328,7 @@ export function useOutboxToasts(open: { draft: (accountId: string, draftId: stri
     return () => {
       unSent.then((f) => f());
       unAgent.then((f) => f());
+      unOrganized.then((f) => f());
       unDue.then((f) => f());
     };
   }, [active]);

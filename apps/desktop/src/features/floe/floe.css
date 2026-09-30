@@ -89,13 +89,13 @@
   max-width: min(var(--floe-w), calc(100% - 16px)); height: 100%; margin: 0 auto; padding: 0 16px 0 calc(16px + var(--sel-gutter, 0px));
   border-radius: var(--radius-2xl); font-size: var(--text-base);
 }
-.msg.floe .from { grid-area: from; color: var(--text-default); font-weight: 500; }
+.msg.floe .from { grid-area: from; color: var(--text-default); font-weight: 400; }
 .msg.floe .meta { grid-area: meta; justify-content: flex-end; }
 .msg.floe .time { grid-area: time; }
 .msg.floe .line { grid-area: line; }
 .msg.floe .subj { color: var(--text-default); }
 .msg.floe .snip { color: var(--text-faint); }
-.msg.floe.unread .from, .msg.floe.unread .subj { color: var(--text-emphasis); font-weight: 600; }
+.msg.floe.unread .from, .msg.floe.unread .subj { color: var(--text-emphasis); font-weight: 650; }
 .msg.floe .meta .badge { height: 18px; max-width: 120px; }
 
 /* Cursor: a quiet accent tint, no ring. */

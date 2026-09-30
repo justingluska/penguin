@@ -69,8 +69,10 @@ pub fn apply<R: Runtime>(app: &AppHandle<R>, s: &Settings) {
                 }
                 CHANGED_LIVE.store(true, Ordering::Relaxed);
                 tracing::info!(?check, on = want, "spell checking changed");
-                for webview in handle.webviews().into_values() {
-                    push(&webview, check, want);
+                // Every Penguin window is a webview window (Manager::webviews is
+                // behind Tauri's `unstable` feature).
+                for window in handle.webview_windows().into_values() {
+                    push(window.as_ref(), check, want);
                 }
             }
         });

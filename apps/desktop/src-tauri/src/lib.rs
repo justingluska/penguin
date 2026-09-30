@@ -9,6 +9,9 @@
 /// never Cargo.toml's.
 pub const VERSION: &str = env!("PENGUIN_APP_VERSION");
 
+/// Archive, label, star, trash, snooze, Reply Later: the one optimistic
+/// action path the UI, rules and agents share.
+pub mod actions;
 pub mod agent;
 /// The app side of agent access: the agent socket, Settings → Developer → Agents.
 pub mod agent_app;
@@ -412,6 +415,7 @@ pub fn run() {
             agent_app::enable_agent_send,
             agent_app::agent_activity,
             agent_app::agent_pending_sends,
+            agent_app::agent_undo,
             sync_window::sync_window_estimate,
             sync_window::sync_coverage,
             sync_window::free_up_space,

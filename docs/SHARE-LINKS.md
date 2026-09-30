@@ -91,7 +91,7 @@ Amazon S3 has the same thing under the bucket's **Management → Lifecycle rules
 
 Agents need two things, and Penguin checks both on every request:
 
-- the agent level in **Settings → Developer → Agents** is **Read and draft** or higher. Read only isn't enough: a share link puts a file on the internet with your key, and Read only means agents change nothing;
+- the agent level in **Settings → Developer → Agents** is **Read, organize and draft** or higher. Read only isn't enough: a share link puts a file on the internet with your key, and Read only means agents change nothing;
 - here, storage is set up and this switch is on.
 
 Until both hold, the MCP server doesn't offer the tool, and a request is refused with a message saying what to turn on (`penguin-cli` exits 77). Penguin itself does the upload with its own settings and the secret from the Keychain; the command-line tool never sees them. The agent log (Settings → Developer → "Recent agent activity") records that a link was made, for which account, and whether it worked, but never the link or the file's name.

@@ -628,6 +628,10 @@ mod tests {
                 "shareLink",
                 rmcp::schemars::schema_for!(Envelope<crate::agent::sharing::ShareLinkOut>),
             ),
+            (
+                "organized",
+                rmcp::schemars::schema_for!(Envelope<crate::agent::organize::OrganizedOut>),
+            ),
         ];
         let update = std::env::var_os("UPDATE_SCHEMAS").is_some();
         for (kind, schema) in schemas {

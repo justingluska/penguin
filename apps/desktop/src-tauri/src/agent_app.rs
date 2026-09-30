@@ -1,8 +1,9 @@
 //! The Penguin app's side of agent access (the logic is Tauri-free in
 //! agent/): it serves the agent socket (agent/ipc.rs) with the app's own
-//! providers, announces queued agent sends, and backs Settings → Developer
-//! → Agents: raising the level to send (after the confirmation), recent
-//! agent activity from the audit log, and the sends waiting to go.
+//! providers and action path, announces queued agent sends and organizing
+//! (with Undo, `agent_undo`), and backs Settings → Developer → Agents:
+//! raising the level to send (after the confirmation), recent agent
+//! activity from the audit log, and the sends waiting to go.
 
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -12,8 +13,10 @@ use penguin_provider::{async_trait, MailProvider};
 use serde::Serialize;
 use tauri::{AppHandle, Emitter, State};
 
+use crate::actions::ActionHost;
 use crate::agent::audit::{self, AuditLog};
 use crate::agent::ipc;
+use crate::agent::organize::{self, AgentOrganized, UndoStep};
 use crate::agent::writes::{AgentService, QueuedSend, WriteHost};
 use crate::error::{CmdError, CmdResult};
 use crate::ops::Paths;
@@ -22,6 +25,9 @@ use crate::state::{blocking, AppState};
 
 /// Payload `QueuedSend`: an agent's send is waiting in the outbox.
 pub const EVENT_AGENT_SEND_QUEUED: &str = "penguin://agent-send-queued";
+/// Payload `AgentOrganized`: an agent archived, labelled, trashed… mail;
+/// the UI shows a toast with Undo (`agent_undo`).
+pub const EVENT_AGENT_ORGANIZED: &str = "penguin://agent-organized";
 
 /// What the user types to let agents send (Settings shows it).
 pub const SEND_ACKNOWLEDGEMENT: &str = "I understand";
@@ -33,19 +39,36 @@ struct AppHost {
     share: Arc<crate::share::Share>,
 }
 
+/// Organizing goes through the app's own action path, as the UI's does.
 #[async_trait]
-impl WriteHost for AppHost {
+impl ActionHost for AppHost {
     fn store(&self) -> &Store {
         &self.state.store
     }
+    async fn provider(&self, account_id: &str) -> CmdResult<Arc<dyn MailProvider>> {
+        self.state.provider(account_id).await
+    }
+    async fn require_providers(&self, account_ids: &[String]) -> CmdResult<()> {
+        ActionHost::require_providers(self.state.as_ref(), account_ids).await
+    }
+    fn emit_mail_changed(&self, account_id: &str, thread_ids: Vec<String>) {
+        self.state.emit_mail_changed(account_id, thread_ids);
+    }
+    fn emit_action_failed(&self, message: String) {
+        self.state.emit_action_failed(message);
+    }
+    fn poke(&self, account_id: &str) {
+        self.state.poke(account_id);
+    }
+}
+
+#[async_trait]
+impl WriteHost for AppHost {
     fn paths(&self) -> &Paths {
         &self.state.paths
     }
     fn settings(&self) -> Settings {
         self.state.settings.get()
-    }
-    async fn provider(&self, account_id: &str) -> CmdResult<Arc<dyn MailProvider>> {
-        self.state.provider(account_id).await
     }
     fn drafts_lock(&self) -> &tokio::sync::Mutex<()> {
         &self.state.drafts_lock
@@ -86,6 +109,11 @@ impl WriteHost for AppHost {
                 }),
             },
         );
+    }
+    fn organized(&self, event: &AgentOrganized) {
+        if let Err(e) = self.app.emit(EVENT_AGENT_ORGANIZED, event.clone()) {
+            tracing::warn!(error = %e, "could not emit agent-organized");
+        }
     }
     fn audit(&self) -> &AuditLog {
         &self.audit
@@ -170,7 +198,7 @@ pub fn acknowledged(typed: &str) -> bool {
     typed.trim().eq_ignore_ascii_case(SEND_ACKNOWLEDGEMENT)
 }
 
-/// Settings → Developer → Agents → "Read, draft and send", after the
+/// Settings → Developer → Agents → "Read, organize, draft and send", after the
 /// confirmation: `acknowledgement` is what the user typed into it, and it
 /// must say "I understand". A patch through `update_settings` can't do this.
 #[tauri::command]
@@ -208,6 +236,9 @@ pub struct AgentActivity {
     pub draft_id: Option<String>,
     pub send_at: Option<String>,
     pub result_count: Option<u64>,
+    /// Organizing: conversations named, and how many changed.
+    pub thread_count: Option<u64>,
+    pub changed_count: Option<u64>,
     /// A read's query or question (what the agent asked), cut short.
     pub detail: Option<String>,
 }
@@ -233,6 +264,8 @@ fn activity_from(v: &serde_json::Value) -> Option<AgentActivity> {
         draft_id: s("draftId"),
         send_at: s("sendAt"),
         result_count: n("resultCount"),
+        thread_count: n("threadCount"),
+        changed_count: n("changedCount"),
         detail,
     })
 }
@@ -251,6 +284,52 @@ pub async fn agent_activity(limit: Option<usize>) -> CmdResult<Vec<AgentActivity
     let limit = limit.unwrap_or(30).min(100);
     let log = crate::agent::log_dir().map(|d| d.join(audit::AUDIT_FILE));
     blocking(move || Ok(read_activity(log, limit))).await
+}
+
+/// The toast's Undo after an agent organized mail: run the undo calls the
+/// agent's request answered with (`AgentOrganized.undo`) through the same
+/// action path, as the user. No level or caps: the user asked for it.
+/// Returns at once; the steps run in order in the background, each after
+/// the previous one reached the provider (untrash then archive must land
+/// in that order), and a failure shows like any failed action.
+#[tauri::command]
+pub async fn agent_undo(state: AppStateRef<'_>, steps: Vec<UndoStep>) -> CmdResult<()> {
+    let st = state.inner().clone();
+    tauri::async_runtime::spawn(async move {
+        for step in steps {
+            let targets = step
+                .arguments
+                .targets
+                .iter()
+                .map(crate::views::ThreadRef::from)
+                .collect();
+            let done = organize::execute(
+                st.clone(),
+                &step.tool,
+                targets,
+                step.arguments.label.as_deref(),
+                step.arguments.until,
+                crate::ops::now_ms(),
+            )
+            .await;
+            match done {
+                Ok(outcomes) => {
+                    for o in outcomes {
+                        o.pushed().await;
+                    }
+                }
+                Err(e) => {
+                    tracing::warn!(tool = %step.tool, code = e.code.as_str(), "undoing an agent's change failed");
+                    st.emit_action_failed(format!(
+                        "Couldn't undo the agent's change: {}",
+                        e.message
+                    ));
+                    return;
+                }
+            }
+        }
+    });
+    Ok(())
 }
 
 /// A send an agent queued that hasn't gone yet. Mirrored in types.ts.

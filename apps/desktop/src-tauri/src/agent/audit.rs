@@ -6,10 +6,12 @@
 //!   a result count ([`AuditEntry`]);
 //! - the Penguin app, for each request it answers over the agent socket
 //!   (drafts, sends, attachment downloads): the tool, which client asked,
-//!   the account, how many recipients and attachments, the draft id and
-//!   the outcome ([`AppAuditEntry`]).
+//!   the account, how many recipients and attachments, the draft id, how
+//!   many conversations an organizing call named and changed, and the
+//!   outcome ([`AppAuditEntry`]).
 //!
-//! Never message content: no bodies, subjects, addresses or file names.
+//! Never message content: no bodies, subjects, addresses, file names or
+//! label names.
 //! Read arguments are what the agent sent (queries, ids); results are
 //! counted, not copied. Settings → Developer shows the latest lines
 //! ([`read_recent`]).
@@ -62,6 +64,14 @@ pub struct AppAuditEntry {
     /// When a queued send goes (RFC 3339).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub send_at: Option<String>,
+    /// Organizing: the conversations named, how many changed, and how many
+    /// accounts they're in (`account` is set when it's one).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub thread_count: Option<usize>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub changed_count: Option<usize>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub account_count: Option<usize>,
     pub result_count: usize,
 }
 

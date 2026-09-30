@@ -349,13 +349,23 @@ export function joinLabel(kind: CalendarEvent["conferenceKind"]): string {
 }
 
 /**
- * The status bar's event: the one running now (busy, timed), else the next
- * busy timed one starting within `horizon`.
+ * The status bar's events (busy, timed): what's running now, most recently
+ * started first, and the next one starting within `horizon`. While something
+ * runs, `next` is kept only when it starts before a running event ends or
+ * within the hour, so a long block (a flight, a focus day) never hides the
+ * meeting that starts in the middle of it.
  */
-export function nextUp(events: CalendarEvent[], now: number, horizon = 12 * HOUR): { event: CalendarEvent; running: boolean } | null {
+export function nextUp(
+  events: CalendarEvent[],
+  now: number,
+  horizon = 12 * HOUR,
+): { running: CalendarEvent[]; next: CalendarEvent | null } | null {
   const timed = events.filter((e) => !e.allDay && isBusy(e)).sort((a, b) => a.start - b.start);
-  const running = timed.find((e) => e.start <= now && e.end > now);
-  if (running) return { event: running, running: true };
-  const next = timed.find((e) => e.start > now && e.start - now <= horizon);
-  return next ? { event: next, running: false } : null;
+  const running = timed.filter((e) => e.start <= now && e.end > now).reverse();
+  let next = timed.find((e) => e.start > now && e.start - now <= horizon) ?? null;
+  if (next && running.length) {
+    const lastEnd = Math.max(...running.map((e) => e.end));
+    if (next.start >= lastEnd && next.start - now > HOUR) next = null;
+  }
+  return running.length || next ? { running, next } : null;
 }

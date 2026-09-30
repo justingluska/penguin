@@ -1848,6 +1848,9 @@ export interface AgentActivity {
   /** When a queued send goes (RFC 3339). */
   sendAt: string | null;
   resultCount: number | null;
+  /** Organizing: conversations the call named, and how many it changed. */
+  threadCount: number | null;
+  changedCount: number | null;
   /** A read's query or question, cut short. */
   detail: string | null;
 }
@@ -1861,6 +1864,30 @@ export interface AgentPendingSend {
   sendAt: number;
   to: string[];
   subject: string;
+}
+
+/** One call that undoes part of an agent's organizing (agent/organize.rs `UndoStep`): an organizing tool and its arguments. */
+export interface AgentUndoStep {
+  /** "unarchive", "untrash", "remove_label", "snooze", … */
+  tool: string;
+  arguments: {
+    targets: ThreadRef[];
+    /** add_label / remove_label: the label id. */
+    label?: string;
+    /** snooze: Unix ms. */
+    until?: number;
+  };
+}
+
+/** Payload of `penguin://agent-organized`: an agent archived, labelled, trashed… conversations. Undo with agentUndo(undo). */
+export interface AgentOrganized {
+  /** The organizing tool: "archive", "trash", "add_label", … */
+  tool: string;
+  /** "mcp" | "cli". */
+  via: string;
+  /** Conversations changed. */
+  count: number;
+  undo: AgentUndoStep[];
 }
 
 /** Payload of `penguin://agent-send-queued`. */

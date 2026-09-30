@@ -74,14 +74,13 @@
 :root[data-list-style="quiet"] .list .msg .avatar:not(.has-img) { background: var(--gray-a2); color: var(--text-muted); }
 :root[data-list-style="quiet"] .list .msg.unread .avatar:not(.has-img) { color: var(--text-default); }
 
-/* Read: sender default, subject muted, snippet faint. Unread: sender and
-   subject emphasis, a weight step heavier. */
-:root[data-list-style="quiet"] .list .msg .from { font-weight: 500; color: var(--text-default); }
-:root[data-list-style="quiet"] .list .msg:not(.stacked) .from { font-weight: 400; }
+/* Read: sender at regular weight, subject muted, snippet faint. Unread:
+   sender and subject emphasis, clearly heavier, so the two never look alike. */
+:root[data-list-style="quiet"] .list .msg .from { font-weight: 400; color: var(--text-default); }
 :root[data-list-style="quiet"] .list .msg .subj { color: var(--text-muted); }
 :root[data-list-style="quiet"] .list .msg .snip { color: var(--text-faint); }
-:root[data-list-style="quiet"] .list .msg.unread .from { font-weight: 600; color: var(--text-emphasis); }
-:root[data-list-style="quiet"] .list .msg.unread .subj { font-weight: 500; color: var(--text-emphasis); }
+:root[data-list-style="quiet"] .list .msg.unread .from { font-weight: 650; color: var(--text-emphasis); }
+:root[data-list-style="quiet"] .list .msg.unread .subj { font-weight: 550; color: var(--text-emphasis); }
 :root[data-list-style="quiet"] .list .msg .time { color: var(--text-faint); }
 :root[data-list-style="quiet"] .list .msg.unread .time { color: var(--text-default); font-weight: 500; }
 :root[data-list-style="quiet"] .list .msg.is-selected :is(.from, .subj) { color: var(--text-emphasis); }
@@ -193,8 +192,7 @@
 }
 :root[data-list-style="cards"] .list .msg.stacked.has-acct:not(.has-avatar)::after { left: 0; top: 14px; bottom: 14px; width: 2px; height: auto; border-radius: 0 2px 2px 0; box-shadow: none; }
 
-:root[data-list-style="cards"] .list .msg .from { font-weight: 500; color: var(--text-default); }
-:root[data-list-style="cards"] .list .msg:not(.stacked) .from { font-weight: 400; }
+:root[data-list-style="cards"] .list .msg .from { font-weight: 400; color: var(--text-default); }
 :root[data-list-style="cards"] .list .msg .subj { color: var(--text-default); }
 :root[data-list-style="cards"] .list .msg .snip { color: var(--text-faint); }
 :root[data-list-style="cards"] .list .msg.unread .from { font-weight: 650; color: var(--text-emphasis); }
