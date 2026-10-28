@@ -265,7 +265,7 @@ export const SETTINGS_INDEX: SettingEntry[] = [
 
   // About
   { page: "about", label: "Made by Justin Gluska", keywords: ["author", "credits", "x", "twitter", "contact"] },
-  { page: "about", label: "Source available", keywords: ["github", "code", "source", "license", "open source", "polyform"] },
+  { page: "about", label: "Open source", keywords: ["github", "code", "source", "license", "open source", "mit"] },
 ];
 
 // ---------------------------------------------------------------------------

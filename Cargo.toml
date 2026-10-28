@@ -5,8 +5,7 @@ members = ["apps/desktop/src-tauri", "crates/*"]
 [workspace.package]
 version = "0.1.0"
 edition = "2021"
-license = "LicenseRef-PolyForm-Shield-1.0.0"
-license-file = "LICENSE"
+license = "MIT"
 
 [workspace.dependencies]
 penguin-avatars = { path = "crates/penguin-avatars" }

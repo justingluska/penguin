@@ -136,16 +136,8 @@ Until all of them are set, the workflow skips the macOS build with a warning.
 
 ## License
 
-Penguin is **source-available** under the [PolyForm Shield License 1.0.0](../LICENSE).
-
-In plain words:
-
-- **You can** use Penguin, personally or at work, read and change the code, fix bugs, send improvements back, and build other things with it that don't compete with it.
-- **You can't** sell Penguin, offer it as a paid or hosted service, or release your own version of it as a competing email app, paid or free.
-- If the project is ever discontinued, the license lets others carry it on.
-
-The license text is the only thing that's binding; this summary is here to help. It isn't an OSI-approved open-source license, because it restricts competing use.
+Penguin is open source under the [MIT License](../LICENSE): use it, change it, ship it, build on it, commercially or not. Keep the copyright notice.
 
 The name "Penguin" and the Penguin icon aren't covered by the license: please don't use them for your own product.
 
-Contributions are welcome under the same license. By sending a pull request you agree that your contribution is licensed under it, and that the maintainer may relicense the project, including your contribution, in the future.
+Contributions are welcome under the same license: by sending a pull request you agree that your contribution is licensed under it.

@@ -50,8 +50,8 @@ export function AboutSection() {
       </div>
       <div className="setting-row">
         <div>
-          <span className="setting-label">Source available</span>
-          <p className="st-muted">Read every line, file an issue, or build it yourself. Free to use under the PolyForm Shield license. Bring your own sign-in keys; nothing phones home.</p>
+          <span className="setting-label">Open source</span>
+          <p className="st-muted">Read every line, file an issue, or build it yourself. Free and open source under the MIT license. Bring your own sign-in keys; nothing phones home.</p>
         </div>
         <button className="btn btn-secondary btn-sm" onClick={() => open(GITHUB_URL)}>
           GitHub

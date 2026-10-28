@@ -14,7 +14,7 @@
   <img alt="Local-first, no servers" src="https://img.shields.io/badge/local--first-no%20servers-2ea44f">
   <img alt="On-device AI" src="https://img.shields.io/badge/AI-on--device-8a63d2">
   <img alt="Built with Rust and Tauri 2" src="https://img.shields.io/badge/Rust-Tauri%202-dea584?logo=rust&logoColor=white">
-  <a href="LICENSE"><img alt="License: PolyForm Shield 1.0.0" src="https://img.shields.io/badge/license-PolyForm%20Shield-blue"></a>
+  <a href="LICENSE"><img alt="License: MIT" src="https://img.shields.io/badge/license-MIT-blue"></a>
   <img alt="Status: beta" src="https://img.shields.io/badge/status-beta-orange">
 </p>
 
@@ -171,4 +171,4 @@ Requirements and details: [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md).
 
 ## License
 
-Source-available under the [PolyForm Shield License 1.0.0](LICENSE): use it, change it and send improvements back, but don't sell it or ship it as a competing email app. The name "Penguin" and its icon aren't covered by the license. Full terms and contribution notes: [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md#license).
+Open source under the [MIT License](LICENSE). The name "Penguin" and its icon aren't covered by the license: if you ship your own build, please give it another name and icon. Contribution notes: [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md#license).

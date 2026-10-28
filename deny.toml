@@ -38,8 +38,8 @@ allow = [
 confidence-threshold = 0.9
 
 [licenses.private]
-# Penguin's own crates carry no open-source license yet ("UNLICENSED"), so
-# each must set `publish = false` to be skipped here (and to keep path
+# Penguin's own crates (MIT) aren't published to crates.io, so each must
+# set `publish = false` to be skipped here (and to keep path
 # dependencies from counting as wildcards under [bans]).
 ignore = true
 

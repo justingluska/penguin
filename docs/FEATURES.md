@@ -209,7 +209,7 @@ A factual summary as of September 2026, from each product's public pages. Other 
 
 | | Penguin | Superhuman | Gmail on the web | Apple Mail | Spark | Mimestream |
 |---|---|---|---|---|---|---|
-| Source code | Public (PolyForm Shield) | Closed | Closed | Closed | Closed | Closed |
+| Source code | Open source (MIT) | Closed | Closed | Closed | Closed | Closed |
 | Price | Free | Subscription | Free (Workspace is paid) | Included with macOS | Free tier and subscription | Subscription |
 | Platforms | macOS (Apple silicon) | Mac, Windows, web, iOS, Android | Browser | macOS, iOS, iPadOS | Mac, Windows, iOS, Android | macOS |
 | Accounts | Gmail, Microsoft 365 / Outlook.com, IMAP | Gmail, Microsoft 365 / Outlook | Gmail | Most providers | Most providers | Gmail |
