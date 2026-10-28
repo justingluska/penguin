@@ -26,6 +26,8 @@ fastrand = "2"
 # auth: PKCE, state, loopback redirect parsing (base64 shared with gmail-sync)
 sha2 = "0.10"
 getrandom = "0.3"
+# Pair iPhone: exported vault JSON is wiped after use
+zeroize = "1"
 url = "2"
 # calendar: event times (same features as penguin-core)
 chrono = { version = "0.4", default-features = false, features = ["clock", "std"] }

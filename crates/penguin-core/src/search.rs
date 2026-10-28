@@ -11,6 +11,12 @@
 //! typed name ("mike" boosts mail from the Mikes you know without filtering).
 //! Hits are grouped per thread: best message wins, +0.03·ln(matches).
 //! Queries without free text (pure filters) are ordered newest first.
+//!
+//! A query that only names people you correspond with ("mike", "mike
+//! delgado", "crestline") is a lookup of your conversations with them: those
+//! (from, to or cc them, and matching the words) come first, newest activity
+//! first, each shown at its newest message with them; the other matches
+//! follow as ranked (`people_first`).
 
 use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
@@ -182,6 +188,7 @@ fn run(
     stages.mark("lexicon");
     resp.people = people_panel(c, &q, &own)?;
     let boost = person_boost(c, &q, &own)?;
+    let lookup = person_lookup(c, &q, &own)?;
     // Cloned, not taken: routing strips the chips' source text from what
     // it embeds (hybrid::semantic_text).
     resp.chips = q.chips.clone();
@@ -267,6 +274,14 @@ fn run(
         None => scan_recent(c, &plan, limit, now)?,
     };
     stages.mark("retrieve");
+    let groups = match (&lookup, &plan.fts) {
+        (Some(who), Some(expr)) => {
+            let g = people_first(c, &plan, expr, groups, who)?;
+            stages.mark("people_first");
+            g
+        }
+        _ => groups,
+    };
     let hl = Highlighter::new(&q);
     let top: Vec<&Group> = groups.iter().take(limit).collect();
     resp.hits = hydrate(c, &top, &hl, &matches)?;
@@ -1692,7 +1707,7 @@ fn hydrate(
     matches: &hybrid::Matches,
 ) -> Result<Vec<SearchHit>> {
     let mut stmt = c.prepare_cached(
-        "SELECT m.account_id, m.id, m.subject, m.from_name, m.from_email, m.date, m.snippet, t.thread_id, t.labels, t.flags, b.body_text
+        "SELECT m.account_id, m.id, m.subject, m.from_name, m.from_email, m.date, m.snippet, t.thread_id, t.labels, t.flags, b.body_text, t.last_date
          FROM messages m JOIN threads t ON t.rowid = m.thread_rowid JOIN message_bodies b ON b.rowid = m.rowid
          WHERE m.rowid = ?1",
     )?;
@@ -1738,6 +1753,8 @@ fn hydrate(
                     email: r.get(4)?,
                 },
                 date: r.get(5)?,
+                // A match in Trash under a live thread can be newer than its aggregate.
+                last_date: r.get::<_, i64>(11)?.max(r.get(5)?),
                 snippet_html,
                 match_count: g.count,
                 label_ids: store::split_labels(&r.get::<_, String>(8)?),
@@ -2155,6 +2172,91 @@ fn person_boost(c: &Connection, q: &ParsedQuery, own: &HashSet<String>) -> Resul
             }
         }
     }
+    Ok(out)
+}
+
+/// The query names only people you correspond with: every clause is one
+/// plain word, and some address answers to all of them ("mike delgado").
+/// Their addresses, or None for any other query.
+fn person_lookup(c: &Connection, q: &ParsedQuery, own: &HashSet<String>) -> Result<Option<Vec<String>>> {
+    if q.clauses.is_empty() {
+        return Ok(None);
+    }
+    let mut stmt = c.prepare_cached(&format!(
+        "SELECT email FROM people WHERE from_count + sent_to_count > 0 AND {}
+         ORDER BY sent_to_count * 3 + from_count DESC LIMIT 10",
+        has_word(1)
+    ))?;
+    let mut who: Option<HashSet<String>> = None;
+    for cl in &q.clauses {
+        let [query::Term { negated: false, atom: Atom::Text { text, phrase: false, prefix } }] = cl.terms.as_slice() else {
+            return Ok(None);
+        };
+        let toks = text::tokens(text);
+        if toks.len() != 1 || toks[0].2.chars().count() < 2 {
+            return Ok(None);
+        }
+        let named: HashSet<String> = stmt
+            .query_map(params_from_iter(word_range(&toks[0].2, *prefix)), |r| r.get::<_, String>(0))?
+            .filter(|e| e.as_ref().map_or(true, |e| !own.contains(e)))
+            .collect::<rusqlite::Result<_>>()?;
+        let both: HashSet<String> = match who {
+            None => named,
+            Some(w) => w.intersection(&named).cloned().collect(),
+        };
+        if both.is_empty() {
+            return Ok(None);
+        }
+        who = Some(both);
+    }
+    Ok(who.map(|w| {
+        let mut v: Vec<String> = w.into_iter().collect();
+        v.sort();
+        v
+    }))
+}
+
+/// A person lookup's ranking: conversations with `who` (a message from,
+/// to or cc them that matches the query) first, newest activity first, each
+/// represented by its newest such message; then the rest as ranked.
+fn people_first(c: &Connection, plan: &Plan, expr: &str, groups: Vec<Group>, who: &[String]) -> Result<Vec<Group>> {
+    let addresses: Vec<String> = who.iter().map(|e| fts_string(e, false)).collect();
+    let mut params = vec![Value::Text(format!(
+        "({expr}) AND {{sender recipients cc}} : ({})",
+        addresses.join(" OR ")
+    ))];
+    let range = rowid_range_sql("messages_fts.rowid", plan, &mut params);
+    let prefilter = prefilter_sql(plan, fts_rowid());
+    let preds = preds_sql(plan, &mut params, fts_rowid());
+    let sql = format!(
+        "SELECT m.rowid, m.thread_rowid
+         FROM messages_fts CROSS JOIN messages m ON m.rowid = messages_fts.rowid
+         WHERE messages_fts MATCH ?{range}{prefilter}{preds}
+         ORDER BY messages_fts.rowid DESC LIMIT {MAX_CANDIDATES}"
+    );
+    // Newest first, so the first row per thread is its newest.
+    let mut newest: HashMap<i64, i64> = HashMap::new();
+    let mut stmt = c.prepare_cached(&sql)?;
+    let mut rows = stmt.query(params_from_iter(params))?;
+    while let Some(r) = rows.next()? {
+        newest.entry(r.get(1)?).or_insert(r.get(0)?);
+    }
+    if newest.is_empty() {
+        return Ok(groups);
+    }
+    let (mut with, rest): (Vec<Group>, Vec<Group>) =
+        groups.into_iter().partition(|g| newest.contains_key(&g.thread_rowid));
+    let mut last = c.prepare_cached("SELECT last_date FROM threads WHERE rowid = ?1")?;
+    let mut dated = Vec::with_capacity(with.len());
+    for mut g in with.drain(..) {
+        g.best_rowid = newest[&g.thread_rowid];
+        let at: i64 = last.query_row([g.thread_rowid], |r| r.get(0))?;
+        // Never older than the message shown (one in Trash under a live thread).
+        dated.push((at.max(g.best_rowid / ROWID_SLOTS), g));
+    }
+    dated.sort_by(|(a, ga), (b, gb)| b.cmp(a).then(gb.best_rowid.cmp(&ga.best_rowid)));
+    let mut out: Vec<Group> = dated.into_iter().map(|(_, g)| g).collect();
+    out.extend(rest);
     Ok(out)
 }
 

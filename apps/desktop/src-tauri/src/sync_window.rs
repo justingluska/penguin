@@ -461,7 +461,14 @@ pub async fn search_server(
             }),
         }
     }
-    hits.sort_by_key(|h| std::cmp::Reverse(h.date));
+    // Date each conversation by its newest stored message, like local search.
+    let store = st.store.clone();
+    let mut hits = blocking(move || {
+        store.date_hits_by_thread(&mut hits)?;
+        Ok(hits)
+    })
+    .await?;
+    hits.sort_by_key(|h| std::cmp::Reverse(h.last_date));
     tracing::info!(
         accounts = per_account.len(),
         hits = hits.len(),

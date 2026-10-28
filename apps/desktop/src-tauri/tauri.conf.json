@@ -32,7 +32,7 @@
         "img-src": "'self' data: https: avatar: http://avatar.localhost",
         "font-src": "'self' data:",
         "connect-src": "ipc: http://ipc.localhost",
-        "media-src": "'self'",
+        "media-src": "'self' blob:",
         "frame-src": "about: blob:",
         "child-src": "about: blob:",
         "worker-src": "'none'",

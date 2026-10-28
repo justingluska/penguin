@@ -44,11 +44,20 @@ export function InboxSection() {
           <span className="setting-label">Get to zero</span>
           <p className="st-muted">
             Archive everything older than a day, a week or a month in one go, in a split or the whole inbox, keeping unread
-            or starred mail if you like. From {isMac ? "⌘K" : "Ctrl+K"}, the ✓ in the list header or a split's menu; Z undoes it.
+            or starred mail if you like. From {isMac ? "⌘K" : "Ctrl+K"} or a split's menu; Z undoes it.
           </p>
         </div>
         <Switch label="Get to zero" on={s.getToZero} onChange={(getToZero) => save({ getToZero })} />
       </div>
+      {s.getToZero && (
+        <div className="setting-row setting-tall">
+          <div>
+            <span className="setting-label">Get to zero button above the inbox</span>
+            <p className="st-muted">An archive button next to the inbox's title that opens Get to zero.</p>
+          </div>
+          <Switch label="Get to zero button above the inbox" on={s.getToZeroButton} onChange={(getToZeroButton) => save({ getToZeroButton })} />
+        </div>
+      )}
       <div className="setting-row setting-tall">
         <div>
           <span className="setting-label">Celebrate inbox zero</span>

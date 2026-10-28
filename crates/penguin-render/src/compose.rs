@@ -21,7 +21,10 @@
 //! http(s) (with a host) or mailto only. Images only in the `_with_images`
 //! variants, and only as `cid:` references to parts the message itself
 //! carries ([`CidMap`]): never a remote, `data:` or relative URL, so a quoted
-//! original can't make the recipient (or the composer) load anything.
+//! original can't make the recipient (or the composer) load anything. A
+//! signature's remote pictures (Gmail keeps them on its servers) are no
+//! exception: [`signature_image_urls`] lists them for the caller to
+//! download, and [`sanitize_signature_html`] points them at those copies.
 //!
 //! Output is parser-stable, so one call is a fixpoint. ammonia unwraps
 //! disallowed elements, and unwrapping a table, button or similar can leave
@@ -213,6 +216,72 @@ pub fn sanitize_compose_html_with_images(html: &str, cids: &CidMap) -> String {
 pub fn sanitize_outgoing_html(html: &str) -> String {
     sanitize_outgoing_html_with_images(html, &CidMap::new())
 }
+
+/// At most this many images of a signature are kept ([`signature_image_urls`]).
+pub const MAX_SIGNATURE_IMAGES: usize = 10;
+
+/// The remote images a signature shows (a Gmail send-as signature: Gmail
+/// keeps its pictures on `https://…googleusercontent.com/…`), as the
+/// composer profile reads them: `https` URLs with a host, in order,
+/// without duplicates, at most [`MAX_SIGNATURE_IMAGES`]. Images inside
+/// content the sanitizer removes (scripts, `<svg>`…) aren't listed.
+///
+/// The caller downloads them and gives each copy a Content-ID for
+/// [`sanitize_signature_html`], so a signature never makes the composer,
+/// or the recipient's mail app, load anything remote.
+pub fn signature_image_urls(html: &str) -> Vec<String> {
+    let found = Arc::new(std::sync::Mutex::new(Vec::<String>::new()));
+    let seen = found.clone();
+    let rule: RemoteImages = Arc::new(move |url: &str| {
+        let mut list = seen.lock().unwrap_or_else(|p| p.into_inner());
+        if remote_image_ok(url)
+            && list.len() < MAX_SIGNATURE_IMAGES
+            && !list.iter().any(|u| u == url)
+        {
+            list.push(url.to_string());
+        }
+        None
+    });
+    let _ = builder_with(Profile::Editor, &CidMap::new(), Some(rule)).clean(html);
+    let out = found.lock().unwrap_or_else(|p| p.into_inner()).clone();
+    out
+}
+
+/// A signature on its way into the composer: [`sanitize_compose_html`],
+/// except that an image whose `https` URL (as [`signature_image_urls`]
+/// lists it) is a key of `images` stays, pointed at the Content-ID it maps
+/// to (`cid:<id>`, an [`is_safe_cid`] id of a copy the message carries).
+/// Every other image goes, as in the composer.
+pub fn sanitize_signature_html(html: &str, images: &HashMap<String, String>) -> String {
+    let images: HashMap<String, String> = images
+        .iter()
+        .filter(|(url, cid)| remote_image_ok(url) && is_safe_cid(cid))
+        .map(|(u, c)| (u.clone(), c.clone()))
+        .collect();
+    if images.is_empty() {
+        return sanitize_compose_html(html);
+    }
+    let rule: RemoteImages = Arc::new(move |url: &str| images.get(url).cloned());
+    stabilize(
+        &builder_with(Profile::Editor, &CidMap::new(), Some(rule))
+            .clean(html)
+            .to_string(),
+    )
+}
+
+/// An image URL a signature may name: `https` with a host, no credentials.
+fn remote_image_ok(url: &str) -> bool {
+    ammonia::Url::parse(url).is_ok_and(|u| {
+        u.scheme() == "https"
+            && u.host_str().is_some_and(|h| !h.is_empty())
+            && u.username().is_empty()
+            && u.password().is_none()
+    })
+}
+
+/// What happens to an `<img>` whose source isn't `cid:`: the URL (trimmed)
+/// in, the Content-ID to write instead out (None drops the image).
+type RemoteImages = Arc<dyn Fn(&str) -> Option<String> + Send + Sync>;
 
 /// [`sanitize_outgoing_html`] keeping the images `cids` names: the
 /// message's own inline parts (a pasted image, a quoted original's images).
@@ -593,6 +662,12 @@ fn rebuild(html: &str) -> Vec<Tree> {
 }
 
 fn builder(profile: Profile, cids: &CidMap) -> Builder<'static> {
+    builder_with(profile, cids, None)
+}
+
+/// [`builder`], with `remote` deciding what an image that isn't `cid:`
+/// becomes (a signature's pictures); without it such images are dropped.
+fn builder_with(profile: Profile, cids: &CidMap, remote: Option<RemoteImages>) -> Builder<'static> {
     let mut b = Builder::empty();
     let mut tags: HashSet<&str> = TAGS.iter().copied().collect();
     let mut schemes: HashSet<&str> = ["http", "https", "mailto"].into_iter().collect();
@@ -602,7 +677,7 @@ fn builder(profile: Profile, cids: &CidMap) -> Builder<'static> {
     ]
     .into_iter()
     .collect();
-    if !cids.is_empty() {
+    if !cids.is_empty() || remote.is_some() {
         tags.insert("img");
         schemes.insert("cid");
         tag_attributes.insert(
@@ -631,14 +706,14 @@ fn builder(profile: Profile, cids: &CidMap) -> Builder<'static> {
             "href" => super::link_href_ok(value).then(|| Cow::Owned(value.trim().to_string())),
             // Images: only `cid:` references to the message's own parts,
             // written with the id the map gives them.
+            // Any other source only as the copy `remote` names (a signature).
             "src" if element == "img" => {
                 let v = value.trim();
-                let rest = v
-                    .get(..4)
-                    .filter(|p| p.eq_ignore_ascii_case("cid:"))
-                    .map(|_| &v[4..])?;
-                let out = cids.get(&crate::normalize_cid(rest))?;
-                is_safe_cid(out).then(|| Cow::Owned(format!("cid:{out}")))
+                let out = match v.get(..4).filter(|p| p.eq_ignore_ascii_case("cid:")) {
+                    Some(_) => cids.get(&crate::normalize_cid(&v[4..]))?.clone(),
+                    None => remote.as_ref()?(v)?,
+                };
+                is_safe_cid(&out).then(|| Cow::Owned(format!("cid:{out}")))
             }
             "alt" if element == "img" => Some(Cow::Owned(value.chars().take(200).collect())),
             "width" | "height" if element == "img" => value
@@ -1124,5 +1199,57 @@ mod tests {
         let html = r#"<p><strong>b</strong> <em>i</em> <u>u</u> <s>s</s> <code>c</code> <a href="https://acme.example/x">l</a></p><h2>H</h2><ul><li><p>one</p></li></ul><ol start="3"><li><p>three</p></li></ol><blockquote><p>q</p></blockquote><pre><code>x &lt; y</code></pre><hr>"#;
         assert_eq!(sanitize_compose_html(html), html);
         assert_eq!(sanitize_outgoing_html(html), html);
+    }
+
+    /// Trimmed from a Gmail send-as signature (fictional person and URLs).
+    const GMAIL_SIGNATURE: &str = r#"<div dir="ltr"><b>Dana Reyes</b><div>Studio Lead</div><div><img src="https://ci3.googleusercontent.com/mail-sig/AIorK4a?x=1&amp;y=2" width="120" height="40" style="width:120px"><img src="http://plain.example/logo.png"><img src="data:image/png;base64,AAAA"><img src="https://user:pw@acme.example/l.png"><img src="//acme.example/rel.png"><img src="https://ci3.googleusercontent.com/mail-sig/AIorK4a?x=1&amp;y=2"></div><script><img src="https://evil.example/s.png"></script><svg><image href="https://evil.example/i.png"/></svg></div>"#;
+
+    #[test]
+    fn signature_images_are_listed_https_only_once_and_never_from_removed_content() {
+        assert_eq!(
+            signature_image_urls(GMAIL_SIGNATURE),
+            vec!["https://ci3.googleusercontent.com/mail-sig/AIorK4a?x=1&y=2".to_string()]
+        );
+        // A signature without pictures lists none; the cap holds.
+        assert!(signature_image_urls("<div>Dana</div>").is_empty());
+        let many: String = (0..30)
+            .map(|i| format!(r#"<img src="https://acme.example/{i}.png">"#))
+            .collect();
+        assert_eq!(signature_image_urls(&many).len(), MAX_SIGNATURE_IMAGES);
+    }
+
+    #[test]
+    fn a_signature_keeps_its_pictures_only_as_the_copies_it_was_given() {
+        let url = "https://ci3.googleusercontent.com/mail-sig/AIorK4a?x=1&y=2";
+        let images: HashMap<String, String> = [
+            (url.to_string(), "sig-1@penguin".to_string()),
+            // An unsafe id or a URL the rule refuses never gets written.
+            (
+                "http://plain.example/logo.png".into(),
+                "sig-2@penguin".into(),
+            ),
+            ("https://acme.example/x.png".into(), "bad id\">".into()),
+        ]
+        .into_iter()
+        .collect();
+        let clean = sanitize_signature_html(GMAIL_SIGNATURE, &images);
+        assert_eq!(
+            clean,
+            r#"<div dir="ltr"><b>Dana Reyes</b><div>Studio Lead</div><div><img src="cid:sig-1@penguin" width="120" height="40"><img src="cid:sig-1@penguin"></div></div>"#
+        );
+        for bad in ["http", "data:", "evil", "script", "svg", "style"] {
+            assert!(!clean.contains(bad), "{bad} survived: {clean}");
+        }
+        // A fixpoint of the editor (a reopened draft keeps it) and of the
+        // send pass once its parts are known.
+        let keep = keep_cids(["sig-1@penguin"]);
+        assert_eq!(sanitize_compose_html_with_images(&clean, &keep), clean);
+        assert_eq!(sanitize_outgoing_html_with_images(&clean, &keep), clean);
+        // Without copies it is the composer's profile: no images at all.
+        assert_eq!(
+            sanitize_signature_html(GMAIL_SIGNATURE, &HashMap::new()),
+            sanitize_compose_html(GMAIL_SIGNATURE)
+        );
+        assert!(!sanitize_compose_html(GMAIL_SIGNATURE).contains("<img"));
     }
 }

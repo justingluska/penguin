@@ -126,8 +126,13 @@ impl Store {
         }
         // Over-fetch so the automated addresses dropped below don't starve the list.
         vals.push(rusqlite::types::Value::Integer((limit * 4 + 8) as i64));
+        // Someone you wrote to, or who sent you at least one message that isn't
+        // spam: a spammer never becomes a suggested recipient. One
+        // messages_from probe per candidate, stopping at the first hit.
         let sql = format!(
             "SELECT email, name FROM people WHERE {} \
+             AND (sent_to_count > 0 OR EXISTS (SELECT 1 FROM messages m INDEXED BY messages_from \
+                  WHERE m.from_email = people.email COLLATE NOCASE AND m.flags & {F_SPAM} = 0)) \
              ORDER BY (sent_to_count > 0) DESC, sent_to_count DESC, from_count DESC, last_date DESC LIMIT ?{}",
             conds.join(" AND "),
             vals.len()
@@ -630,6 +635,7 @@ mod tests {
         let priya_r = addr("Priya Raman", "priya.raman@linden.example");
         let priya_n = addr("Priya Natarajan", "priya@harbor.example");
         let robot = addr("Priya bot", "no-reply@priya-alerts.example");
+        let spammer = addr("Prize Center", "prizes@prize-center.example");
         s.upsert_messages(&[
             // You wrote to Priya Raman once, long ago: no recent inbox thread.
             msg("a", "m1", "t1", me.clone(), vec![priya_r.clone()], 1_600_000_000_000, true),
@@ -637,12 +643,19 @@ mod tests {
             msg("a", "m2", "t2", priya_n.clone(), vec![me.clone()], 1_790_000_000_000, false),
             msg("a", "m3", "t3", priya_n.clone(), vec![me.clone()], 1_790_000_100_000, false),
             msg("a", "m4", "t4", robot.clone(), vec![me.clone()], 1_790_000_200_000, false),
+            {
+                let mut m = msg("a", "m5", "t5", spammer.clone(), vec![me.clone()], 1_790_000_300_000, false);
+                m.label_ids = vec!["SPAM".into()];
+                m
+            },
         ])
         .unwrap();
         let got = |q: &str| s.suggest_recipients(q, 6).unwrap().into_iter().map(|a| a.email).collect::<Vec<_>>();
         assert_eq!(got("pri"), ["priya.raman@linden.example", "priya@harbor.example"]);
         assert_eq!(got("priya nat"), ["priya@harbor.example"]);
         assert_eq!(got("linden"), ["priya.raman@linden.example"]);
+        // Only ever sent spam: never suggested.
+        assert!(got("prize").is_empty());
         assert!(got("zzz").is_empty());
         assert!(got("  ").is_empty());
     }

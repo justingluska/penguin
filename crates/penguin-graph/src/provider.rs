@@ -629,6 +629,7 @@ impl MailProvider for GraphProvider {
                 subject: m.subject.clone(),
                 from: m.from.clone(),
                 date: m.date,
+                last_date: m.date,
                 snippet_html,
                 match_count: 1,
                 has_attachments: m.attachments.iter().any(|a| !a.inline),

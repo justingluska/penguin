@@ -21,12 +21,14 @@ pub mod links;
 mod prescan;
 mod text;
 pub mod trackers;
+pub mod signin;
 pub mod unsubscribe;
 
 pub use compose::{
     cid_map, is_safe_cid, keep_cids, referenced_cids, sanitize_compose_html,
     sanitize_compose_html_with_images, sanitize_outgoing_html, sanitize_outgoing_html_with_images,
-    sanitize_quoted_html, sanitize_quoted_html_with_images, CidMap,
+    sanitize_quoted_html, sanitize_quoted_html_with_images, sanitize_signature_html,
+    signature_image_urls, CidMap, MAX_SIGNATURE_IMAGES,
 };
 
 use std::borrow::Cow;

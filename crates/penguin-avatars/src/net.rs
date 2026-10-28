@@ -12,7 +12,6 @@
 //!   hash or a People API page; never a message id, subject or address.
 
 use std::future::Future;
-use std::net::{IpAddr, SocketAddr};
 use std::pin::Pin;
 use std::sync::Arc;
 use std::time::Duration;
@@ -44,68 +43,9 @@ pub trait Net: Send + Sync {
     ) -> BoxFut<'a, Result<Vec<u8>, FetchError>>;
 }
 
-/// Whether an address is fine to connect to from a user's Mac on behalf of
-/// a stranger's DNS record.
-pub fn is_public_ip(ip: IpAddr) -> bool {
-    match ip {
-        IpAddr::V4(v4) => {
-            let o = v4.octets();
-            !(v4.is_loopback()
-                || v4.is_private()
-                || v4.is_link_local()
-                || v4.is_broadcast()
-                || v4.is_documentation()
-                || v4.is_unspecified()
-                || v4.is_multicast()
-                || o[0] == 0
-                || (o[0] == 100 && (64..128).contains(&o[1])) // CGNAT
-                || (o[0] == 192 && o[1] == 0 && o[2] == 0)
-                || (o[0] == 198 && (18..20).contains(&o[1]))
-                || o[0] >= 240)
-        }
-        IpAddr::V6(v6) => {
-            if let Some(v4) = v6.to_ipv4_mapped() {
-                return is_public_ip(IpAddr::V4(v4));
-            }
-            let s = v6.segments();
-            !(v6.is_loopback()
-                || v6.is_unspecified()
-                || v6.is_multicast()
-                || (s[0] & 0xfe00) == 0xfc00 // unique local
-                || (s[0] & 0xffc0) == 0xfe80 // link local
-                || (s[0] == 0x2001 && s[1] == 0x0db8) // documentation
-                || (s[0] == 0x64 && s[1] == 0xff9b)) // NAT64 embeds v4 we can't vet
-        }
-    }
-}
-
-/// An https URL whose host is a DNS name (not an IP literal, not localhost).
-pub fn acceptable_url(url: &reqwest::Url) -> bool {
-    url.scheme() == "https"
-        && matches!(url.host(), Some(url::Host::Domain(d)) if d.contains('.') && !d.ends_with(".localhost") && !d.ends_with(".local"))
-        && url.username().is_empty()
-        && url.password().is_none()
-        && url.port().is_none_or(|p| p == 443)
-}
-
-/// Also used by the one-click unsubscribe POST (src/unsubscribe.rs).
-pub(crate) struct PublicOnlyResolver;
-
-impl reqwest::dns::Resolve for PublicOnlyResolver {
-    fn resolve(&self, name: reqwest::dns::Name) -> reqwest::dns::Resolving {
-        let host = name.as_str().to_string();
-        Box::pin(async move {
-            let addrs: Vec<SocketAddr> = tokio::net::lookup_host((host.as_str(), 443))
-                .await?
-                .filter(|a| is_public_ip(a.ip()))
-                .collect();
-            if addrs.is_empty() {
-                return Err("no public address".into());
-            }
-            Ok(Box::new(addrs.into_iter()) as reqwest::dns::Addrs)
-        })
-    }
-}
+// The public-address rules (shared with the one-click unsubscribe POST and
+// the iPhone) live in penguin-provider.
+pub use penguin_provider::unsubscribe::{acceptable_url, is_public_ip, PublicOnlyResolver};
 
 pub struct HttpNet {
     http: reqwest::Client,

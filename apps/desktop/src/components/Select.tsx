@@ -2,6 +2,10 @@
 // is a system menu that ignores the theme). A combobox button that opens a
 // listbox through the shared menu host (ContextMenu.tsx), so it gets the
 // same keyboard handling: ↑↓ Home End, type-ahead, Enter, Esc.
+//
+// Don't put it inside a <label>: the button is then the label's control, so
+// every click on the label is forwarded to it as a click with no pointer
+// (detail 0), which reads as the keyboard opening the list.
 import { useRef, useState, type ReactNode } from "react";
 import { Icon, type IconName } from "./Icon";
 import { closeMenu, openMenu } from "./ContextMenu";
@@ -60,6 +64,7 @@ export function Select<T extends string>({
         minWidth: el.offsetWidth,
         activeIndex: Math.max(0, options.indexOf(cur as SelectOption<T>)),
         className: "cm-select",
+        trigger: el,
         onClose: () => {
           setOpen(false);
           // Back on the trigger so the keyboard can carry on from here.

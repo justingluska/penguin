@@ -184,7 +184,13 @@ export function SendLaterMenu({
         </button>
       </div>
       {customError && <div className="cmp-later-error">{customError}</div>}
-      {scheduled && <div className="cmp-later-foot faint">Currently scheduled for {fmtWhen(scheduled.sendAt)}. Picking a time replaces it.</div>}
+      {scheduled && (
+        <div className="cmp-later-foot faint">
+          {scheduled.elsewhere
+            ? `Scheduled on your other device for ${fmtWhen(scheduled.sendAt)}; it sends it. Picking a time here moves it to this Mac.`
+            : `Currently scheduled for ${fmtWhen(scheduled.sendAt)}. Picking a time replaces it.`}
+        </div>
+      )}
     </div>
   );
 }

@@ -14,6 +14,14 @@
 //!   since `sent_at` (`Store::has_reply_after`: judged by flags, so your own
 //!   replies from any address don't count).
 //!
+//! - **Across devices** (Sync with iCloud): exactly one device sends a
+//!   schedule. Before each send the store says whose turn it is
+//!   (`Store::scheduled_send_turn`, penguin_sync::outbox): the device that
+//!   scheduled it, or, once it is well overdue, a device whose claim the
+//!   server stored. A reminder fires only after a fresh pull
+//!   (`Store::reminder_turn`). Sent, fired and given up are recorded for
+//!   every device.
+//!
 //! Everything takes `now_ms` explicitly so the app's scheduler and the tests
 //! (with a fake clock) drive it the same way; the loop itself is app glue.
 
@@ -23,6 +31,7 @@ use std::sync::Arc;
 
 pub use penguin_core::SentRef;
 use penguin_core::{Reminder, ScheduledSend, Store};
+use penguin_sync::outbox::{Outcome, Turn};
 use serde::Serialize;
 
 use crate::{Error, MailProvider, Result};
@@ -150,6 +159,22 @@ async fn db<T: Send + 'static>(
         .map_err(Error::from)
 }
 
+/// Whether a send can be scheduled for `send_at` (not in the past beyond a
+/// minute's grace, at most a year ahead) with a positive reminder delay.
+/// The iPhone's outbox (penguin-ffi) schedules by the same rules.
+pub fn check_schedule(send_at: i64, remind_after_ms: Option<i64>, now_ms: i64) -> Result<()> {
+    if remind_after_ms.is_some_and(|ms| ms <= 0) {
+        return Err(Error::Other("remindAfterMs must be positive".into()));
+    }
+    if send_at < now_ms - PAST_GRACE_MS {
+        return Err(Error::Other("sendAt is in the past".into()));
+    }
+    if send_at > now_ms + MAX_SCHEDULE_AHEAD_MS {
+        return Err(Error::Other("sendAt is more than a year away".into()));
+    }
+    Ok(())
+}
+
 /// Schedule `draft_id` to be sent at `send_at` (replacing any schedule the
 /// draft already has). `remind_after_ms`: remind if no reply that long
 /// after it's actually sent.
@@ -161,15 +186,7 @@ pub async fn schedule_send(
     remind_after_ms: Option<i64>,
     now_ms: i64,
 ) -> Result<ScheduledSend> {
-    if remind_after_ms.is_some_and(|ms| ms <= 0) {
-        return Err(Error::Other("remindAfterMs must be positive".into()));
-    }
-    if send_at < now_ms - PAST_GRACE_MS {
-        return Err(Error::Other("sendAt is in the past".into()));
-    }
-    if send_at > now_ms + MAX_SCHEDULE_AHEAD_MS {
-        return Err(Error::Other("sendAt is more than a year away".into()));
-    }
+    check_schedule(send_at, remind_after_ms, now_ms)?;
     let s = ScheduledSend {
         id: new_id(),
         account_id: account_id.to_string(),
@@ -179,15 +196,10 @@ pub async fn schedule_send(
         remind_after_ms,
         attempts: 0,
         last_error: None,
+        elsewhere: false,
     };
     let row = s.clone();
-    db(store, move |st| {
-        for old in st.scheduled_sends_for_draft(&row.account_id, &row.draft_id)? {
-            st.delete_scheduled_send(&row.account_id, &old.id)?;
-        }
-        st.upsert_scheduled_send(&row)
-    })
-    .await?;
+    db(store, move |st| st.replace_scheduled_sends(&row)).await?;
     Ok(s)
 }
 
@@ -217,12 +229,7 @@ pub async fn set_reminder(
                 row.sent_at = m.date;
             }
         }
-        for old in st.list_reminders(Some(&row.account_id))? {
-            if old.thread_id == row.thread_id {
-                st.delete_reminder(&row.account_id, &old.id)?;
-            }
-        }
-        st.upsert_reminder(&row)?;
+        st.replace_reminders(&row)?;
         Ok(row)
     })
     .await
@@ -272,6 +279,14 @@ pub async fn run_due<A: OutboxApi>(
     let mut events = Vec::new();
     let sends = db(store, move |st| st.due_scheduled_sends(now_ms)).await?;
     for s in sends {
+        let (a, id) = (s.account_id.clone(), s.id.clone());
+        match db(store, move |st| st.scheduled_send_turn(&a, &id, now_ms)).await? {
+            Turn::Send => {}
+            turn => {
+                tracing::debug!(account = %s.account_id, ?turn, "scheduled send: not this device's turn");
+                continue;
+            }
+        }
         let result = match clients.get(&s.account_id) {
             Some(api) => api.send_saved_draft(&s.draft_id).await,
             None => Err(Error::NeedsReauth(format!(
@@ -283,6 +298,10 @@ pub async fn run_due<A: OutboxApi>(
     }
     let reminders = db(store, move |st| st.due_reminders(now_ms)).await?;
     for r in reminders {
+        let (a, id) = (r.account_id.clone(), r.id.clone());
+        if db(store, move |st| st.reminder_turn(&a, &id, now_ms)).await? != Turn::Send {
+            continue;
+        }
         events.extend(fire_reminder(store, clients.get(&r.account_id), r, now_ms).await?);
     }
     Ok(events)
@@ -300,14 +319,14 @@ async fn finish_send(
             let (row, thread, message) =
                 (s.clone(), sent.thread_id.clone(), sent.message_id.clone());
             db(store, move |st| {
-                st.delete_scheduled_send(&row.account_id, &row.id)?;
+                st.finish_scheduled_send(&row.account_id, &row.id, Outcome::Sent)?;
                 // The draft is gone on the server; drop its local copy and mapping.
                 if let Some(mid) = st.message_for_draft(&row.account_id, &row.draft_id)? {
                     st.delete_messages(&row.account_id, &[mid])?;
                 }
                 st.remove_draft(&row.account_id, &row.draft_id)?;
                 if let Some(after) = row.remind_after_ms {
-                    st.upsert_reminder(&Reminder {
+                    st.add_reminder(&Reminder {
                         id: new_id(),
                         account_id: row.account_id.clone(),
                         thread_id: thread,
@@ -336,7 +355,7 @@ async fn finish_send(
                 "The draft no longer exists (sent or deleted elsewhere)".to_string()
             };
             let (a, id) = (s.account_id.clone(), s.id.clone());
-            db(store, move |st| st.delete_scheduled_send(&a, &id)).await?;
+            db(store, move |st| st.finish_scheduled_send(&a, &id, Outcome::Cancelled)).await?;
             Ok(Some(OutboxEvent::SendCancelled {
                 account_id: s.account_id,
                 schedule_id: s.id,
@@ -363,7 +382,7 @@ async fn finish_send(
         Err(e) => {
             tracing::warn!(account = %s.account_id, error = %e, "scheduled send failed permanently");
             let (a, id) = (s.account_id.clone(), s.id.clone());
-            db(store, move |st| st.delete_scheduled_send(&a, &id)).await?;
+            db(store, move |st| st.finish_scheduled_send(&a, &id, Outcome::Failed)).await?;
             Ok(Some(OutboxEvent::SendFailed {
                 account_id: s.account_id,
                 schedule_id: s.id,
@@ -384,7 +403,7 @@ async fn fire_reminder<A: OutboxApi>(
     let (a, t, since) = (r.account_id.clone(), r.thread_id.clone(), r.sent_at);
     if db(store, move |st| st.has_reply_after(&a, &t, since)).await? {
         let (a, id) = (r.account_id.clone(), r.id.clone());
-        db(store, move |st| st.delete_reminder(&a, &id)).await?;
+        db(store, move |st| st.finish_reminder(&a, &id, Outcome::Answered)).await?;
         return Ok(None);
     }
     let add: Vec<String> = RESURFACE.iter().map(|l| l.to_string()).collect();
@@ -400,7 +419,7 @@ async fn fire_reminder<A: OutboxApi>(
             let row = r.clone();
             let subject = db(store, move |st| {
                 st.modify_thread_labels(&row.account_id, &row.thread_id, &add, &[])?;
-                st.delete_reminder(&row.account_id, &row.id)?;
+                st.finish_reminder(&row.account_id, &row.id, Outcome::Fired)?;
                 Ok(st
                     .get_thread(&row.account_id, &row.thread_id)?
                     .map(|t| t.subject)
@@ -417,7 +436,7 @@ async fn fire_reminder<A: OutboxApi>(
         // Thread deleted on the server: nothing to remind about.
         Err(e) if e.is_not_found() => {
             let (a, id) = (r.account_id.clone(), r.id.clone());
-            db(store, move |st| st.delete_reminder(&a, &id)).await?;
+            db(store, move |st| st.finish_reminder(&a, &id, Outcome::Cancelled)).await?;
             Ok(None)
         }
         Err(e) => {

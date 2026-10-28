@@ -11,6 +11,7 @@ pub mod details;
 pub mod drafts;
 pub mod ics;
 pub mod imip;
+pub mod invites;
 pub mod label_colors;
 pub mod probe;
 pub mod provider;

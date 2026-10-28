@@ -104,6 +104,8 @@ pub(crate) struct State {
     pub refresh_token: String,
     pub reject_refresh: bool,
     pub token_calls: u32,
+    /// The redirect_uri of the last code exchange.
+    pub last_redirect_uri: Option<String>,
     pub categories: Vec<String>,
     pub photo: Option<Vec<u8>>,
     uploads: HashMap<String, (String, String, Vec<u8>)>,
@@ -884,6 +886,7 @@ impl State {
                 issue(self, None)
             }
             Some("authorization_code") => {
+                self.last_redirect_uri = form.get("redirect_uri").cloned();
                 if form.get("code").map(String::as_str) != Some("good-code")
                     || form.get("code_verifier").is_none()
                 {

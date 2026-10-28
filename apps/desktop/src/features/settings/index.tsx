@@ -4,6 +4,7 @@
 // inside. Every control writes through lib/settings.ts, which persists to
 // settings.json and broadcasts penguin://settings-changed.
 // OWNER: settings agent.
+import { ExtensionsSection } from "../extensions/ExtensionsSection";
 import { SmartViewsSection } from "../smart/SmartSettings";
 import { InboxSection } from "../split/SplitSettings";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type RefObject } from "react";
@@ -11,6 +12,7 @@ import { api, asCommandError } from "../../lib/api";
 import { setTrustedImageSender, updateSettings, useSetting, useSettings } from "../../lib/settings";
 import { SummarySettings } from "../summary/SummarySettings";
 import { AskAiSettings } from "../search/AskSettings";
+import { AgentChatSettings } from "../agent-chat/AgentChatSettings";
 import { ComposeAiSettings } from "../compose/settings";
 import type { Account, Diagnostics, RemoteImages, SwipeAction } from "../../lib/types";
 import { FOLLOW_UP_DAYS, FOLLOW_UP_LOOKBACK_DAYS } from "../../lib/types";
@@ -29,6 +31,8 @@ import { SyncActions, isHidden, syncFixFor } from "./syncFix";
 import { retryingText, syncHealth } from "../../lib/syncHealth";
 import { useSyncHides } from "../../lib/syncHides";
 import { SignInSheetRow } from "./SignInSheet";
+import { PairIphoneRow } from "./PairIphone";
+import { CloudSyncRow } from "./CloudSync";
 import { openAddAccount } from "../onboarding/AddAccountModal";
 import { clearPendingSetup, providerName, usePendingSetups } from "../onboarding/pending";
 import { ProviderMark } from "../onboarding/ProviderSteps";
@@ -36,6 +40,7 @@ import { Choice, ConfirmDialog, Section, Switch, phaseLabel } from "./parts";
 import { ProfilesSection } from "./Profiles";
 import { WhatsNewSection } from "./WhatsNew";
 import { AboutSection } from "./About";
+import { StatsSection } from "./Stats";
 import { YouSection } from "./You";
 import { AppearanceSettings } from "./Appearance";
 import { SenderPhotosPrivacy, AvatarPlacementRow } from "./SenderPhotos";
@@ -347,8 +352,12 @@ function SettingsPage({
       return <SmartViewsSection />;
     case "rules":
       return <RulesSection />;
+    case "extensions":
+      return <ExtensionsSection />;
     case "keyboard":
       return <KeyboardSection />;
+    case "stats":
+      return <StatsSection />;
     case "diagnostics":
       return <DiagnosticsPanel diag={diag} error={diagError} onRefresh={refresh} />;
     case "whatsnew":
@@ -616,6 +625,8 @@ function AccountsSection({ diag, onChanged }: { diag: Diagnostics | null; onChan
         </button>
       </div>
       {accounts.length > 1 && <AllInboxesSettings accounts={accounts} />}
+      {accounts.some((a) => a.provider === "gmail") && <PairIphoneRow />}
+      <CloudSyncRow />
       <SignInSheetRow />
       {confirming ? (
         <ConfirmDialog
@@ -775,6 +786,17 @@ function GeneralSection() {
             { value: "light", label: "Light", icon: "sun" },
             { value: "system", label: "System" },
           ]}
+        />
+      </div>
+      <div className="setting-row setting-tall">
+        <div>
+          <span className="setting-label">Only on this Mac</span>
+          <p className="st-muted">The theme syncs with your iPhone. On keeps this Mac&apos;s choice to itself, for example System here and Dark on the phone.</p>
+        </div>
+        <Switch
+          label="Keep the theme only on this Mac"
+          on={s.keepHere.includes("theme")}
+          onChange={(on) => save({ keepHere: on ? [...s.keepHere.filter((k) => k !== "theme"), "theme"] : s.keepHere.filter((k) => k !== "theme") })}
         />
       </div>
       <AppearanceSettings />
@@ -1028,12 +1050,13 @@ function AiSection() {
   return (
     <Section id="ai" icon="sparkles" title="AI" className="ai-settings">
       <p className="st-muted ai-intro">
-        Everything here runs on this Mac with Apple Intelligence: no API key, no server, and nothing leaves your Mac. Each
-        feature can be turned off on its own.
+        Summaries, Ask and Write with AI run on this Mac with Apple Intelligence: no API key, no server, and nothing leaves your Mac.
+        Chat with Claude Code or Codex, at the end, is off unless you turn it on. Each feature can be turned off on its own.
       </p>
       <SummarySettings />
       <AskAiSettings />
       <ComposeAiSettings />
+      <AgentChatSettings />
     </Section>
   );
 }

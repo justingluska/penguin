@@ -35,6 +35,7 @@
     "allow-look-up",
     "allow-save-attachment",
     "allow-preview-attachment",
+    "allow-quick-look-attachment",
     "allow-preview-outgoing-file",
     "allow-get-message-details",
     "allow-get-message-source",
@@ -85,7 +86,10 @@
     "allow-suggest-replies",
     "allow-read-snippet-file",
     "allow-set-menu-context",
+    "allow-set-handoff-activity",
     "allow-open-window",
-    "allow-take-window-seed"
+    "allow-take-window-seed",
+    "allow-list-extensions",
+    "allow-run-extension-action"
   ]
 }

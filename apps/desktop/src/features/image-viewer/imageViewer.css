@@ -79,6 +79,8 @@
 }
 .iv-msg-title { font-size: var(--text-lg); font-weight: 600; color: #fff; }
 .iv-msg-body { font-size: var(--text-sm); color: rgba(255, 255, 255, .62); }
+.iv-msg .progress-ring .pr-track { stroke: rgba(255, 255, 255, .18); }
+.iv-msg .progress-ring .pr-fill { stroke: #fff; }
 .iv-spinner {
   width: 22px; height: 22px; border-radius: 50%;
   border: 2px solid rgba(255, 255, 255, .18); border-top-color: rgba(255, 255, 255, .8);

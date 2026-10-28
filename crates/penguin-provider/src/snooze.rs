@@ -13,6 +13,15 @@
 //!    undo the local wake; a 404 (thread deleted on Gmail) drops the snooze
 //!    and leaves the local copy to sync.
 //!
+//! With cross-device sync on (docs/CROSS-DEVICE-STATE.md), step 2 waits
+//! until this device has pulled every synced change made up to the wake
+//! (`Store::snooze_wake_committable`): another device may have snoozed the
+//! thread again or unsnoozed it meanwhile, and the provider must only hear
+//! of a wake that still stands. The local wake (step 1) doesn't wait; if a
+//! newer snooze arrives first, the store undoes it. Once pushed, the store
+//! marks the snooze woken for every device, so the others never wake it
+//! again.
+//!
 //! Early wake (new mail in the thread) needs nothing here: the new message
 //! arrives in the inbox and the store ends the snooze on that refresh.
 //! Everything takes `now_ms` so the app's scheduler and the tests (fake
@@ -30,6 +39,8 @@ use crate::{Error, MailProvider, Result};
 
 /// A woken thread whose provider update failed is retried this much later.
 pub const PUSH_RETRY_MS: i64 = 5 * 60_000;
+/// A wake waiting for a sync pull is looked at again this much later.
+pub const PULL_WAIT_RETRY_MS: i64 = 60_000;
 /// Latest a thread may be snoozed until, from now (Gmail's own limit is
 /// far out; a year keeps typos from hiding mail for decades).
 pub const MAX_SNOOZE_AHEAD_MS: i64 = 366 * 24 * 60 * 60_000;
@@ -146,6 +157,14 @@ async fn push<A: SnoozeApi>(
     d: &DueSnooze,
     now_ms: i64,
 ) -> Result<()> {
+    let (a, t) = (d.account_id.clone(), d.thread_id.clone());
+    if !db(store, move |st| st.snooze_wake_committable(&a, &t)).await? {
+        let (a, t) = (d.account_id.clone(), d.thread_id.clone());
+        return db(store, move |st| {
+            st.retry_snooze_push(&a, &t, now_ms + PULL_WAIT_RETRY_MS)
+        })
+        .await;
+    }
     let add: Vec<String> = WAKE_LABELS.iter().map(|l| l.to_string()).collect();
     let result = match api {
         Some(api) => api.modify_thread(&d.thread_id, &add, &[]).await,
@@ -158,7 +177,7 @@ async fn push<A: SnoozeApi>(
     match result {
         Ok(()) => db(store, move |st| st.snooze_pushed(&a, &t)).await,
         // Deleted on the server: nothing to wake there; sync removes the local copy.
-        Err(e) if e.is_not_found() => db(store, move |st| st.unsnooze(&a, &t).map(|_| ())).await,
+        Err(e) if e.is_not_found() => db(store, move |st| st.end_snooze(&a, &t)).await,
         Err(e) => {
             tracing::warn!(account = %d.account_id, error = %e, "snooze wake not pushed to the provider; retrying");
             db(store, move |st| {

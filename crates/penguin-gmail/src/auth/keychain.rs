@@ -113,6 +113,41 @@ pub(crate) trait CredentialStore: Send + Sync {
     fn save(&self, account: &str, credential: &StoredCredential) -> Result<()>;
     /// Deleting a missing entry is not an error.
     fn delete(&self, account: &str) -> Result<()>;
+    /// Several entries at once (Pair iPhone's import): one vault write.
+    fn save_all(&self, entries: &[(String, StoredCredential)]) -> Result<()> {
+        for (account, credential) in entries {
+            self.save(account, credential)?;
+        }
+        Ok(())
+    }
+}
+
+/// The vault item's JSON for `accounts` (`{"version": 3, "accounts": …}`),
+/// the format Pair iPhone carries between devices. Holds refresh tokens.
+pub(crate) fn encode_vault(
+    accounts: &BTreeMap<String, StoredCredential>,
+) -> Result<zeroize::Zeroizing<String>> {
+    let file = VaultFile {
+        version: VAULT_VERSION,
+        accounts: accounts.clone(),
+    };
+    serde_json::to_string(&file)
+        .map(zeroize::Zeroizing::new)
+        .map_err(|e| Error::Other(e.to_string()))
+}
+
+/// Read vault JSON from another device: entries without a `client` are
+/// desktop-client tokens (as in [`Vault`]); a newer version is refused.
+pub(crate) fn decode_vault(json: &str) -> Result<BTreeMap<String, StoredCredential>> {
+    let file: VaultFile = serde_json::from_str(json)
+        .map_err(|_| Error::Other("the token vault from the other device is unreadable".into()))?;
+    if file.version > VAULT_VERSION {
+        return Err(Error::Other(format!(
+            "the other device's token vault is version {}, newer than this build supports; update Penguin",
+            file.version
+        )));
+    }
+    Ok(file.accounts)
 }
 
 /// Raw secret items under [`KEYCHAIN_SERVICE`], by Keychain account name.
@@ -331,6 +366,28 @@ impl CredentialStore for Vault {
         if state.legacy_checked.insert(account.to_owned()) {
             if let Err(e) = self.backend.delete(account) {
                 tracing::warn!(account, error = %e, "could not delete old keychain item");
+            }
+        }
+        Ok(())
+    }
+
+    fn save_all(&self, entries: &[(String, StoredCredential)]) -> Result<()> {
+        let mut state = self.lock();
+        if matches!(state.loaded, Loaded::Failed(_)) {
+            state.loaded = Loaded::No;
+        }
+        self.ensure_loaded(&mut state)?;
+        let mut accounts = state.accounts.clone();
+        for (account, credential) in entries {
+            accounts.insert(account.clone(), credential.clone());
+        }
+        self.write_vault(&accounts)?;
+        state.accounts = accounts;
+        for (account, _) in entries {
+            if state.legacy_checked.insert(account.clone()) {
+                if let Err(e) = self.backend.delete(account) {
+                    tracing::warn!(account = %account, error = %e, "could not delete old keychain item");
+                }
             }
         }
         Ok(())
@@ -604,6 +661,50 @@ mod tests {
                 client_id: "ios.apps.googleusercontent.com".into()
             }
         );
+    }
+
+    #[test]
+    fn save_all_is_one_write_and_keeps_the_others() {
+        let (backend, vault) = vault();
+        vault.save("ada@example.com", &cred("rt-a")).unwrap();
+        let sets = backend.sets.lock().unwrap().len();
+        vault
+            .save_all(&[
+                ("grace@example.com".into(), cred("rt-g")),
+                ("linus@example.com".into(), cred("rt-l")),
+            ])
+            .unwrap();
+        assert_eq!(backend.sets.lock().unwrap().len(), sets + 1);
+        let json = vault_json(&backend);
+        for (email, rt) in [
+            ("ada@example.com", "rt-a"),
+            ("grace@example.com", "rt-g"),
+            ("linus@example.com", "rt-l"),
+        ] {
+            assert_eq!(json["accounts"][email]["refresh_token"], rt);
+        }
+    }
+
+    #[test]
+    fn vault_json_roundtrips_and_refuses_newer() {
+        let mut accounts = BTreeMap::new();
+        accounts.insert(
+            "ada@example.com".to_string(),
+            cred("rt-a").with_client(TokenClient::Ios {
+                client_id: "1-a.apps.googleusercontent.com".into(),
+            }),
+        );
+        let json = encode_vault(&accounts).unwrap();
+        assert!(json.contains(r#""version":3"#));
+        assert_eq!(decode_vault(&json).unwrap(), accounts);
+        // v2 entries (no client) are desktop tokens.
+        let v2 = r#"{"version":2,"accounts":{"a@example.com":{"refresh_token":"x"}}}"#;
+        assert_eq!(
+            decode_vault(v2).unwrap()["a@example.com"].client,
+            TokenClient::Desktop { client_id: None }
+        );
+        assert!(decode_vault(r#"{"version":4,"accounts":{}}"#).is_err());
+        assert!(decode_vault("nope").is_err());
     }
 
     #[test]

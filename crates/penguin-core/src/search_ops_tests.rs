@@ -417,3 +417,71 @@ fn account_removal_rebuilds_first_contacts() {
     s.remove_account(B).unwrap();
     assert_eq!(ids(&s, "is:new-sender"), sorted(&["a1"]));
 }
+
+#[test]
+fn hits_carry_the_conversations_newest_date() {
+    let s = store_with_accounts(&[A]);
+    let day0 = 1_790_164_800_000;
+    s.upsert_messages(&[
+        M::new(A, "orig", "T1", day0)
+            .subject("Lease renewal")
+            .body("The lease renewal terms are attached.")
+            .done(),
+        // A later reply that doesn't contain the searched words.
+        M::new(A, "reply", "T1", day0 + 3 * DAY)
+            .subject("Re: Lease renewal")
+            .body("Thanks, signing tonight.")
+            .done(),
+    ])
+    .unwrap();
+    let r = search(&s, "terms");
+    assert_eq!(hit_ids(&r), vec!["orig".to_string()]);
+    let hit = &r.hits[0];
+    assert_eq!(hit.date, day0, "the matching message's own date");
+    assert_eq!(hit.last_date, day0 + 3 * DAY, "the newest reply, as the inbox shows it");
+
+    // Server hits get the same date from the stored thread.
+    let mut server = vec![SearchHit { last_date: hit.date, ..hit.clone() }];
+    s.date_hits_by_thread(&mut server).unwrap();
+    assert_eq!(server[0].last_date, day0 + 3 * DAY);
+}
+
+#[test]
+fn a_name_lists_conversations_with_that_person_newest_first() {
+    let s = store_with_accounts(&[A]);
+    let now = 1_790_164_800_000;
+    let mike = "mike.delgado@harbor.example";
+    s.upsert_messages(&[
+        // An old thread that says "Mike" a lot: strongest on the words.
+        M::new(A, "old", "T-old", now - 200 * DAY)
+            .from("Mike Delgado", mike)
+            .subject("Mike's lease, Mike's notes")
+            .body("Mike here. Mike again. Mike out.")
+            .done(),
+        // Last week, from Mike.
+        M::new(A, "week", "T-week", now - 7 * DAY)
+            .from("Mike Delgado", mike)
+            .subject("Inspection")
+            .body("Thursday works.")
+            .done(),
+        // Today: you wrote to Mike, he hasn't answered.
+        M::new(A, "today", "T-today", now - 3600_000)
+            .from("Me", A)
+            .to(&[("Mike Delgado", mike)])
+            .labels(&["SENT"])
+            .subject("Keys")
+            .body("Dropping them off at noon.")
+            .done(),
+        // Mentions a Mike without involving him: after the conversations.
+        M::new(A, "other", "T-other", now - DAY)
+            .from("", "dana@inbox.example")
+            .subject("Dinner")
+            .body("Ask Mike if he's coming.")
+            .done(),
+    ])
+    .unwrap();
+    assert_eq!(hit_ids(&search(&s, "mike")), vec!["today", "week", "old", "other"]);
+    assert_eq!(hit_ids(&search(&s, "mike delgado")), vec!["today", "week", "old"]);
+    // Not just a name: ranked as before (the old thread is the best match).
+    assert_eq!(hit_ids(&search(&s, "mike notes"))[0], "old");
+}

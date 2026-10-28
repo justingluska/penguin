@@ -83,6 +83,7 @@
 .st-foot .right { margin-left: auto; display: inline-flex; align-items: center; gap: 6px; color: var(--text-faint); }
 
 .st-muted { color: var(--text-muted); font-size: var(--text-xs); line-height: 18px; }
+.st-warn { color: var(--amber-a11); font-size: var(--text-xs); line-height: 18px; }
 .st-heading { display: flex; align-items: center; gap: 8px; }
 .st-heading h2 { font-size: var(--text-base); font-weight: 600; color: var(--text-emphasis); }
 .st-heading > .i { color: var(--text-muted); }
@@ -207,6 +208,10 @@
 .st-reconnect h3 { display: flex; align-items: center; gap: 10px; }
 .st-reconnect-account { display: flex; align-items: center; gap: 8px; margin-bottom: 14px; font-size: var(--text-xs); color: var(--text-muted); min-width: 0; }
 .st-reconnect-done { color: var(--green-a11); margin: 4px 0; }
+.st-reconnect-lead { font-size: var(--text-sm); color: var(--text-default); margin-bottom: 12px; }
+.st-reconnect-guide { margin-bottom: 14px; }
+.st-reconnect-field { display: flex; flex-direction: column; gap: 6px; margin-bottom: 8px; font-size: var(--text-xs); color: var(--text-muted); }
+.st-reconnect-field .input { color: var(--text-default); }
 .st-spinner {
   width: 14px; height: 14px; flex: none; border-radius: 50%;
   border: 2px solid var(--border-interactive); border-top-color: var(--text-default);

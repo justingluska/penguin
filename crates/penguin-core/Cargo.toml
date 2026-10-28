@@ -17,6 +17,8 @@ zstd = { version = "0.13", default-features = false }
 # Search by meaning (hybrid.rs) and Ask: the Embedder / VectorIndex contract
 # only; the app passes the real model and index in.
 penguin-semantic.workspace = true
+# Cross-device state: the record model and merge rules (store_sync.rs).
+penguin-sync.workspace = true
 
 [features]
 # Benchmarks only: record every statement's SQL, time and plan counters

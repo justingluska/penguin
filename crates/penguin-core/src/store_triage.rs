@@ -15,16 +15,18 @@
 //!   not a reply into a thread of nothing but bulk mail, not snoozed, and not
 //!   dismissed. A dismissal (`follow_up_dismissals`) remembers the date of
 //!   the message it dismissed, so it lasts until something newer is sent in
-//!   the thread. Oldest wait first, one page.
+//!   the thread. Oldest wait first, one page. Dismissals sync between
+//!   devices (`Kind::FollowUpDismissal` records, store_sync.rs).
 
 use std::collections::{HashMap, HashSet};
 
+use penguin_sync::{thread_key, DismissalBody, Kind, Record};
 use rusqlite::types::Value;
 use rusqlite::{params, params_from_iter, Connection, OptionalExtension};
 use serde::Deserialize;
 
 use super::{
-    summaries_by_rowid, summary_row, Store, F_DRAFT, F_NEWSLETTER, F_SENT, F_SPAM, F_TRASH,
+    summaries_by_rowid, summary_row, sync, Store, F_DRAFT, F_NEWSLETTER, F_SENT, F_SPAM, F_TRASH,
     KIND_CALENDAR, ROWID_SLOTS, ROWID_SPILL_LIMIT,
 };
 use crate::types::{
@@ -196,7 +198,7 @@ impl Store {
     }
 
     /// Sidebar counts: every account in scope with the size of its Reply
-    /// Later and Follow up views.
+    /// Later, Follow up and Drafts views.
     pub fn triage_counts(
         &self,
         scope: Option<&[AccountId]>,
@@ -211,6 +213,7 @@ impl Store {
                     account_id: a.clone(),
                     reply_later: 0,
                     follow_up: 0,
+                    drafts: 0,
                 })
                 .collect();
             let index: HashMap<String, usize> = accounts
@@ -227,6 +230,10 @@ impl Store {
                     counts[i].reply_later = n as u32;
                 }
             }
+            for (account_id, &i) in &index {
+                let n: i64 = count_view.query_row(params![account_id, "DRAFT"], |r| r.get(0))?;
+                counts[i].drafts = n as u32;
+            }
             for f in follow_ups(c, scope, days, now)? {
                 if let Some(&i) = index.get(&f.account_id) {
                     counts[i].follow_up += 1;
@@ -240,13 +247,22 @@ impl Store {
     /// dismissal holds until something newer is sent in the thread; a
     /// thread with nothing sent is left alone.
     pub fn dismiss_follow_ups(&self, threads: &[(String, String)], dismissed: bool) -> Result<()> {
+        let now = now_ms();
         self.write(|tx| {
             for (account_id, thread_id) in threads {
+                let key = thread_key(account_id, thread_id);
                 if !dismissed {
-                    tx.prepare_cached(
-                        "DELETE FROM follow_up_dismissals WHERE account_id = ?1 AND thread_id = ?2",
-                    )?
-                    .execute(params![account_id, thread_id])?;
+                    let had = tx
+                        .prepare_cached(
+                            "DELETE FROM follow_up_dismissals WHERE account_id = ?1 AND thread_id = ?2",
+                        )?
+                        .execute(params![account_id, thread_id])?
+                        > 0;
+                    let live = sync::load(tx, Kind::FollowUpDismissal, &key)?
+                        .is_some_and(|s| !s.record.is_deleted());
+                    if had || live {
+                        sync::emit_intent(tx, Kind::FollowUpDismissal, &key, None, now)?;
+                    }
                     continue;
                 }
                 let sent: Option<i64> = tx
@@ -263,11 +279,52 @@ impl Store {
                         "INSERT OR REPLACE INTO follow_up_dismissals(account_id, thread_id, sent_at) VALUES (?1, ?2, ?3)",
                     )?
                     .execute(params![account_id, thread_id, sent])?;
+                    let body = DismissalBody { sent_at: sent }.to_value();
+                    sync::emit_intent(tx, Kind::FollowUpDismissal, &key, Some(body), now)?;
                 }
             }
             Ok(())
         })
     }
+}
+
+/// Apply a dismissal record from another device that won the merge (the
+/// account exists here).
+pub(super) fn project_remote(
+    c: &Connection,
+    account_id: &str,
+    thread_id: &str,
+    rec: &Record,
+) -> Result<()> {
+    match rec.body_as::<DismissalBody>() {
+        Some(b) => c
+            .prepare_cached(
+                "INSERT OR REPLACE INTO follow_up_dismissals(account_id, thread_id, sent_at) VALUES (?1, ?2, ?3)",
+            )?
+            .execute(params![account_id, thread_id, b.sent_at])?,
+        None => c
+            .prepare_cached(
+                "DELETE FROM follow_up_dismissals WHERE account_id = ?1 AND thread_id = ?2",
+            )?
+            .execute(params![account_id, thread_id])?,
+    };
+    Ok(())
+}
+
+/// Records for dismissals from before sync (store_sync::seed).
+pub(super) fn seed(c: &Connection, now: i64) -> Result<()> {
+    let rows: Vec<(String, String, i64)> = c
+        .prepare("SELECT account_id, thread_id, sent_at FROM follow_up_dismissals")?
+        .query_map([], |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)))?
+        .collect::<rusqlite::Result<_>>()?;
+    for (a, t, sent_at) in rows {
+        let key = thread_key(&a, &t);
+        if sync::load(c, Kind::FollowUpDismissal, &key)?.is_none() {
+            let body = DismissalBody { sent_at }.to_value();
+            sync::emit_intent(c, Kind::FollowUpDismissal, &key, Some(body), now)?;
+        }
+    }
+    Ok(())
 }
 
 pub(super) fn remove_account(c: &Connection, account_id: &str) -> Result<()> {

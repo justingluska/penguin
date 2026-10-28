@@ -182,7 +182,7 @@ pub fn validate_account_patch(patch: AccountPatch) -> Result<AccountUpdate, Stri
 }
 
 /// Gmail's label name limit, in characters.
-pub const MAX_LABEL_NAME_CHARS: usize = 225;
+pub use penguin_core::MAX_LABEL_NAME_CHARS;
 
 /// `update_label` argument: omitted fields are unchanged; `color: null`
 /// removes the label's color. `color` is a background hex from
@@ -217,27 +217,7 @@ impl LabelUpdate {
 pub fn validate_label_patch(patch: LabelPatch) -> Result<LabelUpdate, String> {
     let name = match patch.name {
         None => None,
-        Some(raw) => {
-            let n = raw.trim();
-            if n.is_empty() {
-                return Err("A label needs a name.".into());
-            }
-            if n.chars().any(char::is_control) {
-                return Err("A label name can't contain control characters.".into());
-            }
-            if n.chars().count() > MAX_LABEL_NAME_CHARS {
-                return Err(format!(
-                    "Keep the label name to {MAX_LABEL_NAME_CHARS} characters."
-                ));
-            }
-            if n.split('/').any(|part| part.trim().is_empty()) {
-                return Err(
-                    "Each level of a nested label needs a name (no empty parts around \"/\")."
-                        .into(),
-                );
-            }
-            Some(n.to_string())
-        }
+        Some(raw) => Some(penguin_core::validate_label_name(&raw)?),
     };
     let color = match patch.color {
         None => None,

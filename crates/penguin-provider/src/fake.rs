@@ -614,6 +614,7 @@ impl MailProvider for FakeProvider {
                 subject: m.subject.clone(),
                 from: m.from.clone(),
                 date: m.date,
+                last_date: m.date,
                 snippet_html: String::new(),
                 match_count: 1,
                 label_ids: m.label_ids.clone(),

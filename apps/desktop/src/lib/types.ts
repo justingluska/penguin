@@ -242,11 +242,13 @@ export const FOLLOW_UP_DAYS = { def: 3, min: 1, max: 14 } as const;
 /** Follow up looks no further back than this many days (FOLLOW_UP_LOOKBACK_DAYS). */
 export const FOLLOW_UP_LOOKBACK_DAYS = 60;
 
-/** Sizes of the Reply Later and Follow up views for one account (sidebar counts). */
+/** Sizes of the Reply Later, Follow up and Drafts views for one account (sidebar counts). */
 export interface TriageCount {
   accountId: AccountId;
   replyLater: number;
   followUp: number;
+  /** Conversations holding an unsent draft (the Drafts view). */
+  drafts: number;
 }
 
 export type InboxTab = "all" | "important" | "other" | "newsletters";
@@ -488,7 +490,11 @@ export interface SearchHit {
   messageId: string;
   subject: string;
   from: Address;
+  /** When the matching message (`messageId`) was sent. */
   date: number;
+  /** The conversation's newest message, as the inbox dates it (never older
+   *  than `date`): what result rows show and "Newest first" sorts by. */
+  lastDate: number;
   /** Escaped HTML with <mark> around matched terms. */
   snippetHtml: string;
   matchCount: number;
@@ -714,6 +720,74 @@ export interface OpenedDraft {
   threadId: string;
   draft: Draft;
 }
+
+/** Settings → Accounts → Pair iPhone (docs/PAIRING.md): one account and what pairing does with it. */
+export interface PairAccount {
+  email: string;
+  /** Nickname, else display name. */
+  name: string | null;
+  color: string;
+  /** token = its sign-in moves to the phone; alreadyOnPhone = nothing to send; signIn = sign in on the phone. */
+  status: "token" | "alreadyOnPhone" | "signIn";
+  /** Why it needs signing in on the phone. */
+  reason: string | null;
+}
+
+/** The iCloud account CloudKit sees (penguin-sync `CloudAccount`). */
+export type CloudAccount = "unknown" | "available" | "noAccount" | "restricted" | "temporarilyUnavailable";
+
+/** Something Sync with iCloud needs the user to know (penguin-sync `CloudProblem`). */
+export type CloudProblem =
+  | { kind: "quotaExceeded" }
+  | { kind: "notSetUp"; detail: string }
+  | { kind: "dataDeleted" }
+  | { kind: "other"; code: number; detail: string };
+
+/** cloud_status / penguin://cloud-status: Settings → Accounts → Sync with iCloud (src-tauri/src/cloud.rs). */
+export interface CloudStatus {
+  /** This build can sync on this Mac (signed with an iCloud container, macOS 14+). */
+  available: boolean;
+  unavailableReason?: string;
+  /** The switch: on unless turned off. */
+  enabled: boolean;
+  /** Records are moving (available, on, an iCloud account). */
+  active: boolean;
+  account: CloudAccount;
+  /** Unix ms of the last complete fetch or send. */
+  lastSyncAt?: number;
+  /** Changes here not on iCloud yet. */
+  pending: number;
+  problem?: CloudProblem;
+}
+
+/** pair_iphone_start: the QR code and what can move before a phone is known. */
+export interface PairStart {
+  sessionId: string;
+  /** The code as an SVG path on a size×size grid. Holds the one-time secret. */
+  qr: { size: number; path: string };
+  /** Unix ms. */
+  expiresAt: number;
+  hosts: string[];
+  port: number;
+  /** Every account: Gmail, IMAP and Microsoft. */
+  accounts: PairAccount[];
+  macClientId: string | null;
+}
+
+export interface PairPhone {
+  name: string;
+  model: string;
+  system: string;
+  appVersion: string;
+}
+
+/** penguin://pair-iphone */
+export type PairEvent =
+  | { state: "connected"; sessionId: string; phone: PairPhone; code: string; accounts: PairAccount[]; clientNote: string | null }
+  | { state: "sending"; sessionId: string }
+  | { state: "done"; sessionId: string; phoneName: string; imported: string[]; failed: { email: string; reason: string }[]; signIn: string[] }
+  | { state: "declined"; sessionId: string }
+  | { state: "failed"; sessionId: string; message: string; expired: boolean };
 
 export interface OAuthClientStatus {
   configured: boolean;
@@ -1222,19 +1296,32 @@ export interface MessageDetails {
 }
 
 /** preview_attachment result (mirror of src-tauri/src/attachments.rs). */
-export type AttachmentPreviewKind = "image" | "pdf" | "text" | "unsupported";
+export type AttachmentPreviewKind = "image" | "pdf" | "text" | "video" | "audio" | "document" | "sheet" | "unsupported";
+
+/** One sheet of a spreadsheet preview (src-tauri/src/preview_docs.rs). */
+export interface SheetPreview {
+  name: string;
+  /** The first rows (≤1,000) and columns (≤60), as text. */
+  rows: string[][];
+  totalRows: number;
+  totalCols: number;
+}
 export interface AttachmentPreview {
   kind: AttachmentPreviewKind;
   /** For images the sniffed type; otherwise the attachment's own. */
   mimeType: string;
   filename: string;
   size: number;
-  /** image / pdf: base64 data: URL. */
+  /** image / pdf / video / audio: base64 data: URL (video/audio: the sniffed type). */
   dataUrl: string | null;
   /** text: UTF-8, at most 1 MB. Render escaped, never as markup. */
   text: string | null;
-  /** text: the file is longer than `text`. */
+  /** text, document, sheet: the file is longer than what's shown. */
   truncated: boolean;
+  /** document: HTML Penguin wrote from a Word file, every character of it escaped. Shown only in a sandboxed frame. */
+  html?: string | null;
+  /** sheet: each sheet's first rows. */
+  sheets?: SheetPreview[] | null;
   /** unsupported: "type" (no previewer), "tooLarge" (> 20 MB), "unreadable" (bytes don't match the type). */
   reason: "type" | "tooLarge" | "unreadable" | null;
 }
@@ -1352,6 +1439,21 @@ export interface ActionFailedEvent {
 }
 
 /**
+ * penguin://attachment-progress (mirror of src-tauri/src/views.rs): an
+ * attachment download under way — Save, Save As, preview, Quick Look, drag
+ * out, copy. Bytes of the file; `total` null when its size is unknown. The
+ * last event of a download has `done` (finished or failed).
+ */
+export interface AttachmentProgressEvent {
+  accountId: string;
+  messageId: string;
+  attachmentId: string;
+  received: number;
+  total: number | null;
+  done: boolean;
+}
+
+/**
  * Fired when opening a thread started downloading its headers-only messages
  * (mail outside the sync window) and the download failed. Reopening retries.
  */
@@ -1397,8 +1499,10 @@ export interface Settings {
   inboxTabs: boolean;
   /** The splits in tab order; a conversation goes to the first that matches. Max 12. Starts with Important, Calendar, News. */
   inboxSplits: InboxSplit[];
-  /** Get to zero: "Archive older than…" for the inbox or a split (⌘K, the list header). */
+  /** Get to zero: "Archive older than…" for the inbox or a split (⌘K, a split's menu, the list header with getToZeroButton). */
   getToZero: boolean;
+  /** Get to zero also has a button in the inbox list's header (off by default). */
+  getToZeroButton: boolean;
   /** The inbox-zero screen celebrates; off shows a plain "No mail". */
   zeroCelebration: boolean;
   remoteImages: RemoteImages;
@@ -1419,6 +1523,12 @@ export interface Settings {
    * Default []. Ids of removed accounts are pruned from what the UI sees.
    */
   hiddenFromAll: string[];
+  /**
+   * Synced settings this Mac keeps to itself (Sync with iCloud): neither
+   * sent to nor replaced by another device. Settings → General "Only on this
+   * Mac" beside the theme. Default [].
+   */
+  keepHere: string[];
   /**
    * Account ids in the order the user dragged them into (sidebar, Settings →
    * Accounts). Every list of accounts follows it; accounts not listed come
@@ -1443,6 +1553,8 @@ export interface Settings {
   corners: CornerStyle;
   /** Experimental: in the dark theme, HTML mail is shown dark (features/message-body/darkBody.ts). Default false. */
   darkEmailBodies: boolean;
+  /** Conversations open at their latest message with a timeline of the earlier ones; false stacks them oldest first. Default true. */
+  threadLatestFirst: boolean;
   /** Start in Floe mode (single-column layout). Default false. */
   floeMode: boolean;
   /** Composer font (lib/composeFonts.ts). Default "inter". Unknown names load as "inter". */
@@ -1555,6 +1667,24 @@ export interface NotificationOpen {
   accountId: string;
   threadId: string | null;
 }
+
+/**
+ * set_handoff_activity (src-tauri/src/handoff.rs): what this window offers to
+ * the iPhone through Handoff. Ids and a subject only, never a body.
+ */
+export type HandoffActivity =
+  | { kind: "conversation"; accountId: string; threadId: string; subject: string | null }
+  | { kind: "draft"; accountId: string; draftId: string; threadId: string | null; subject: string | null }
+  | { kind: "none" };
+
+/**
+ * take_handoff_open: what the iPhone handed over. `unreadable` = Penguin's
+ * activity, but an unknown version or a missing or malformed field.
+ */
+export type HandoffOpen =
+  | { kind: "conversation"; accountId: string; threadId: string }
+  | { kind: "draft"; accountId: string; draftId: string; threadId: string | null }
+  | { kind: "unreadable"; activity: "conversation" | "draft" };
 
 /** notification_permission / request_notification_permission. macOS builds always answer "granted". */
 export type NotificationPermission = "granted" | "denied" | "prompt";
@@ -1963,6 +2093,73 @@ export interface McpInfo {
   auditLogPath: string | null;
 }
 
+// Chat with Claude Code or Codex (src-tauri/src/agent_chat/, docs/AGENT-CHAT.md).
+
+/** Mirrors agent_chat::detect::AgentCliKind. */
+export type AgentCliKind = "claude" | "codex";
+
+/** A CLI found on this Mac (agent_chat::detect::AgentCliFound). */
+export interface AgentCliFound {
+  kind: AgentCliKind;
+  path: string;
+  /** "2.1.289"; null when `--version` failed or timed out. */
+  version: string | null;
+  /** Signed in as far as files and variables tell; null = can't tell. */
+  signedIn: boolean | null;
+  /** On the login shell's PATH, a usual install spot, or the path typed in Settings. */
+  foundIn: "path" | "common" | "custom";
+}
+
+/** agent_chat_setup and the other agent_chat_* commands (agent_chat::AgentChatSetup). */
+export interface AgentChatSetup {
+  enabled: boolean;
+  /** The CLI chats use: the chosen one if found, else the first found. */
+  cli: AgentCliKind | null;
+  /** The user's pick, found or not. */
+  chosen: AgentCliKind | null;
+  customPath: string | null;
+  /** Null until the first search (it runs when the chat is turned on). */
+  found: AgentCliFound[] | null;
+  claudeKeySaved: boolean;
+  codexKeySaved: boolean;
+  /** The agent level; the chat needs at least Read. */
+  access: AgentAccess;
+  /** This build ships penguin-cli (the chat's tools). */
+  toolsReady: boolean;
+  /** Why a chat can't start right now; null = ready. */
+  blocked: string | null;
+}
+
+/** agent_chat_config_set: omitted = unchanged; "" clears `cli` / `customPath`. */
+export interface AgentChatConfigPatch {
+  enabled?: boolean;
+  cli?: AgentCliKind | "";
+  customPath?: string;
+}
+
+/** The conversation a chat is about (ids only: the agent reads it through its tools). */
+export interface AgentChatContext {
+  accountId: string;
+  threadId: string;
+}
+
+export interface AgentChatRequest {
+  chatId: string;
+  message: string;
+  /** The CLI's session from an earlier turn of this chat. */
+  sessionId: string | null;
+  context: AgentChatContext | null;
+  /** The open conversation changed since the last turn (or this is the first). */
+  contextChanged: boolean;
+}
+
+/** Payload of penguin://agent-chat (agent_chat::AgentChatEvent). */
+export type AgentChatEvent =
+  | { kind: "session"; chatId: string; sessionId: string }
+  | { kind: "text"; chatId: string; text: string }
+  | { kind: "tool"; chatId: string; name: string; label: string }
+  | { kind: "done"; chatId: string; error: string | null; stopped: boolean };
+
 export type UndoSendSeconds = 0 | 5 | 10 | 20 | 30;
 
 /** Settings.instantReplies; mirrors InstantReplies in src-tauri/src/settings.rs. */
@@ -2141,6 +2338,12 @@ export interface ScheduledSend {
   /** Failed attempts so far. */
   attempts: number;
   lastError: string | null;
+  /**
+   * Scheduled on another device (Sync with iCloud), which sends it. This Mac
+   * shows it and can cancel or replace it, and sends it only if that device
+   * hasn't, well after it was due (penguin_sync::outbox).
+   */
+  elsewhere: boolean;
 }
 
 /** "Remind me if no reply" (penguin_core::Reminder). */
@@ -2383,7 +2586,7 @@ export interface InviteCard {
   canRespond: boolean;
   /** How an answer goes out. */
   route: "calendar" | "graph" | "email" | "none";
-  /** Email only because RSVP is off for this Google account (Settings → Calendar). */
+  /** Email only because RSVP is off for this Google account, whose calendar is connected (Settings → Calendar). False while the calendar isn't connected. */
   rsvpAvailable: boolean;
   /** "Propose new time" works (not for a whole series). */
   canPropose: boolean;
@@ -2707,4 +2910,129 @@ export interface SnippetFile {
   filename: string;
   mimeType: string;
   size: number;
+}
+
+/** Settings → Stats: a year of sending and receiving (penguin_core::MailStats). Local time. */
+export interface MailStats {
+  /** One per local day, oldest first, ending today (365). */
+  days: StatsDay[];
+  sent: number;
+  received: number;
+  activeDays: number;
+  currentStreak: number;
+  longestStreak: number;
+  /** [weekday 0 = Monday][hour 0–23] sends. */
+  sentByHour: number[][];
+  medianReplyMinutes: number | null;
+  replies: number;
+  repliesWithinHour: number;
+  receivedNewsletters: number;
+  topRecipients: StatsPerson[];
+  topSenders: StatsPerson[];
+  /** Unix ms of the oldest stored message; null for an empty mailbox. */
+  oldestMessage: number | null;
+}
+
+export interface StatsDay {
+  /** YYYY-MM-DD, local. */
+  date: string;
+  sent: number;
+  received: number;
+}
+
+export interface StatsPerson {
+  email: string;
+  name: string | null;
+  count: number;
+}
+
+// ---------------------------------------------------------------------------
+// Extensions (src-tauri/src/extensions.rs; docs/EXTENSIONS.md): buttons on a
+// message that run a program the user installed and allowed.
+// ---------------------------------------------------------------------------
+export type ExtensionFieldKind = "text" | "textarea" | "select" | "checkbox";
+
+export interface ExtensionFormField {
+  id: string;
+  label: string;
+  type: ExtensionFieldKind;
+  /** May use {{subject}}, {{from.name}}, {{from.email}}, {{snippet}}. */
+  default: string | null;
+  placeholder: string | null;
+  options: { value: string; label: string }[];
+  required: boolean;
+}
+
+export interface ExtensionAction {
+  id: string;
+  title: string;
+  /** A built-in icon name. */
+  icon: string | null;
+  /** The extension's own SVG as a data: URL (shown in an <img>). */
+  iconSvg: string | null;
+  includeBody: boolean;
+  /** Gets every message of the conversation, with their text. */
+  includeThread: boolean;
+  form: ExtensionFormField[];
+  /** The program and its arguments, as the manifest says. */
+  command: string[];
+}
+
+/** off: found, not allowed yet; changed: allowed once, a file changed since. */
+export type ExtensionState = "off" | "on" | "changed";
+
+export interface ExtensionInfo {
+  id: string;
+  name: string;
+  description: string;
+  folder: string;
+  icon: string | null;
+  iconSvg: string | null;
+  state: ExtensionState;
+  actions: ExtensionAction[];
+}
+
+export interface ExtensionsOverview {
+  dir: string;
+  extensions: ExtensionInfo[];
+  problems: { folder: string; error: string }[];
+}
+
+export interface RunExtensionRequest {
+  extensionId: string;
+  actionId: string;
+  accountId: string;
+  messageId: string;
+  /** Answers by field id; a checkbox is "true" or "false". */
+  form: Record<string, string>;
+  /** Set when running again after the person confirmed what the last run asked. */
+  continuation?: ExtensionContinuation;
+}
+
+export interface ExtensionContinuation {
+  /** The confirm's `state`, as the program returned it. */
+  state: string | null;
+  /** The picked choice's value, when the confirm had choices. */
+  choice: string | null;
+  /** Confirms answered so far for this click (1–3). */
+  round: number;
+}
+
+export interface ExtensionResult {
+  message: string | null;
+  url: string | null;
+  /** Ask the person first, then run again with `continuation`. */
+  confirm: ExtensionConfirm | null;
+}
+
+/** What an extension asks before acting (docs/EXTENSIONS.md → Asking before acting). */
+export interface ExtensionConfirm {
+  title: string;
+  detail: string | null;
+  steps: { text: string; url: string | null }[];
+  /** Empty: nothing to pick. Otherwise one must be picked before confirming. */
+  choices: { value: string; label: string; detail: string | null }[];
+  choiceLabel: string | null;
+  confirmLabel: string | null;
+  state: string | null;
 }

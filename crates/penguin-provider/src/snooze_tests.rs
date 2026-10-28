@@ -261,3 +261,50 @@ async fn catches_up_on_everything_missed_while_closed() {
     assert_eq!(st.list_snoozes(None).unwrap().len(), 1);
     assert_eq!(st.next_snooze_due().unwrap(), Some(24 * 60 * MIN));
 }
+
+/// With sync on, the provider only hears of a wake once this device has
+/// pulled past the wake time; until then the wake is local only.
+#[tokio::test]
+async fn with_sync_on_the_wake_push_waits_for_a_fresh_pull() {
+    use penguin_sync::LocalStore;
+    let st = store();
+    st.set_sync_enabled(true).unwrap();
+    st.upsert_messages(&[msg(A, "m1", "t1", 0, &["INBOX"])])
+        .unwrap();
+    snooze(&st, A, "t1", 60 * MIN, 2 * MIN);
+    let c = HashMap::from([(A.to_string(), Fake::default())]);
+    let woke = run_due(&st, &c, 60 * MIN).await.unwrap();
+    assert_eq!(woke.len(), 1, "woken locally");
+    assert_eq!(inbox(&st), vec![("t1".to_string(), true)]);
+    assert!(c[A].calls().is_empty(), "not pushed before a pull");
+    // Not looked at again before the pull-wait retry.
+    run_due(&st, &c, 60 * MIN + 1).await.unwrap();
+    assert!(c[A].calls().is_empty());
+    st.pull_completed(60 * MIN + 10).unwrap();
+    run_due(&st, &c, 60 * MIN + PULL_WAIT_RETRY_MS)
+        .await
+        .unwrap();
+    assert_eq!(c[A].calls(), vec!["modify t1 +INBOX,UNREAD -"]);
+    assert!(st.due_snoozes(i64::MAX).unwrap().is_empty());
+}
+
+/// A 404 on the wake ends the snooze (for every device) rather than
+/// unsnoozing it, so a newer snooze made elsewhere is not cancelled.
+#[tokio::test]
+async fn a_thread_gone_from_the_provider_ends_the_synced_snooze() {
+    let st = store();
+    st.upsert_messages(&[msg(A, "m1", "t1", 0, &["INBOX"])])
+        .unwrap();
+    snooze(&st, A, "t1", 60 * MIN, 2 * MIN);
+    let c = HashMap::from([(
+        A.to_string(),
+        Fake::failing(vec![Error::NotFound("thread".into())]),
+    )]);
+    run_due(&st, &c, 60 * MIN).await.unwrap();
+    assert!(st.due_snoozes(i64::MAX).unwrap().is_empty());
+    let rec = st.sync_records(penguin_sync::Kind::Snooze).unwrap();
+    assert_eq!(
+        rec[0].body_as::<penguin_sync::SnoozeBody>().unwrap().state,
+        penguin_sync::SnoozeState::Ended
+    );
+}

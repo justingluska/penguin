@@ -138,24 +138,6 @@ pub(super) async fn granted_scopes(state: &AppState, email: &str) -> Vec<String>
         .unwrap_or_default()
 }
 
-/// What Settings shows for a failed round.
-fn friendly(e: &penguin_gmail::Error) -> String {
-    use penguin_gmail::Error as E;
-    if gcal::is_api_disabled(e) {
-        "The Google Calendar API is off in your Google Cloud project. Enable it, then try again"
-            .into()
-    } else if gcal::is_not_granted(e) {
-        "Google didn't allow calendar access. Connect the calendar again".into()
-    } else {
-        match e {
-            E::RateLimited => "Google Calendar asked Penguin to slow down; retrying later".into(),
-            E::NeedsReauth(_) => "Sign in to this account again to keep syncing".into(),
-            E::Network(_) => "Offline; Penguin will retry".into(),
-            other => other.to_string(),
-        }
-    }
-}
-
 pub(super) fn emit_changed(app: &AppHandle, account_ids: Vec<String>) {
     if account_ids.is_empty() {
         return;
@@ -232,7 +214,7 @@ async fn sync_round(
                     live.backoff_until = None;
                 }
                 Err(e) => {
-                    live.error = Some(friendly(e));
+                    live.error = Some(super::friendly_sync_error(e));
                     if matches!(
                         e,
                         penguin_gmail::Error::RateLimited | penguin_gmail::Error::Network(_)

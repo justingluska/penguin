@@ -725,6 +725,14 @@ export interface Removal {
  * the action does to a row (archive drops INBOX…), so unread counts move at
  * once too. Returns what's needed to put them back for undo.
  */
+/** The conversation a removal moved the cursor on to (see `movedOnTo`). */
+let movedOn: string | null = null;
+
+/** Whether `ref` was opened because an archive (or another removal) moved on to it, not by the user. */
+export function movedOnTo(ref: ThreadRef): boolean {
+  return movedOn === refKey(ref);
+}
+
 export function removeLocal(refs: ThreadRef[], after: Patch = (t) => t): Removal {
   const keys = new Set(refs.map(refKey));
   const items = list.get().items;
@@ -741,6 +749,7 @@ export function removeLocal(refs: ThreadRef[], after: Patch = (t) => t): Removal
     const removedBefore = removed.filter((r) => r.index < selIndex).length;
     const nextIndex = selIndex - removedBefore;
     const next = kept[nextIndex] ?? kept[kept.length - 1];
+    movedOn = next ? refKey(next) : null;
     setUi(
       next
         ? { selected: { accountId: next.accountId, threadId: next.threadId }, focusMessageId: null, selectedByApp: false }

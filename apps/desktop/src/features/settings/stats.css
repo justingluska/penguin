@@ -1,0 +1,55 @@
+/* Settings → Stats (Stats.tsx). The grids use one hue, the accent, stepped
+   light → strong; empty cells are the neutral fill. */
+.stats-account { margin-left: auto; }
+
+.stats-tiles { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; margin-top: 16px; }
+.stats-tile { padding: 12px 14px; border: 1px solid var(--border-subtle); border-radius: var(--radius-xl); min-width: 0; }
+.stats-tile-value { font-size: var(--text-2xl); line-height: 28px; font-weight: 600; letter-spacing: -.4px; color: var(--text-emphasis); white-space: nowrap; }
+.stats-tile-label { margin-top: 2px; font-size: var(--text-xs); color: var(--text-default); }
+.stats-tile .st-muted { margin-top: 2px; line-height: 16px; }
+@media (max-width: 760px) { .stats-tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+
+.stats-caption { margin-top: 8px; }
+.stats-foot { margin-top: 28px; }
+.stats-plot { position: relative; }
+
+/* Day grid: weeks as columns, Sunday on top. */
+.stats-cell { display: block; aspect-ratio: 1; border-radius: 2px; background: var(--bg-interactive); }
+.stats-cell[data-l="1"] { background: color-mix(in srgb, var(--accent) 28%, transparent); }
+.stats-cell[data-l="2"] { background: color-mix(in srgb, var(--accent) 52%, transparent); }
+.stats-cell[data-l="3"] { background: color-mix(in srgb, var(--accent) 76%, transparent); }
+.stats-cell[data-l="4"] { background: var(--accent); }
+.stats-days-months { display: grid; gap: 3px; margin-left: 30px; height: 16px; font-size: 10px; color: var(--text-muted); overflow: hidden; }
+.stats-days-months span { white-space: nowrap; }
+.stats-days-body { display: flex; gap: 4px; }
+.stats-days-wd { display: grid; grid-template-rows: repeat(7, 1fr); width: 26px; flex: none; font-size: 10px; color: var(--text-muted); align-items: center; }
+.stats-days-cells { flex: 1; display: grid; grid-template-rows: repeat(7, auto); grid-auto-flow: column; gap: 3px; }
+.stats-days-cells .stats-cell:hover { outline: 1px solid var(--text-muted); outline-offset: 1px; }
+.stats-legend { display: flex; align-items: center; justify-content: flex-end; gap: 3px; margin-top: 8px; font-size: 10px; }
+.stats-legend .stats-cell { width: 10px; }
+.stats-legend .stats-cell:first-of-type { margin-left: 4px; }
+.stats-legend .stats-cell:last-of-type { margin-right: 4px; }
+
+/* Weekday × hour: dot area follows the count. */
+.stats-hours { display: grid; gap: 2px; }
+.stats-hours-row { display: grid; grid-template-columns: 34px repeat(24, minmax(0, 1fr)); align-items: center; }
+.stats-hours-wd { font-size: 10px; color: var(--text-muted); }
+.stats-dot-hit { display: grid; place-items: center; height: 20px; border-radius: var(--radius-sm); }
+.stats-dot-hit:hover { background: var(--bg-row-hover); }
+.stats-dot { width: 12px; height: 12px; border-radius: 50%; background: var(--accent); }
+.stats-hours-axis span { font-size: 10px; color: var(--text-muted); white-space: nowrap; overflow: visible; }
+
+.stats-tip {
+  position: absolute; z-index: 2; transform: translate(-50%, calc(-100% - 6px)); pointer-events: none; white-space: nowrap;
+  padding: 4px 8px; border-radius: var(--radius-md); background: var(--bg-panel); box-shadow: var(--shadow-panel);
+  border: 1px solid var(--border-default); font-size: var(--text-xs); color: var(--text-emphasis);
+}
+
+/* Top people: name, a quiet bar, the count. */
+.stats-people { display: grid; grid-template-columns: 1fr 1fr; gap: 28px; }
+.stats-people-list { list-style: none; margin: 0; padding: 0; }
+.stats-people-list li { display: grid; grid-template-columns: minmax(0, 1fr) 80px 40px; align-items: center; gap: 10px; height: 28px; font-size: var(--text-sm); }
+.stats-person { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text-default); }
+.stats-bar { height: 6px; border-radius: 3px; background: var(--accent-soft); justify-self: start; min-width: 4px; }
+.stats-count { text-align: right; color: var(--text-muted); font-size: var(--text-xs); }
+@media (max-width: 760px) { .stats-people { grid-template-columns: 1fr; gap: 0; } }

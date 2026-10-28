@@ -1,0 +1,32 @@
+/* Settings → Accounts → Pair iPhone (PairIphone.tsx). The dialog reuses
+   .st-scrim / .st-confirm; the QR code stays black on white in both themes. */
+.st-pair { width: 480px; max-height: calc(100vh - 48px); overflow-y: auto; }
+.st-pair-body { display: flex; gap: 18px; align-items: center; margin: 4px 0 12px; }
+.st-pair-qr {
+  width: 188px; height: 188px; flex: none; border-radius: var(--radius-lg);
+  border: 1px solid var(--border-default); background: #fff;
+}
+.st-pair-steps { margin: 0; padding-left: 18px; display: flex; flex-direction: column; gap: 8px; font-size: var(--text-sm); color: var(--text-default); }
+.st-pair-steps b { font-weight: 600; color: var(--text-emphasis); }
+.st-pair-summary { margin-top: 12px; font-size: var(--text-xs); color: var(--text-default); }
+.st-pair-summary > summary { cursor: default; color: var(--text-default); }
+.st-pair-summary > .st-muted { margin-top: 6px; }
+.st-pair-accounts { list-style: none; margin: 8px 0 0; padding: 0; display: flex; flex-direction: column; }
+.st-pair-accounts li { display: flex; align-items: center; gap: 8px; min-height: 30px; padding: 4px 0; font-size: var(--text-xs); }
+.st-pair-accounts li + li { border-top: 1px solid var(--border-subtle); }
+.st-pair-accounts .grow { display: flex; flex-direction: column; }
+.st-pair-email { color: var(--text-default); }
+.st-pair-reason { line-height: 16px; }
+.st-pair-status { flex: none; font-size: var(--text-2xs); padding: 1px 6px; border-radius: 999px; background: var(--bg-subtle); color: var(--text-muted); }
+.st-pair-status.is-token { background: var(--green-a3); color: var(--green-a11); }
+.st-pair-status.is-signIn { background: var(--amber-a3); color: var(--amber-a11); }
+.st-pair-code { font-size: var(--text-sm); margin: 10px 0; color: var(--text-default); }
+.st-pair-code b { font-family: var(--font-mono); font-size: var(--text-base); letter-spacing: 0.06em; color: var(--text-emphasis); margin-left: 4px; }
+.st-pair-note {
+  font-size: var(--text-xs); line-height: 18px; padding: 8px 10px; margin: 8px 0;
+  border-radius: var(--radius-lg); background: var(--amber-a3); color: var(--amber-a11);
+}
+.st-pair-where { margin-top: 10px; font-family: var(--font-mono); font-size: var(--text-2xs); }
+.st-pair-done { color: var(--green-a11); display: flex; align-items: center; gap: 8px; }
+.st-pair-failed { list-style: none; margin: 8px 0 0; padding: 0; }
+.st-pair-row .btn { flex: none; display: inline-flex; align-items: center; gap: 6px; }

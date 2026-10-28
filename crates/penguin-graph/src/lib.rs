@@ -2,7 +2,8 @@
 //! Microsoft Graph, behind the provider seam (`penguin-provider`).
 //!
 //! - [`auth`]: sign-in with the user's own Entra app (public client, PKCE,
-//!   `/common`, loopback redirect), refresh tokens in the Keychain, access
+//!   `/common`; a loopback redirect on the Mac, the app's own redirect URI
+//!   in a web sheet on the iPhone), refresh tokens in the Keychain, access
 //!   tokens in memory; AADSTS errors keep their code.
 //! - [`GraphProvider`] (`provider.rs`, `drafts.rs`): one account's
 //!   `MailProvider`: messages, attachments, headers, MIME source, label
@@ -44,7 +45,7 @@ use std::sync::{Arc, OnceLock};
 
 use penguin_provider::credentials::{MicrosoftCredential, SecretVault, MICROSOFT_SERVICE};
 
-pub use auth::{Auth, SignInUi, SignedIn, SCOPES};
+pub use auth::{Auth, RedirectSignIn, SignInUi, SignedIn, SCOPES};
 pub use client::GraphClient;
 pub use http::{Endpoints, ReqwestTransport, Transport};
 pub use provider::GraphProvider;

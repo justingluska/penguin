@@ -1,5 +1,5 @@
 //! DNS lookups through the system resolver (libresolv), so the query goes
-//! wherever the Mac's DNS already goes; no DNS-over-HTTPS provider learns who
+//! wherever the device's DNS already goes; no DNS-over-HTTPS provider learns who
 //! writes to you. TXT for BIMI (avatars), MX for provider detection when an
 //! account is added (src/providers/). One query at a time: the classic
 //! `res_query` API keeps global state.
@@ -44,14 +44,14 @@ pub fn mx(name: &str) -> Result<Vec<(u16, String)>, String> {
     Ok(records)
 }
 
-#[cfg(any(target_os = "macos", target_os = "linux"))]
+#[cfg(any(target_os = "macos", target_os = "ios", target_os = "linux"))]
 fn query(name: &str, typ: u16) -> Result<Option<Vec<u8>>, String> {
     use std::ffi::{c_char, c_int, c_uchar, CString};
 
     #[link(name = "resolv")]
     extern "C" {
         // Apple's libresolv exports the BIND 9 names.
-        #[cfg_attr(target_os = "macos", link_name = "res_9_query")]
+        #[cfg_attr(any(target_os = "macos", target_os = "ios"), link_name = "res_9_query")]
         // glibc 2.34+ exports res_query itself; __res_query is kept only for old binaries.
         #[cfg_attr(target_os = "linux", link_name = "res_query")]
         fn res_query(
@@ -62,7 +62,7 @@ fn query(name: &str, typ: u16) -> Result<Option<Vec<u8>>, String> {
             anslen: c_int,
         ) -> c_int;
     }
-    #[cfg(target_os = "macos")]
+    #[cfg(any(target_os = "macos", target_os = "ios"))]
     extern "C" {
         static h_errno: c_int;
     }
@@ -89,7 +89,7 @@ fn query(name: &str, typ: u16) -> Result<Option<Vec<u8>>, String> {
     };
     if n < 0 {
         // SAFETY: read right after the failed call, still under the lock.
-        #[cfg(target_os = "macos")]
+        #[cfg(any(target_os = "macos", target_os = "ios"))]
         let err = unsafe { h_errno };
         #[cfg(target_os = "linux")]
         let err = unsafe { *__h_errno_location() };
@@ -104,7 +104,7 @@ fn query(name: &str, typ: u16) -> Result<Option<Vec<u8>>, String> {
     Ok(Some(buf))
 }
 
-#[cfg(not(any(target_os = "macos", target_os = "linux")))]
+#[cfg(not(any(target_os = "macos", target_os = "ios", target_os = "linux")))]
 fn query(_name: &str, _typ: u16) -> Result<Option<Vec<u8>>, String> {
     Err("DNS lookups are not supported on this platform".into())
 }

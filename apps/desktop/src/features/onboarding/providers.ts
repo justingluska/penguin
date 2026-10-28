@@ -171,6 +171,20 @@ export const GMAIL_QUICK: PasswordGuide = {
   placeholder: "16 letters from Google",
 };
 
+/**
+ * The password guide for reconnecting an IMAP account, from what detection
+ * saw when it was added (`providerConfig.host`; Gmail quick setup is "gmail",
+ * Proton Mail Bridge a generic server on this Mac). Null: a plain server
+ * password with no guide.
+ */
+export function reconnectGuide(config: { host?: string | null; imap?: { host: string } | null } | undefined): PasswordGuide | null {
+  const host = config?.host;
+  if (host === "gmail") return GMAIL_QUICK;
+  if (host === "yahoo" || host === "aol" || host === "icloud" || host === "fastmail") return PASSWORD_GUIDES[host];
+  if (/^(127\.0\.0\.1|localhost|::1)$/i.test(config?.imap?.host ?? "")) return PASSWORD_GUIDES.proton;
+  return null;
+}
+
 /** Shown next to the quick setup password field. */
 export const GMAIL_QUICK_DISCLOSURE =
   "An app password gives full access to your Google account, can't be limited, and can be revoked any time in your Google Account. Sync is slower than with your own Google Cloud project.";

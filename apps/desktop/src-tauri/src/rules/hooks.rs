@@ -165,13 +165,41 @@ pub async fn run_hook(
     stdin: &[u8],
     timeout: Duration,
 ) -> Result<String, String> {
+    run_program(
+        program,
+        args,
+        env,
+        stdin,
+        timeout,
+        &std::env::temp_dir(),
+        None,
+    )
+    .await
+    .map(|_| "exit 0".into())
+}
+
+/// `run_hook` in `cwd`, keeping up to `stdout_max` bytes of what the program
+/// printed (None: stdout is discarded). Extensions read their answer there.
+pub async fn run_program(
+    program: &Path,
+    args: &[String],
+    env: &[(String, String)],
+    stdin: &[u8],
+    timeout: Duration,
+    cwd: &Path,
+    stdout_max: Option<usize>,
+) -> Result<Vec<u8>, String> {
     let mut cmd = tokio::process::Command::new(program);
     cmd.args(args)
         .env_clear()
         .envs(env.iter().map(|(k, v)| (k, v)))
-        .current_dir(std::env::temp_dir())
+        .current_dir(cwd)
         .stdin(Stdio::piped())
-        .stdout(Stdio::null())
+        .stdout(if stdout_max.is_some() {
+            Stdio::piped()
+        } else {
+            Stdio::null()
+        })
         .stderr(Stdio::piped())
         .kill_on_drop(true);
     let mut child = cmd
@@ -190,7 +218,10 @@ pub async fn run_hook(
     match tokio::time::timeout(timeout, run).await {
         Err(_) => Err(format!("timed out after {}s", timeout.as_secs())),
         Ok(Err(e)) => Err(format!("hook failed: {e}")),
-        Ok(Ok(out)) if out.status.success() => Ok("exit 0".into()),
+        Ok(Ok(mut out)) if out.status.success() => {
+            out.stdout.truncate(stdout_max.unwrap_or(0));
+            Ok(out.stdout)
+        }
         Ok(Ok(out)) => {
             let stderr = String::from_utf8_lossy(&out.stderr);
             let excerpt: String = stderr.trim().chars().take(MAX_STDERR_LOG).collect();

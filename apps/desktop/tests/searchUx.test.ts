@@ -116,6 +116,7 @@ const hit = (from: Address, labelIds: string[], hasAttachments: boolean, n: numb
   subject: "s",
   from,
   date: n,
+  lastDate: n,
   snippetHtml: "",
   matchCount: 1,
   labelIds,

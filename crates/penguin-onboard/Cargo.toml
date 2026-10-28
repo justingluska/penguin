@@ -1,0 +1,24 @@
+[package]
+name = "penguin-onboard"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish = false
+description = "Adding a mail account: which provider hosts an address (domain table, MX, autoconfig and Thunderbird's ISPDB) and the checked connect request. Shared by the Mac app and the iPhone app."
+
+[dependencies]
+penguin-core.workspace = true
+# The system resolver (MX) and the hardened HTTPS client (autoconfig files):
+# the same code the sender avatars use, on the Mac and on the iPhone.
+penguin-avatars.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+tokio = { workspace = true, features = ["rt", "time", "macros"] }
+tracing.workspace = true
+# Autoconfig XML; already in the tree via resvg/usvg. Refuses DTDs by default.
+roxmltree = "0.20"
+# International domains → punycode.
+url = "2"
+
+[dev-dependencies]
+tokio = { workspace = true, features = ["rt-multi-thread", "macros", "test-util"] }

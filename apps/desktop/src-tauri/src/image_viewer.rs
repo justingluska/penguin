@@ -25,7 +25,8 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use tauri::State;
 
-use crate::avatars::net::{acceptable_url, FetchError, HttpNet, Net};
+use crate::avatars::net::{acceptable_url, HttpNet};
+use penguin_avatars::picture::{data_picture, fetch_remote_picture, PictureError};
 use crate::error::{CmdError, CmdResult, ErrorCode};
 use crate::ops;
 use crate::state::{blocking, AppState};
@@ -37,7 +38,7 @@ pub const SCHEME: &str = "penguin-image";
 /// Emitted to the UI for each well-formed click on such an anchor.
 pub const EVENT_IMAGE_OPEN: &str = "penguin://image-open";
 /// The largest picture Save / Copy handles (the attachment preview's limit).
-pub const MAX_IMAGE_BYTES: usize = 20 * 1024 * 1024;
+pub const MAX_IMAGE_BYTES: usize = penguin_avatars::picture::MAX_PICTURE_BYTES;
 /// Viewer indexes are small counters (the UI decorates at most a few hundred).
 const MAX_INDEX: u32 = 9999;
 
@@ -95,31 +96,13 @@ enum Source {
     Remote(reqwest::Url),
 }
 
-/// The image types penguin-render lets through as `data:` URLs.
-const DATA_PREFIXES: &[&str] = &[
-    "data:image/png;base64,",
-    "data:image/jpeg;base64,",
-    "data:image/gif;base64,",
-    "data:image/webp;base64,",
-    "data:image/bmp;base64,",
-    "data:image/avif;base64,",
-    "data:image/x-icon;base64,",
-];
-
 fn source(url: &str) -> CmdResult<Source> {
     let url = url.trim();
-    if let Some(prefix) = DATA_PREFIXES
-        .iter()
-        .find(|p| url.len() >= p.len() && url[..p.len()].eq_ignore_ascii_case(p))
-    {
-        let b64 = &url[prefix.len()..];
-        if b64.len() > MAX_IMAGE_BYTES / 3 * 4 + 4 {
-            return Err(CmdError::invalid("That picture is too large to save"));
-        }
-        let bytes = base64::engine::general_purpose::STANDARD
-            .decode(b64)
-            .map_err(|_| CmdError::invalid("That picture's data is damaged"))?;
-        return Ok(Source::Data(bytes));
+    // The data: image types penguin-render embeds (shared with the iPhone).
+    if let Some(bytes) = data_picture(url) {
+        return bytes
+            .map(Source::Data)
+            .map_err(|e| CmdError::invalid(e.to_string()));
     }
     let parsed = reqwest::Url::parse(url)
         .map_err(|_| CmdError::invalid("Not a picture Penguin can save"))?;
@@ -130,23 +113,8 @@ fn source(url: &str) -> CmdResult<Source> {
 }
 
 /// The image type the bytes really are; the attachment sniffer's four plus
-/// the other types the renderer embeds.
-fn sniff(bytes: &[u8]) -> Option<&'static str> {
-    crate::attachments::sniff_image(bytes).or_else(|| {
-        if bytes.starts_with(b"BM") && bytes.len() > 14 {
-            Some("image/bmp")
-        } else if bytes.starts_with(&[0, 0, 1, 0]) && bytes.len() > 6 {
-            Some("image/x-icon")
-        } else if bytes.len() >= 12
-            && &bytes[4..8] == b"ftyp"
-            && matches!(&bytes[8..12], b"avif" | b"avis")
-        {
-            Some("image/avif")
-        } else {
-            None
-        }
-    })
-}
+/// the other types the renderer embeds (shared with the iPhone).
+use penguin_avatars::picture::sniff_picture as sniff;
 
 fn extension(mime: &str) -> &'static str {
     match mime {
@@ -192,26 +160,16 @@ async fn fetch(source: Source) -> CmdResult<(Vec<u8>, &'static str)> {
     let bytes = match source {
         Source::Data(bytes) => bytes,
         Source::Remote(url) => {
-            let host = url.host_str().unwrap_or("").to_string();
-            let got = HttpNet::new()
-                .get(url.as_str(), MAX_IMAGE_BYTES, None)
-                .await;
-            match got {
-                Ok(bytes) => bytes,
-                Err(FetchError::Transient(e)) => {
-                    tracing::warn!(host = %host, error = %e, "message image fetch failed");
-                    return Err(CmdError::new(
-                        ErrorCode::Network,
-                        format!("Couldn't reach {host}"),
-                    ));
-                }
-                Err(_) => {
-                    tracing::warn!(host = %host, "message image unavailable");
-                    return Err(CmdError::not_found(format!(
-                        "{host} didn't return the picture"
-                    )));
-                }
-            }
+            // The same hardened fetch the iPhone's viewer uses.
+            return fetch_remote_picture(&HttpNet::new(), url.as_str())
+                .await
+                .map_err(|e| match e {
+                    PictureError::Unreachable { .. } => {
+                        CmdError::new(ErrorCode::Network, e.to_string())
+                    }
+                    PictureError::Unavailable { .. } => CmdError::not_found(e.to_string()),
+                    _ => CmdError::invalid(e.to_string()),
+                });
         }
     };
     if bytes.len() > MAX_IMAGE_BYTES {

@@ -516,6 +516,35 @@ pub struct SmartCount {
 /// account's Reply Later conversations. Created on first use.
 pub const REPLY_LATER_LABEL: &str = "Reply Later";
 
+/// Gmail's label name limit, in characters.
+pub const MAX_LABEL_NAME_CHARS: usize = 225;
+
+/// A label name as typed, checked the way every Penguin edits one (the
+/// Mac's `update_label`, the iPhone's create and rename): trimmed, not
+/// empty, at most [`MAX_LABEL_NAME_CHARS`] characters, no control
+/// characters; "/" nests ("Clients/Acme") but no level may be blank. Err is
+/// a user-facing message.
+pub fn validate_label_name(raw: &str) -> std::result::Result<String, String> {
+    let n = raw.trim();
+    if n.is_empty() {
+        return Err("A label needs a name.".into());
+    }
+    if n.chars().any(char::is_control) {
+        return Err("A label name can't contain control characters.".into());
+    }
+    if n.chars().count() > MAX_LABEL_NAME_CHARS {
+        return Err(format!(
+            "Keep the label name to {MAX_LABEL_NAME_CHARS} characters."
+        ));
+    }
+    if n.split('/').any(|part| part.trim().is_empty()) {
+        return Err(
+            "Each level of a nested label needs a name (no empty parts around \"/\").".into(),
+        );
+    }
+    Ok(n.to_string())
+}
+
 /// Follow up: how long a sent message waits before it's listed (days).
 pub const FOLLOW_UP_DAYS_DEFAULT: u32 = 3;
 pub const FOLLOW_UP_DAYS_MIN: u32 = 1;
@@ -524,7 +553,7 @@ pub const FOLLOW_UP_DAYS_MAX: u32 = 14;
 /// history, not a nudge.
 pub const FOLLOW_UP_LOOKBACK_DAYS: u32 = 60;
 
-/// Per-account sizes of the Reply Later and Follow up views (sidebar counts).
+/// Per-account sizes of the Reply Later, Follow up and Drafts views (sidebar counts).
 /// Mirrored in `apps/desktop/src/lib/types.ts`.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
@@ -532,6 +561,8 @@ pub struct TriageCount {
     pub account_id: AccountId,
     pub reply_later: u32,
     pub follow_up: u32,
+    /// Conversations holding an unsent draft (the Drafts view).
+    pub drafts: u32,
 }
 
 /// Split-inbox tabs, only meaningful for `MailboxView::Inbox`.
@@ -662,7 +693,12 @@ pub struct SearchHit {
     pub message_id: String,
     pub subject: String,
     pub from: Address,
+    /// When the matching message (`message_id`) was sent.
     pub date: i64,
+    /// The conversation's newest message, as the inbox dates it (never older
+    /// than `date`): what result rows show and "Newest first" sorts by.
+    #[serde(default)]
+    pub last_date: i64,
     /// Matching excerpt; matched terms wrapped in <mark>…</mark>, everything else HTML-escaped.
     pub snippet_html: String,
     /// Number of matching messages in this thread.
@@ -943,6 +979,11 @@ pub struct ScheduledSend {
     /// Failed attempts so far.
     pub attempts: u32,
     pub last_error: Option<String>,
+    /// Scheduled on another device (Sync with iCloud), which sends it; this
+    /// one shows it, can cancel it, and takes over only if that device
+    /// hasn't sent it well after it was due (penguin_sync::outbox).
+    #[serde(default)]
+    pub elsewhere: bool,
 }
 
 /// "Remind me if no reply": at `remind_at`, if the thread has no message
@@ -1365,4 +1406,56 @@ pub struct ReplySuggestions {
     /// `summary::version_key` of the messages it read.
     pub version: String,
     pub replies: Vec<String>,
+}
+
+/// Settings → Stats: what you sent and received over the last year, all read
+/// from the local store ([`crate::Store::mail_stats`]). Days and hours are
+/// in the Mac's local time.
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct MailStats {
+    /// One entry per local day, oldest first, ending today (365 of them).
+    pub days: Vec<StatsDay>,
+    pub sent: u32,
+    pub received: u32,
+    /// Days in `days` with at least one message sent.
+    pub active_days: u32,
+    /// Consecutive days with a send, ending today (or yesterday when today
+    /// has none yet).
+    pub current_streak: u32,
+    pub longest_streak: u32,
+    /// Sends by local weekday (0 = Monday) and hour (0–23).
+    pub sent_by_hour: Vec<Vec<u32>>,
+    /// Median minutes from a message you received to your reply in the same
+    /// conversation; None with no replies in the year.
+    pub median_reply_minutes: Option<u32>,
+    pub replies: u32,
+    /// Of `replies`, those sent within an hour.
+    pub replies_within_hour: u32,
+    /// Received messages that were newsletters or other bulk mail.
+    pub received_newsletters: u32,
+    /// The people you wrote to most this year (To, Cc and Bcc).
+    pub top_recipients: Vec<StatsPerson>,
+    /// The people who wrote to you most this year (newsletters left out).
+    pub top_senders: Vec<StatsPerson>,
+    /// Unix ms of the oldest message stored, so the page can say how far
+    /// back the numbers can see. None for an empty mailbox.
+    pub oldest_message: Option<i64>,
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct StatsDay {
+    /// Local date, YYYY-MM-DD.
+    pub date: String,
+    pub sent: u32,
+    pub received: u32,
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct StatsPerson {
+    pub email: String,
+    pub name: Option<String>,
+    pub count: u32,
 }

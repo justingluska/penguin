@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  Merged by the Tauri CLI into the Info.plist it generates for the bundle
+  (and by tauri-codegen into a dev binary's): only keys Tauri doesn't write.
+  NSUserActivityTypes: the Handoff activities Penguin offers and continues,
+  shared with the iPhone app (src/handoff.rs has the contract).
+-->
+<plist version="1.0">
+<dict>
+	<key>NSUserActivityTypes</key>
+	<array>
+		<string>co.gluska.penguin.conversation</string>
+		<string>co.gluska.penguin.draft</string>
+	</array>
+</dict>
+</plist>

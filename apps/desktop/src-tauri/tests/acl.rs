@@ -114,13 +114,29 @@ fn secondary_windows_get_only_what_they_need() {
     }
     // Conversation windows copy attachments as files; compose windows
     // preview the files about to go out. Both, like the main window.
-    for cmd in ["copy_attachment_file", "preview_outgoing_file"] {
+    for cmd in ["copy_attachment_file", "preview_outgoing_file", "quick_look_attachment"] {
         assert!(
             WINDOWS.contains(&perm(cmd)),
             "windows.json must grant {cmd}"
         );
         assert!(MAIN.contains(&perm(cmd)), "default.json must grant {cmd}");
     }
+    // Extension buttons sit in every message header, so conversation windows
+    // list and run them; allowing one and opening the folder are Settings',
+    // which lives in the main window.
+    for cmd in ["list_extensions", "run_extension_action"] {
+        assert!(WINDOWS.contains(&perm(cmd)), "windows.json must grant {cmd}");
+        assert!(MAIN.contains(&perm(cmd)), "default.json must grant {cmd}");
+    }
+    for cmd in ["set_extension_allowed", "open_extensions_folder"] {
+        assert!(!WINDOWS.contains(&perm(cmd)), "windows.json must not grant {cmd}");
+        assert!(MAIN.contains(&perm(cmd)), "default.json must grant {cmd}");
+    }
+    // Every window says what Handoff offers; only the main window opens
+    // what the iPhone hands over.
+    assert!(WINDOWS.contains(&perm("set_handoff_activity")));
+    assert!(MAIN.contains(&perm("set_handoff_activity")));
+    assert!(!WINDOWS.contains(&perm("take_handoff_open")));
     // The main window has no seed to take.
     assert!(!MAIN.contains(&perm("take_window_seed")));
     assert!(MAIN.contains(&perm("open_window")));

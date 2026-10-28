@@ -68,6 +68,12 @@ Mail search adds query-independent priors on top (recency, starred…), and the 
 | The query has a code and the message matched by words | +0.15 | The message holds the identifier. |
 | Bulk mail (List-Unsubscribe, Promotions/Updates/Forums) matched by meaning | −0.15 | Newsletters are topically close to everything. A travel digest mentioning Lisbon is near "plane tickets to portugal", but it is rarely what someone searching their own mail wants. |
 
+### Person lookup
+
+A query that only names people you correspond with ("mike", "mike delgado", "crestline": every word is a single plain word, and some address you've written to or heard from answers to all of them) is a lookup of your conversations with them. After ranking, conversations with a message from, to or cc them that matches the words come first, ordered by the conversation's newest activity, and each is shown and opened at its newest such message. Everything else that matched follows in its usual order (`search.rs` `person_lookup`, `people_first`). In the search window, Threads come right after Top results; Calendar and Attachments follow, except for a file search (`has:`, `filename:`, sizes), where the files stay first.
+
+Measured on the harness (2026-10-05, keyword): every category unchanged except name, nDCG@10 0.981 → 0.941 (p = 0.06, 0 wins / 5 losses: `priya`, `Priya Shah`, `theo laurent`, `dana`, `omar haddad`). The harness grades only mail *from* the person as the answer (grade 2) and conversations you sent them as related (grade 1); the lookup deliberately puts your newest conversation with them first whichever side wrote last, which is what people asked for.
+
 ## Measured quality
 
 ### The shared harness (200 queries, 19,183 messages)

@@ -1,0 +1,362 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Envelope",
+  "description": "Every payload: `{\"schemaVersion\": 1, \"kind\": \"...\", \"data\": {...}}`.",
+  "type": "object",
+  "properties": {
+    "data": {
+      "$ref": "#/$defs/ExtensionActionOut"
+    },
+    "kind": {
+      "description": "\"search\" | \"thread\" | \"threads\" | \"labels\" | \"people\" | \"accounts\" | \"attachmentText\" | \"attachments\" | \"attachment\" | \"ask\" | \"draft\" | \"drafts\" | \"draftDeleted\" | \"sendQueued\" | \"shareLink\" | \"ruleMatch\" | \"error\"",
+      "type": "string"
+    },
+    "schemaVersion": {
+      "type": "integer",
+      "format": "uint32",
+      "minimum": 0
+    }
+  },
+  "required": [
+    "schemaVersion",
+    "kind",
+    "data"
+  ],
+  "$defs": {
+    "AddressOut": {
+      "type": "object",
+      "properties": {
+        "email": {
+          "type": "string"
+        },
+        "name": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "email"
+      ]
+    },
+    "AttachmentOut": {
+      "type": "object",
+      "properties": {
+        "filename": {
+          "type": "string"
+        },
+        "id": {
+          "type": "string"
+        },
+        "mimeType": {
+          "type": "string"
+        },
+        "size": {
+          "type": "integer",
+          "format": "uint64",
+          "minimum": 0
+        }
+      },
+      "required": [
+        "id",
+        "filename",
+        "mimeType",
+        "size"
+      ]
+    },
+    "ContinuationOut": {
+      "type": "object",
+      "properties": {
+        "choice": {
+          "description": "The picked choice's `value`; null when the confirm had no choices.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "state": {
+          "description": "The confirm's `state`, unchanged (null when it had none).",
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      }
+    },
+    "ExtensionActionOut": {
+      "type": "object",
+      "properties": {
+        "accountEmail": {
+          "description": "The account's address.",
+          "type": "string"
+        },
+        "accountId": {
+          "type": "string"
+        },
+        "action": {
+          "$ref": "#/$defs/NamedRef"
+        },
+        "continuation": {
+          "description": "Only on a run after the person confirmed what the program asked.",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ContinuationOut"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "extension": {
+          "$ref": "#/$defs/NamedRef"
+        },
+        "form": {
+          "description": "The form's answers by field id; a checkbox is \"true\" or \"false\".",
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          }
+        },
+        "includesBody": {
+          "description": "False: the message's `text` is empty and `fullText` null (the action\ndoesn't ask for message bodies).",
+          "type": "boolean"
+        },
+        "includesThread": {
+          "description": "True: `thread` is there (the action asks for the whole conversation).",
+          "type": "boolean"
+        },
+        "message": {
+          "$ref": "#/$defs/MessageOut"
+        },
+        "thread": {
+          "description": "The whole conversation; only when the action has `includeThread`.",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ExtensionThreadOut"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "threadId": {
+          "type": "string"
+        },
+        "webUrl": {
+          "description": "The conversation in the provider's web app (Gmail), when there is one.",
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "extension",
+        "action",
+        "accountId",
+        "accountEmail",
+        "threadId",
+        "includesBody",
+        "includesThread",
+        "message",
+        "form"
+      ]
+    },
+    "ExtensionThreadOut": {
+      "type": "object",
+      "properties": {
+        "messages": {
+          "description": "Oldest first; the clicked message is one of them.",
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ThreadMessageOut"
+          }
+        },
+        "truncated": {
+          "description": "The conversation's text didn't fit in 100,000 characters: the oldest\nmessages were left out (and the newest cut, if it alone was too long).",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "messages",
+        "truncated"
+      ]
+    },
+    "MessageOut": {
+      "type": "object",
+      "properties": {
+        "attachments": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/AttachmentOut"
+          }
+        },
+        "bcc": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/AddressOut"
+          }
+        },
+        "bodyPending": {
+          "description": "Only headers are stored locally (outside the sync window); the body\nhasn't been downloaded, so `text` is empty. Opening it in Penguin\nfetches it.",
+          "type": "boolean"
+        },
+        "cc": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/AddressOut"
+          }
+        },
+        "date": {
+          "type": "integer",
+          "format": "int64"
+        },
+        "dateIso": {
+          "type": "string"
+        },
+        "from": {
+          "$ref": "#/$defs/AddressOut"
+        },
+        "fullText": {
+          "description": "The full plain-text body including quotes; only when requested.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "id": {
+          "type": "string"
+        },
+        "inlineImages": {
+          "description": "Pictures embedded in the body (cid:), apart from `attachments`;\nget_attachment returns them as images.",
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/AttachmentOut"
+          }
+        },
+        "labelIds": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "quotedChars": {
+          "description": "Characters of quoted history removed from `text`.",
+          "type": "integer",
+          "format": "uint",
+          "minimum": 0
+        },
+        "starred": {
+          "type": "boolean"
+        },
+        "subject": {
+          "type": "string"
+        },
+        "text": {
+          "description": "Plain text the sender wrote, with quoted reply history removed.",
+          "type": "string"
+        },
+        "to": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/AddressOut"
+          }
+        },
+        "truncated": {
+          "description": "`text` (and `fullText`) were cut to the requested maximum.",
+          "type": "boolean"
+        },
+        "unread": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "id",
+        "date",
+        "dateIso",
+        "from",
+        "to",
+        "cc",
+        "bcc",
+        "subject",
+        "labelIds",
+        "unread",
+        "starred",
+        "attachments",
+        "inlineImages",
+        "text",
+        "quotedChars",
+        "truncated",
+        "bodyPending"
+      ]
+    },
+    "NamedRef": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "name"
+      ]
+    },
+    "ThreadMessageOut": {
+      "type": "object",
+      "properties": {
+        "bodyPending": {
+          "description": "The body couldn't be downloaded (offline, or the server no longer has\nit), so `text` is empty.",
+          "type": "boolean"
+        },
+        "cc": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/AddressOut"
+          }
+        },
+        "dateIso": {
+          "type": "string"
+        },
+        "from": {
+          "$ref": "#/$defs/AddressOut"
+        },
+        "id": {
+          "type": "string"
+        },
+        "subject": {
+          "type": "string"
+        },
+        "text": {
+          "description": "Plain text the sender wrote, with quoted reply history removed.",
+          "type": "string"
+        },
+        "to": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/AddressOut"
+          }
+        },
+        "truncated": {
+          "description": "`text` was cut to fit.",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "id",
+        "dateIso",
+        "from",
+        "to",
+        "cc",
+        "subject",
+        "text",
+        "truncated",
+        "bodyPending"
+      ]
+    }
+  }
+}

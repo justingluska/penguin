@@ -256,14 +256,16 @@ function RefreshButton() {
   );
 }
 
-/** Get to zero (features/zero): over the inbox or the open split, while it has mail and the setting is on. */
+/** Get to zero (features/zero): over the inbox or the open split, while it has mail and both settings are on. */
 function GetToZeroButton() {
-  const on = useSetting("getToZero");
+  const feature = useSetting("getToZero");
+  const button = useSetting("getToZeroButton");
+  const on = feature && button;
   const n = list.use((l) => l.items.length);
   if (!on || n === 0) return null;
   return (
     <button className="btn btn-ghost btn-icon" title="Get to zero: archive older conversations" aria-label="Get to zero" onClick={openGetToZero}>
-      <Icon name="done" size="sm" />
+      <Icon name="archive" size="sm" />
     </button>
   );
 }

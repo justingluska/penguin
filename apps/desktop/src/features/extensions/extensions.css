@@ -1,0 +1,103 @@
+/* Extensions: header buttons, the action form, Settings → Extensions. */
+img.ext-icon { display: inline-block; object-fit: contain; flex: none; }
+
+/* The action sheet (ExtensionForm.tsx): a header with the action and its
+   extension, the email as context, fields with their labels above, and a
+   footer with the key hint, Cancel and the primary button on the right.
+   Hovers are static: no transitions. */
+.ext-sheet { width: min(520px, calc(100vw - 32px)); padding: 0; }
+.ext-sheet .btn { transition: none; }
+.ext-sheet-body { display: flex; flex-direction: column; flex: 1 1 auto; min-height: 0; padding: 20px 20px 0; outline: none; }
+.ext-head { display: flex; align-items: flex-start; gap: 12px; }
+.ext-head-icon {
+  display: inline-flex; align-items: center; justify-content: center; flex: none;
+  width: 32px; height: 32px; border-radius: var(--radius-lg);
+  background: var(--bg-elevated); border: 1px solid var(--border-subtle); color: var(--text-default);
+}
+.ext-head-text { min-width: 0; padding-top: 1px; }
+.st-confirm .ext-title { margin: 0; font-size: var(--text-lg); line-height: 22px; letter-spacing: -0.2px; font-weight: 600; color: var(--text-emphasis); }
+.modal p.ext-sub { margin: 1px 0 0; font-size: var(--text-xs); line-height: 16px; color: var(--text-muted); }
+.ext-context {
+  display: flex; align-items: center; gap: 8px; min-width: 0;
+  margin-top: 16px; padding: 7px 10px;
+  border-radius: var(--radius-lg); background: var(--bg-subtle); border: 1px solid var(--border-subtle);
+  font-size: var(--text-xs); color: var(--text-muted);
+}
+.ext-context .i { flex: none; color: var(--text-faint); }
+.ext-context-subject { color: var(--text-default); font-weight: 500; flex: 0 1 auto; }
+.ext-context-from { margin-left: auto; flex: 0 1 auto; max-width: 40%; color: var(--text-faint); }
+.ext-scroll { margin-top: 18px; padding-bottom: 2px; }
+
+.ext-fields { display: flex; flex-direction: column; gap: 14px; }
+.ext-field { display: flex; flex-direction: column; gap: 6px; }
+.ext-field .input { width: 100%; color: var(--text-emphasis); }
+.ext-field .input::placeholder { color: var(--text-placeholder); }
+.ext-field .input:focus { outline: none; border-color: var(--accent); }
+.ext-field .input[readonly] { color: var(--text-muted); }
+.ext-label { font-size: var(--text-xs); font-weight: 500; color: var(--text-muted); }
+.ext-req { color: var(--text-faint); }
+.ext-textarea { resize: vertical; min-height: 88px; font: inherit; font-size: var(--text-base); line-height: 20px; padding-top: 8px; padding-bottom: 8px; height: auto; }
+.ext-textarea.is-solo { min-height: 168px; }
+.ext-check { display: flex; align-items: center; gap: 8px; font-size: var(--text-sm); color: var(--text-default); }
+
+.modal p.ext-error {
+  display: flex; align-items: flex-start; gap: 8px;
+  margin: 14px 0 0; padding: 8px 10px; border-radius: var(--radius-lg);
+  background: var(--red-a3); color: var(--red-a11); font-size: var(--text-xs); line-height: 18px;
+  user-select: text; -webkit-user-select: text;
+}
+.ext-error .i { flex: none; margin-top: 3px; }
+.ext-error span { overflow-wrap: anywhere; }
+
+.ext-foot {
+  display: flex; align-items: center; justify-content: flex-end; gap: 8px; flex: none;
+  margin-top: 20px; padding: 12px 20px;
+  border-top: 1px solid var(--border-subtle);
+}
+.ext-hint { display: inline-flex; align-items: center; gap: 6px; margin-right: auto; font-size: var(--text-xs); color: var(--text-faint); }
+.ext-run { min-width: 96px; }
+.ext-run:disabled { opacity: .45; cursor: default; }
+.ext-run .ext-spinner { border-color: currentColor; border-top-color: transparent; opacity: .7; }
+
+/* The confirm step: what will happen, in order, then the choice. */
+.ext-confirm { display: flex; flex-direction: column; gap: 16px; }
+.ext-steps { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; border: 1px solid var(--border-default); border-radius: var(--radius-xl); }
+.ext-step { display: flex; align-items: flex-start; gap: 10px; padding: 9px 8px 9px 12px; min-width: 0; }
+.ext-step + .ext-step { border-top: 1px solid var(--border-subtle); }
+.ext-step-n {
+  flex: none; width: 18px; height: 18px; margin-top: 1px; border-radius: 50%;
+  display: inline-flex; align-items: center; justify-content: center;
+  font: 500 11px/1 var(--font-mono); color: var(--text-muted); background: var(--bg-elevated);
+}
+.ext-step-text { flex: 1; min-width: 0; font-size: var(--text-sm); line-height: 20px; color: var(--text-default); overflow-wrap: anywhere; }
+.ext-step-link { flex: none; margin: -2px 0; color: var(--text-muted); }
+.ext-choices { display: flex; flex-direction: column; gap: 4px; }
+.ext-choice {
+  display: flex; align-items: center; gap: 10px; min-width: 0;
+  padding: 8px 10px; border-radius: var(--radius-xl); cursor: default;
+  border: 1px solid var(--border-default);
+}
+.ext-choice:hover { background: var(--bg-row-hover); }
+.ext-choice.is-on { background: var(--bg-row-selected); border-color: var(--text-faint); }
+.ext-choice[aria-disabled] { opacity: .6; }
+.ext-choice-mark {
+  flex: none; width: 16px; height: 16px; border-radius: 50%;
+  display: inline-flex; align-items: center; justify-content: center;
+  border: 1px solid var(--border-interactive); background: var(--bg-interactive); color: var(--text-on-accent);
+}
+.ext-choice.is-on .ext-choice-mark { background: var(--bg-accent); border-color: var(--bg-accent); }
+.ext-choice-text { display: flex; flex-direction: column; min-width: 0; }
+.ext-choice-label { font-size: var(--text-sm); line-height: 18px; color: var(--text-emphasis); font-weight: 500; }
+.ext-choice-detail { font-size: var(--text-xs); line-height: 16px; color: var(--text-muted); }
+
+.ext-list { display: flex; flex-direction: column; gap: 10px; }
+.ext-card { border: 1px solid var(--border-default); border-radius: var(--radius-xl); padding: 12px 14px; }
+.ext-card-head { display: flex; align-items: center; gap: 10px; }
+.ext-card-name { font-weight: 600; color: var(--text-emphasis); }
+.ext-card-desc { margin-top: 4px; }
+.ext-card-actions { margin-top: 8px; display: flex; flex-direction: column; gap: 4px; }
+.ext-card-action { display: flex; align-items: baseline; gap: 8px; font-size: var(--text-xs); color: var(--text-muted); min-width: 0; }
+.ext-card-action .mono { overflow-wrap: anywhere; }
+.ext-changed { color: var(--amber-a11); font-size: var(--text-xs); margin-top: 6px; }
+.ext-problem { font-size: var(--text-xs); color: var(--text-muted); }
+.ext-problem .mono { color: var(--text-default); }

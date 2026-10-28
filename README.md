@@ -6,7 +6,7 @@
 
 <p align="center">
   <b>A fast, private, keyboard-first email client for the Mac.</b><br>
-  Your whole mailbox lives on your Mac, so search, triage and AI never wait on the network.
+  Your mail lives on your Mac, so search, triage and AI never wait on the network.
 </p>
 
 <p align="center">
@@ -41,6 +41,8 @@ Gmail and Google Workspace come first; Outlook.com, Microsoft 365, iCloud, Yahoo
 - 🧠 **Smart, on your Mac.** Summaries, Write with AI and search by meaning run on local models. No API key, nothing sent anywhere.
 - 🔒 **Private by default.** Tracking pixels removed, remote images held, hostile email HTML sanitized and sandboxed.
 - ⌨️ **Keyboard-first.** Gmail-style keys, a ⌘K palette with every command, and a coach that teaches you the keys.
+- 🤖 **Works with your agents.** Chat about your mail with the Claude Code or Codex you already use, or give any agent an MCP server and CLI, with a permission level you pick.
+- 🧩 **Extensions.** Add your own buttons to every email: make a task, file it in a CRM, save it to notes. A folder with a manifest and a script.
 
 ## Search that finds it
 
@@ -96,7 +98,30 @@ Split Inbox, Get to zero, Reply Later, snooze, follow-up reminders, snippets, in
   <img width="49%" alt="The ⌘K command palette: 'Type a command, a person, or search mail…' with suggested commands and Go to entries" src="docs/images/readme/command-palette.jpg">
 </p>
 
-Plus smart views for receipts, travel, packages and bills, calendar invites you can answer in the thread, rules, profiles, and a read-only MCP server and CLI for agents. → [Every feature](docs/FEATURES.md)
+Plus smart views for receipts, travel, packages and bills, calendar invites you can answer in the thread, rules and automations, profiles, verification codes you copy from the list, and Stats: your year in email, counted on your Mac. → [Every feature](docs/FEATURES.md)
+
+<img alt="Settings → Stats: 1,418 sent this year, 15,357 received, a 4-day streak, a 47-minute typical reply time, a GitHub-style grid of every day this year and a punch card of when in the week you write" src="docs/images/readme/stats.jpg">
+
+## Works with your agents
+
+**Chat beside your mail.** Press ⌘⇧I and ask the Claude Code or Codex you already use about the open conversation: "what does Theo need from me?", "draft a reply for me to review". Penguin has no model or API key of its own for this. It runs your CLI, signed in with your account, with Penguin's MCP server as its only tools, and shows a chip for each tool it used. Off until you turn it on. → [Agent chat](docs/AGENT-CHAT.md)
+
+**MCP server and `penguin-cli`.** Any agent or script can search and read the local index (`penguin-cli search "from:priya has:pdf" --json`), and, if you allow it, organize mail and write drafts. You pick the level in Settings → Developer: off (the default), read only, read + organize + draft, or send. Organizing is undoable, an agent only ever touches its own drafts, every send waits in the outbox first, mail content reaches the agent marked as untrusted, and every call is written to an audit log. → [CLI and MCP](docs/CLI.md)
+
+## Extensions
+
+An extension adds your own buttons to every email: "Create task", "Save to notes", "Send to my CRM". It's a folder with an `extension.json` and a program; Penguin passes the email (and, if the action asks, the whole conversation) as JSON on stdin and shows the program's answer as a toast with an Open link. An action can ask a few questions first in a form, and a program can ask you to confirm before it acts.
+
+<p>
+  <img width="49%" alt="The 'Create task' form of a Tasks extension over a conversation: the email it acts on, a Title filled from the subject, a Board picker, Due, Notes and 'Include the email's text'" src="docs/images/readme/extensions.jpg">
+  <img width="49%" alt="The chat panel beside a conversation: Claude Code read the conversation (a 'Read a conversation' chip) and answered what Theo sent and offered to draft a reply" src="docs/images/readme/agent-chat.jpg">
+</p>
+
+1. Settings → Extensions → **Open extensions folder**, and drop the extension's folder in (a symlink to a git checkout works).
+2. Turn on **Allow**. Settings shows exactly which command each button runs and what it receives.
+3. The buttons appear in each message's header, its right-click menu and ⌘K.
+
+Nothing runs until you allow it, and approval covers the folder exactly as it was: any edit to its files turns it off until you allow it again. A complete two-file example, the payload, forms, confirmations, and how to have an agent build one for you: [docs/EXTENSIONS.md](docs/EXTENSIONS.md).
 
 ## Private by design
 
@@ -105,6 +130,15 @@ Plus smart views for receipts, travel, packages and bills, calendar invites you 
 - Email HTML is sanitized in Rust and shown in a sandboxed frame with no scripts.
 
 → [Privacy](docs/PRIVACY.md) · [Security and reporting a vulnerability](docs/SECURITY.md)
+
+## How it works
+
+- **A local copy of your mailbox.** Penguin syncs your mail into a SQLite database on your Mac, as Apple Mail, Thunderbird and Outlook keep theirs: the last 6 months in full and older mail as headers (Settings → Sync changes both), with a body fetched when you open it. It keeps it current with each provider's change feed (Gmail's history API, IMAP IDLE, Microsoft Graph delta). Every screen reads from that database, so nothing you do waits on the network; archiving and labeling change the screen first and reach the server behind it.
+- **Search** is SQLite FTS5 with Penguin's own query parser and ranking, plus a small local embedding model for search by meaning, judged on 570 queries ([SEARCH-EVAL.md](docs/SEARCH-EVAL.md)).
+- **No Penguin servers.** The app talks straight to Google, Microsoft or your IMAP server with credentials you own, kept in the macOS Keychain. Updates come from a signed feed.
+- **Rust core, native shell.** The store, sync, search, MIME and HTML sanitizer are Rust crates; the window is Tauri 2 with a React UI; on-device AI goes through Apple's Foundation Models from a small Swift bridge.
+
+→ [Architecture](docs/ARCHITECTURE.md) · [Performance](docs/PERFORMANCE.md)
 
 ## Getting started
 
@@ -132,7 +166,8 @@ Requirements and details: [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md).
 | [Search](docs/SEARCH.md) · [Ask](docs/ASK.md) | The query language and how questions are answered |
 | [Performance](docs/PERFORMANCE.md) | Every benchmark and why it's fast |
 | [Privacy](docs/PRIVACY.md) · [Security](docs/SECURITY.md) | Tracking protection, threat model, reporting a vulnerability |
-| [CLI and MCP](docs/CLI.md) | `penguin-cli` and the MCP server for agents |
+| [CLI and MCP](docs/CLI.md) · [Agent chat](docs/AGENT-CHAT.md) | `penguin-cli`, the MCP server and its permission levels, and chatting with Claude Code or Codex |
+| [Extensions](docs/EXTENSIONS.md) | Add your own buttons to emails: the manifest, what the program gets, building one with an agent |
 
 ## License
 

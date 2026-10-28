@@ -224,7 +224,7 @@ function SearchPanel() {
   // is only close in meaning, closest first.
   const top = useMemo(() => hits.slice(0, hits.length <= TOP_SHOWN + 1 ? hits.length : TOP_SHOWN), [hits]);
   const threads = useMemo(
-    () => hits.slice(top.length, THREADS_SHOWN + 1).filter(byWords).sort((a, b) => b.date - a.date),
+    () => hits.slice(top.length, THREADS_SHOWN + 1).filter(byWords).sort((a, b) => b.lastDate - a.lastDate),
     [hits, top],
   );
   const related = useMemo(() => hits.slice(top.length, THREADS_SHOWN + 1).filter((h) => !byWords(h)), [hits, top]);
@@ -277,15 +277,19 @@ function SearchPanel() {
         ...(fixes ?? []).map((f): Item => ({ group: "fix", id: `f:${f.unscope ? "*" : f.query}`, label: f.label, query: f.query, unscope: f.unscope })),
       ];
     const out: Item[] = [...askItems];
+    // Mail first: the conversations, then events and files. A search for
+    // files (has:, filename:, sizes) puts the files right after the top results.
+    const pushAtts = () => atts.forEach((a) => out.push({ group: "attachments", id: `a:${a.messageId}/${a.attachment.id}`, att: a }));
     top.forEach((h) => out.push(hitItem("top", h)));
-    events.forEach((e) => out.push({ group: "events", id: eventItemId(e), event: e }));
-    atts.forEach((a) => out.push({ group: "attachments", id: `a:${a.messageId}/${a.attachment.id}`, att: a }));
+    if (fileIntent) pushAtts();
     threads.forEach((h) => out.push(hitItem("threads", h)));
+    events.forEach((e) => out.push({ group: "events", id: eventItemId(e), event: e }));
+    if (!fileIntent) pushAtts();
     related.forEach((h) => out.push(hitItem("related", h)));
     out.push(...serverItems);
     people.forEach((p) => out.push({ group: "people", id: `p:${p.address.email}`, person: p }));
     return out;
-  }, [empty, noResults, fixes, correction, top, events, atts, threads, related, serverHits, people, lists, askActive, ask.answer]);
+  }, [empty, noResults, fixes, correction, top, events, atts, fileIntent, threads, related, serverHits, people, lists, askActive, ask.answer]);
 
   // Stable results: a new answer for the query on screen merges in below the
   // selection; a new query starts a fresh list with the first row selected.
@@ -821,18 +825,7 @@ function SearchPanel() {
                       )}
                     </>
                   )}
-                  {shown.events.length > 0 && (
-                    <>
-                      <div className="group-head">
-                        <span>
-                          Calendar <span className="gh-count">{shown.events.length}</span>
-                        </span>
-                        <span className="gh-hint">Events on your calendars</span>
-                      </div>
-                      <EventResults events={shown.events} accounts={accById} itemProps={itemProps} />
-                    </>
-                  )}
-                  {shown.atts.length > 0 && (
+                  {fileIntent && shown.atts.length > 0 && (
                     <>
                       <div className="group-head">
                         <span>
@@ -865,6 +858,33 @@ function SearchPanel() {
                     </>
                   )}
                   {shown.threads.length === 0 && bestTop && <OutsideDate query={editable} counts={counts} shown={hits.length} edit={edit} />}
+                  {shown.events.length > 0 && (
+                    <>
+                      <div className="group-head">
+                        <span>
+                          Calendar <span className="gh-count">{shown.events.length}</span>
+                        </span>
+                        <span className="gh-hint">Events on your calendars</span>
+                      </div>
+                      <EventResults events={shown.events} accounts={accById} itemProps={itemProps} />
+                    </>
+                  )}
+                  {!fileIntent && shown.atts.length > 0 && (
+                    <>
+                      <div className="group-head">
+                        <span>
+                          Attachments{" "}
+                          <span className="gh-count">{(resp?.attachments.length ?? 0) > shown.atts.length ? `${shown.atts.length}+` : shown.atts.length}</span>
+                        </span>
+                        <span className="gh-hint">By file name</span>
+                      </div>
+                      <div className="att-row">
+                        {shown.atts.map((a) => (
+                          <AttachmentCard key={`${a.messageId}/${a.attachment.id}`} a={a} terms={terms} {...itemProps(`a:${a.messageId}/${a.attachment.id}`)} />
+                        ))}
+                      </div>
+                    </>
+                  )}
                   {shown.related.length > 0 && (
                     <>
                       <div className="group-head">
@@ -1101,7 +1121,7 @@ function BestMatch({ hit, terms, acc, files, ...ip }: { hit: SearchHit; terms: s
         <span className="grow" />
         {hit.matchCount > 1 && <span className="badge t-gray">{hit.matchCount} matches in thread</span>}
         <span className="faint tnum" style={{ fontSize: 12 }}>
-          {new Date(hit.date).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" })}
+          {new Date(hit.lastDate).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" })}
         </span>
       </div>
       <h3 className="th-subj">
@@ -1169,7 +1189,7 @@ function ThreadRow({ hit, terms, acc, ...ip }: { hit: SearchHit; terms: string[]
           </span>
         )}
         {hit.hasAttachments && <Icon name="clip" size="xs" />}
-        <span className="tnum">{shortDate(hit.date)}</span>
+        <span className="tnum">{shortDate(hit.lastDate)}</span>
       </span>
     </div>
   );
@@ -1189,7 +1209,7 @@ function TopRow({ hit, terms, acc, ...ip }: { hit: SearchHit; terms: string[]; a
           <span className="grow" />
           {hit.matchCount > 1 && <span className="badge t-gray">{hit.matchCount} matches</span>}
           {hit.hasAttachments && <Icon name="clip" size="xs" className="faint" />}
-          <span className="faint tnum sx-toprow-date">{shortDate(hit.date)}</span>
+          <span className="faint tnum sx-toprow-date">{shortDate(hit.lastDate)}</span>
         </div>
         <div className="sx-toprow-snip truncate">
           <AccDot acc={acc} />

@@ -6,8 +6,8 @@
 //! entity expansion), the caller caps its size, and every host and port is
 //! validated before it is shown.
 
-use super::table::ServerTemplate;
-use super::{DetectionSource, MailSecurity};
+use crate::table::ServerTemplate;
+use crate::{DetectionSource, MailSecurity};
 
 /// The most of a config file Penguin reads.
 pub const MAX_BYTES: usize = 64 * 1024;

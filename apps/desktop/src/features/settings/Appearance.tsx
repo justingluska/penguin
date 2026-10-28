@@ -179,6 +179,16 @@ export function AppearanceSettings() {
         </div>
         <Switch label="Dark email bodies" on={s.darkEmailBodies} onChange={(darkEmailBodies) => save({ darkEmailBodies })} />
       </div>
+      <div className="setting-row setting-tall">
+        <div>
+          <span className="setting-label">Open conversations at the latest reply</span>
+          <p className="st-muted">
+            Show the newest message on its own, with the earlier replies one click away in a timeline. Off shows every message stacked, oldest
+            first.
+          </p>
+        </div>
+        <Switch label="Open conversations at the latest reply" on={s.threadLatestFirst} onChange={(threadLatestFirst) => save({ threadLatestFirst })} />
+      </div>
     </>
   );
 }

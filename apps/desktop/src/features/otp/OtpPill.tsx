@@ -4,17 +4,17 @@
 // without selecting or opening the row, and the copy segment turns into
 // "Copied ✓" for a moment. Fresh codes from authenticated senders use the
 // accent; after 20 min the chip goes neutral with "expired?"; unverified
-// senders get a dashed chip with a shield. Magic sign-in links get the same
+// senders get a dashed chip with a shield. Copying marks the row read. Magic sign-in links get the same
 // shape with a link icon and nothing to copy.
 import { useEffect, useState } from "react";
-import type { Otp } from "../../lib/types";
+import type { Otp, ThreadRef } from "../../lib/types";
 import { Icon } from "../../components/Icon";
 import { useKeyTip } from "../../lib/shortcutHints";
 import { formatKeys } from "../../lib/keyboard";
 import { COPY_KEYS, copyCode, FRESH_MS, groupCode, otpAge, useNow } from "./otp";
 import "./otp.css";
 
-export function OtpPill({ otp }: { otp: Otp }) {
+export function OtpPill({ otp, thread }: { otp: Otp; thread: ThreadRef }) {
   const now = useNow();
   const tip = useKeyTip();
   const [copied, setCopied] = useState(false);
@@ -56,7 +56,7 @@ export function OtpPill({ otp }: { otp: Otp }) {
       }}
       onClick={async (e) => {
         e.stopPropagation();
-        if (await copyCode(code)) setCopied(true);
+        if (await copyCode(code, { accountId: thread.accountId, threadId: thread.threadId })) setCopied(true);
       }}
     >
       <span className="otp-chip-main">

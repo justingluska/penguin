@@ -232,6 +232,11 @@ fn follow_up_lists_unanswered_sent_mail_oldest_first() {
             .collect::<Vec<_>>(),
         vec![(A, 2), (B, 1)]
     );
+    // B's draft is the one conversation in its Drafts.
+    assert_eq!(
+        counts.iter().map(|c| c.drafts).collect::<Vec<_>>(),
+        vec![0, 1]
+    );
     assert_eq!(
         s.list_follow_ups(Some(&[B.into()]), 3, NOW, false)
             .unwrap()

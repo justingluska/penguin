@@ -9,7 +9,7 @@
 //! the same day. A domain missing here still resolves through its MX, so
 //! these lists are a fast path, not the only path.
 
-use super::{AuthMethod, MailSecurity, ProviderKind, SetupKind};
+use crate::{AuthMethod, MailSecurity, ProviderKind, SetupKind};
 
 /// A provider Penguin has presets for.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

@@ -24,6 +24,7 @@ import { openSnooze } from "../features/snooze/SnoozePicker";
 import { toggleReplyLater } from "../features/triage/actions";
 import { COPY_CONVERSATION_KEYS, copyConversation } from "../features/thread/copy";
 import { openComposeWindow, openThreadWindow } from "./windows";
+import { toggleChat } from "../features/agent-chat/state";
 
 // The ⌘K palette evaluates when() to list context-valid commands while it's
 // open, so "command" counts as no overlay. Keys can't fire meanwhile: the
@@ -85,6 +86,8 @@ export const threadNav = {
   next: () => {},
   prev: () => {},
   expandAll: () => {},
+  /** Back to the latest message (the full view's timeline). */
+  latest: () => {},
 };
 
 /**
@@ -97,6 +100,7 @@ export const THREAD_WINDOW_KEYS = new Set([
   "msg.next",
   "msg.prev",
   "msg.expand",
+  "msg.latest",
   "ctx.toggle",
   "triage.done",
   "triage.trash",
@@ -152,6 +156,7 @@ export function registerAppShortcuts(scope: "main" | "thread" = "main"): () => v
     { id: "msg.next", keys: "n", label: "Next message", group: "Navigate", when: inThread, run: () => threadNav.next() },
     { id: "msg.prev", keys: "p", label: "Previous message", group: "Navigate", when: inThread, run: () => threadNav.prev() },
     { id: "msg.expand", keys: "o", label: "Expand all messages", group: "Navigate", when: inThread, run: () => threadNav.expandAll() },
+    { id: "msg.latest", keys: "shift+l", label: "Back to the latest message", group: "Navigate", when: inThread, run: () => threadNav.latest() },
     { id: "ctx.toggle", keys: "i", label: "Toggle context panel", group: "Navigate", when: () => noOverlay() && getUi().threadOpen, run: () => setUi((s) => ({ contextPanel: !s.contextPanel })) },
     { id: "go.inbox", keys: "g i", label: "Go to Inbox", group: "Go to", when: noOverlay, run: () => goTo({ kind: "inbox" }) },
     { id: "go.replyLater", keys: "g y", label: "Go to Reply Later", group: "Go to", when: noOverlay, run: () => goTo({ kind: "replyLater" }) },
@@ -241,6 +246,7 @@ export function registerAppShortcuts(scope: "main" | "thread" = "main"): () => v
     { id: "app.sidebar.bracket", keys: "[", label: "Show / hide sidebar", group: "App", hidden: true, when: noOverlay, run: toggleSidebar },
     { id: "app.theme", keys: "t", label: "Switch theme", group: "App", when: noOverlay, run: toggleTheme },
     { id: "app.sync", keys: "shift+r", label: "Sync now", group: "App", when: noOverlay, run: startRefresh },
+    { id: "app.agentChat", keys: "mod+shift+i", label: "Chat with Claude Code or Codex", group: "App", when: noOverlay, run: toggleChat },
     { id: "acct.all", keys: "alt+0", label: "All accounts", group: "App", when: noOverlay, run: () => switchProfile(null) },
   ];
   if (scope === "thread") return registerShortcuts(all.filter((s) => THREAD_WINDOW_KEYS.has(s.id)));

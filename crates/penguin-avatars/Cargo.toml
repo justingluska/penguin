@@ -1,0 +1,26 @@
+[package]
+name = "penguin-avatars"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish = false
+description = "Sender avatars: contact photos, BIMI logos and company icons for authenticated senders, fetched with a hardened client and stored as our own PNGs. Shared by the Mac app and the iPhone app."
+
+[dependencies]
+penguin-core.workspace = true
+# The public-address rules (is_public_ip, acceptable_url, PublicOnlyResolver),
+# shared with the one-click unsubscribe POST.
+penguin-provider.workspace = true
+base64 = "0.22"
+image = { version = "0.25", default-features = false, features = ["png", "jpeg", "gif", "webp", "ico", "bmp"] }
+reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls", "http2", "gzip"] }
+resvg = { version = "0.45", default-features = false }
+serde.workspace = true
+serde_json.workspace = true
+sha2 = "0.10"
+tokio = { workspace = true, features = ["rt", "sync", "time", "macros"] }
+tracing.workspace = true
+url = "2"
+
+[dev-dependencies]
+tokio = { workspace = true, features = ["rt-multi-thread", "macros"] }

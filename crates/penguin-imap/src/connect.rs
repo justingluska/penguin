@@ -143,10 +143,16 @@ pub async fn connect(account: &Account, password: &str) -> Result<()> {
     save_password(crate::backend::keychain_vault(), &account.id, password).await
 }
 
-/// `reconnect_account` for IMAP: the saved password must work again (after
-/// the user fixed it on the provider's side, or a server outage).
-pub async fn reconnect(account: &Account) -> Result<()> {
+/// `reconnect_account` for IMAP. With `password` (a new app password the
+/// user just made): verify it against IMAP and SMTP, then replace the saved
+/// one. Without: the saved password must work again (after the user fixed it
+/// on the provider's side, or a server outage).
+pub async fn reconnect(account: &Account, password: Option<&str>) -> Result<()> {
     let cfg = Config::from_account(account)?;
+    if let Some(password) = password {
+        verify(&cfg, password).await?;
+        return save_password(crate::backend::keychain_vault(), &account.id, password).await;
+    }
     let vault = crate::backend::keychain_vault();
     let id = account.id.clone();
     let saved = tokio::task::spawn_blocking(move || vault.load(&id))
@@ -154,16 +160,10 @@ pub async fn reconnect(account: &Account) -> Result<()> {
         .map_err(|e| Error::Other(format!("keychain task failed: {e}")))??;
     let Some(cred) = saved else {
         return Err(Error::InvalidInput(
-            "Penguin has no saved password for this account. Remove it and add it again with a new app password.".into(),
+            "Penguin has no saved password for this account. Enter a new app password.".into(),
         ));
     };
-    match verify(&cfg, &cred.password).await {
-        Ok(_) => Ok(()),
-        Err(Error::InvalidInput(msg)) => Err(Error::InvalidInput(format!(
-            "{msg} To use a new password, remove the account and add it again."
-        ))),
-        Err(e) => Err(e),
-    }
+    verify(&cfg, &cred.password).await.map(|_| ())
 }
 
 #[cfg(test)]

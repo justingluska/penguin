@@ -18,6 +18,10 @@ use crate::compose::{AttachmentBytes, Draft, OutgoingAttachment};
 use crate::window::WindowPolicy;
 use crate::{Error, Result};
 
+/// Download progress: the bytes of the file received so far (decoded, so
+/// comparable with `AttachmentMeta::size`). Called often; cheap callers only.
+pub type Progress<'a> = dyn Fn(u64) + Send + Sync + 'a;
+
 /// Unknown messages a server search stores (headers-only) per account.
 pub const SERVER_SEARCH_FETCH_CAP: usize = 50;
 
@@ -136,6 +140,20 @@ pub trait MailProvider: Send + Sync {
         message_id: &str,
         attachment: &AttachmentMeta,
     ) -> Result<Vec<u8>>;
+
+    /// `get_attachment`, telling `progress` how many of the file's bytes have
+    /// arrived as the download goes (a slow connection shows a progress
+    /// ring). Providers that can't count report nothing; the UI then shows
+    /// an indeterminate spinner.
+    async fn get_attachment_progress(
+        &self,
+        message_id: &str,
+        attachment: &AttachmentMeta,
+        progress: &Progress<'_>,
+    ) -> Result<Vec<u8>> {
+        let _ = progress;
+        self.get_attachment(message_id, attachment).await
+    }
 
     /// Every header of a message; `None` when the server no longer has it.
     async fn get_message_metadata(&self, message_id: &str) -> Result<Option<MessageMetadata>>;

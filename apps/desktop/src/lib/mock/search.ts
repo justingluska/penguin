@@ -779,6 +779,7 @@ function search(req: SearchRequest): SearchResponse {
       subject: best.subject.replace(/^(re|fwd?):\s*/i, ""),
       from: best.from,
       date: new Date(best.date).getTime(),
+      lastDate: Math.max(...MSGS.filter((m) => m.accountId === best.accountId && m.threadId === best.threadId).map((m) => new Date(m.date).getTime())),
       snippetHtml: snippet(best.body, terms),
       matchCount: ms.length,
       labelIds: best.labelIds,
@@ -790,6 +791,17 @@ function search(req: SearchRequest): SearchResponse {
     };
   });
   hits.sort((a, b) => b.score - a.score);
+  // Only names someone ("mike", "mike delgado"): conversations with them
+  // first, newest activity first, as the backend's person lookup does.
+  const onlyWords = f.words.length > 0 && chips.length === 0 && f.phrases.length === 0 && f.subject.length === 0;
+  const who = onlyWords ? MOCK_PEOPLE.filter((p) => f.words.every((w) => matchPerson(p, w))).map((p) => p.email) : [];
+  if (who.length > 0) {
+    const involves = (h: SearchHit) =>
+      MSGS.some((m) => m.accountId === h.accountId && m.threadId === h.threadId && (who.includes(m.from.email) || m.to.some((t) => who.includes(t.email))));
+    const withThem = hits.filter(involves).sort((a, b) => b.lastDate - a.lastDate);
+    const rest = hits.filter((h) => !involves(h));
+    hits.splice(0, hits.length, ...withThem, ...rest);
+  }
 
   const attachments: AttachmentHit[] = [];
   for (const m of byWords) {
@@ -1176,6 +1188,7 @@ export const searchHandlers: Record<string, MockHandler> = {
       remindAfterMs: (remindAfterMs as number | null) ?? null,
       attempts: 0,
       lastError: null,
+      elsewhere: false,
     };
     SCHEDULES.set(sc.id, sc);
     TIMERS.set(sc.id, setTimeout(() => fireSchedule(sc.id), Math.max(0, sc.sendAt - Date.now())));

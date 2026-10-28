@@ -216,6 +216,95 @@ async fn browser_sign_in_end_to_end() {
     assert_eq!(*mem.reads.lock().unwrap(), 1);
 }
 
+/// The iPhone's flow: the app's web sheet catches the redirect to its own
+/// URI and hands the URL back.
+#[tokio::test]
+async fn redirect_sign_in_in_the_apps_own_sheet() {
+    const REDIRECT: &str = "msauth.example.penguin://auth";
+    let fake = FakeGraph::new();
+    let (v, _) = vault();
+    let auth = Auth::new(fake.clone(), endpoints(), v.clone());
+
+    let pending = auth
+        .begin_redirect_sign_in(CLIENT, " Sam@Outlook.Example ", REDIRECT)
+        .unwrap();
+    assert_eq!(pending.account_id(), ME);
+    let q: std::collections::HashMap<String, String> = url::Url::parse(&pending.url)
+        .unwrap()
+        .query_pairs()
+        .into_owned()
+        .collect();
+    assert_eq!(q["redirect_uri"], REDIRECT);
+    assert_eq!(q["login_hint"], ME);
+    assert_eq!(q["code_challenge_method"], "S256");
+    let state = q["state"].clone();
+    let shown = format!("{pending:?}");
+    assert!(!shown.contains(&state), "{shown}");
+
+    // Closing the sheet cancels; nothing stored.
+    let e = auth
+        .finish_redirect_sign_in(pending, None)
+        .await
+        .unwrap_err();
+    assert!(matches!(e, Error::SignInCancelled), "{e:?}");
+    assert!(v.load(ME).unwrap().is_none());
+
+    // A redirect from another sign-in (wrong state) or to another URI is refused.
+    let pending = auth.begin_redirect_sign_in(CLIENT, ME, REDIRECT).unwrap();
+    let e = auth
+        .finish_redirect_sign_in(
+            pending,
+            Some(&format!("{REDIRECT}?code=good-code&state=old")),
+        )
+        .await
+        .unwrap_err();
+    assert!(e.to_string().contains("expired"), "{e}");
+    let pending = auth.begin_redirect_sign_in(CLIENT, ME, REDIRECT).unwrap();
+    let e = auth
+        .finish_redirect_sign_in(pending, Some("https://evil.example/auth?code=good-code"))
+        .await
+        .unwrap_err();
+    assert!(e.to_string().contains("wasn't for this sign-in"), "{e}");
+
+    // Consent refused by the user is a cancel; admin approval keeps its code.
+    let pending = auth.begin_redirect_sign_in(CLIENT, ME, REDIRECT).unwrap();
+    let st = state_of(&pending.url);
+    let e = auth
+        .finish_redirect_sign_in(
+            pending,
+            Some(&format!(
+                "{REDIRECT}?error=access_denied&error_description=AADSTS90094%3A+admin&state={st}"
+            )),
+        )
+        .await
+        .unwrap_err();
+    assert!(e.to_string().contains("AADSTS90094"), "{e}");
+
+    // The code arrives: tokens stored under the typed address.
+    let pending = auth.begin_redirect_sign_in(CLIENT, ME, REDIRECT).unwrap();
+    let st = state_of(&pending.url);
+    let signed = auth
+        .finish_redirect_sign_in(
+            pending,
+            Some(&format!("{REDIRECT}?code=good-code&state={st}")),
+        )
+        .await
+        .unwrap();
+    assert_eq!(signed.email, ME);
+    assert_eq!(v.load(ME).unwrap().unwrap().client_id, CLIENT);
+    assert_eq!(fake.lock().last_redirect_uri.as_deref(), Some(REDIRECT));
+}
+
+fn state_of(url: &str) -> String {
+    url::Url::parse(url)
+        .unwrap()
+        .query_pairs()
+        .find(|(k, _)| k == "state")
+        .unwrap()
+        .1
+        .into_owned()
+}
+
 #[tokio::test]
 async fn a_different_account_is_refused_and_nothing_is_saved() {
     let fake = FakeGraph::new();

@@ -9,11 +9,13 @@
 //!   later and reminders ([`outbox`]), snooze wakes ([`snooze`]), the sync
 //!   window policy ([`window`]), the backfill heartbeat ([`heartbeat`]), id
 //!   and label rules ([`ids`]), Keychain vaults for passwords and Microsoft
-//!   tokens ([`credentials`]), message snippets ([`text`]).
+//!   tokens ([`credentials`]), message snippets ([`text`]), and acting on
+//!   an unsubscribe ([`unsubscribe`]: the RFC 8058 one-click POST, the one
+//!   request here, made only on a confirmed click).
 //! - Tests: an in-memory provider ([`fake`], feature `fake`) and the
 //!   conformance suite every provider must pass ([`conformance`]).
 //!
-//! No Tauri here; networking belongs to the provider crates. The contract
+//! No Tauri here; mail networking belongs to the provider crates. The contract
 //! is docs/PROVIDERS-IMPL.md.
 
 pub mod compose;
@@ -31,12 +33,14 @@ mod provider;
 pub mod quote;
 pub mod snooze;
 pub mod text;
+pub mod unsubscribe;
 pub mod window;
 
 pub use error::{provider_label, Error, Result};
 pub use provider::{
     Backend, DraftRef, InvitationAnswer, LabelColor, LabelUpdate, MailProvider, MessageMetadata,
-    OpenedDraft, ServerSearch, SyncHandle, SyncObserver, SyncTask, SERVER_SEARCH_FETCH_CAP,
+    OpenedDraft, Progress, ServerSearch, SyncHandle, SyncObserver, SyncTask,
+    SERVER_SEARCH_FETCH_CAP,
 };
 
 /// Re-exported so implementations name the same macro version.

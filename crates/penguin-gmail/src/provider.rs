@@ -107,6 +107,18 @@ impl MailProvider for GmailProvider {
         Ok(self.client.get_attachment(message_id, attachment).await?)
     }
 
+    async fn get_attachment_progress(
+        &self,
+        message_id: &str,
+        attachment: &AttachmentMeta,
+        progress: &penguin_provider::Progress<'_>,
+    ) -> PResult<Vec<u8>> {
+        Ok(self
+            .client
+            .get_attachment_progress(message_id, attachment, Some(progress))
+            .await?)
+    }
+
     async fn get_message_metadata(&self, message_id: &str) -> PResult<Option<MessageMetadata>> {
         Ok(self.client.get_message_metadata(message_id).await?)
     }
@@ -288,6 +300,14 @@ impl GmailBackend {
 
     pub fn engine(&self) -> &SyncEngine {
         &self.engine
+    }
+
+    /// Sign out on this device only: like `Backend::sign_out` but without
+    /// revoking at Google, for a token another device shares (Pair iPhone;
+    /// a revoke would sign that device out too).
+    pub async fn forget_shared(&self, account: &Account) -> crate::Result<()> {
+        self.accounts.forget(&account.id);
+        self.auth.forget(&account.email).await
     }
 
     /// A Gmail client for `account` (Gmail-only features).

@@ -32,6 +32,12 @@ fastrand = "2"
 sha2 = "0.10"
 # credentials: the Keychain vault shared by the IMAP and Microsoft providers
 keyring = { version = "3", features = ["apple-native"] }
+# unsubscribe: the RFC 8058 one-click POST (same reqwest as penguin-gmail,
+# no new tree), public addresses only
+reqwest = { version = "0.12", default-features = false, features = ["rustls-tls"] }
+url = "2"
+# the outbox asks whose turn it is to send (penguin_sync::outbox)
+penguin-sync.workspace = true
 
 [dev-dependencies]
 tokio = { workspace = true, features = ["test-util"] }

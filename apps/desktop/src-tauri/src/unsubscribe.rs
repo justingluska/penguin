@@ -4,7 +4,8 @@
 //!
 //! - One-click (RFC 8058): a POST of `List-Unsubscribe=One-Click` to the
 //!   header's https URL, from Rust: no cookies, no Referer, no redirects,
-//!   public addresses only (the avatar fetcher's resolver), short timeouts.
+//!   public addresses only, short timeouts (`penguin_provider::unsubscribe`,
+//!   shared with the iPhone).
 //! - mailto: the message is sent from the receiving account through Gmail,
 //!   like any other send; only for an authenticated sender.
 //! - Link: opened in the default browser.
@@ -13,21 +14,20 @@
 //! Successful unsubscribes are remembered per account and sender
 //! (`Store::record_unsubscribe`) so later mail shows "Unsubscribed".
 
-use std::sync::{Arc, OnceLock};
-use std::time::Duration;
+use std::sync::Arc;
 
 use penguin_core::unsubscribe::{
-    self as core_unsub, UnsubscribeMethod, UnsubscribeOffer, UnsubscribePlan, UnsubscribeRecord,
+    self as core_unsub, UnsubscribeMethod, UnsubscribeOffer, UnsubscribeRecord,
 };
-use penguin_core::{Address, Message, Store};
-use penguin_provider::compose::{build_rfc822_with_attachments, Draft};
-use penguin_render::unsubscribe::find_unsubscribe_link;
-use penguin_render::{render_html, render_text, RenderOptions};
+use penguin_core::{Message, Store};
+use penguin_provider::compose::build_rfc822_with_attachments;
+use penguin_provider::unsubscribe::{
+    headers_say_one_click, mailto_draft, one_click_post, plan_for,
+};
 use serde::Serialize;
 use tauri::{AppHandle, State};
 use tauri_plugin_opener::OpenerExt;
 
-use crate::avatars::net::{acceptable_url, PublicOnlyResolver};
 use crate::error::{CmdError, CmdResult, ErrorCode};
 use crate::ops;
 use crate::state::{blocking, AppState};
@@ -46,18 +46,6 @@ pub struct UnsubscribeOutcome {
     /// Where the mailto message went (method `mailto`).
     pub sent_to: Option<String>,
     pub record: UnsubscribeRecord,
-}
-
-/// The plan for a stored message. The body is only rendered (to look for a
-/// link) when the headers give nothing.
-fn plan_for(m: &Message) -> Option<UnsubscribePlan> {
-    core_unsub::plan(m, || {
-        let rendered = match m.body_html.as_deref() {
-            Some(html) if !html.trim().is_empty() => render_html(html, &RenderOptions::default()),
-            _ => render_text(&m.body_text),
-        };
-        find_unsubscribe_link(&rendered.html)
-    })
 }
 
 /// Fill in "already unsubscribed" for rendered messages (get_thread,
@@ -90,9 +78,7 @@ pub async fn remember_post_flag(
     m: &Message,
     headers: &[(String, String)],
 ) -> CmdResult<bool> {
-    let one_click = headers.iter().any(|(k, v)| {
-        k.eq_ignore_ascii_case("List-Unsubscribe-Post") && core_unsub::is_one_click(v)
-    });
+    let one_click = headers_say_one_click(headers);
     if m.list_unsubscribe_post.is_none() {
         let (store, a, id) = (state.store.clone(), m.account_id.clone(), m.id.clone());
         blocking(move || Ok(store.set_list_unsubscribe_post(&a, &id, one_click)?)).await?;
@@ -221,22 +207,7 @@ async fn send_mailto(
     mailto: &core_unsub::Mailto,
 ) -> CmdResult<()> {
     let account = state.account(account_id).await?;
-    let draft = Draft {
-        request_read_receipt: None,
-        account_id: account.id.clone(),
-        to: vec![Address {
-            name: None,
-            email: mailto.to.clone(),
-        }],
-        cc: vec![],
-        bcc: vec![],
-        subject: mailto.subject.clone(),
-        body_text: mailto.body.clone(),
-        body_html: None,
-        reply_to_thread_id: None,
-        reply_to_message_id: None,
-        attachments: vec![],
-    };
+    let draft = mailto_draft(&account.id, mailto);
     let raw = build_rfc822_with_attachments(&draft, &ops::from_address(&account), None, &[], &[])?;
     let provider = state.provider(&account.id).await?;
     provider.send_raw(&raw, None).await?;
@@ -252,149 +223,5 @@ fn now_ms() -> i64 {
         .unwrap_or(0)
 }
 
-/// The one-click client: HTTPS only, no redirects at all (RFC 8058: the
-/// POST must not be redirected; following one could land on a private
-/// address or turn into a GET), public addresses only, no cookie store,
-/// no Referer.
-fn http() -> &'static reqwest::Client {
-    static CLIENT: OnceLock<reqwest::Client> = OnceLock::new();
-    CLIENT.get_or_init(|| {
-        reqwest::Client::builder()
-            .https_only(true)
-            .redirect(reqwest::redirect::Policy::none())
-            .referer(false)
-            .user_agent("Penguin")
-            .connect_timeout(Duration::from_secs(5))
-            .timeout(Duration::from_secs(10))
-            .dns_resolver(Arc::new(PublicOnlyResolver))
-            .build()
-            .expect("reqwest client with rustls builds")
-    })
-}
-
-/// A one-click URL we're willing to POST to: https, a DNS host (no IP
-/// literal, localhost or .local), port 443, no userinfo.
-fn one_click_target(url: &str) -> Result<reqwest::Url, String> {
-    let parsed = reqwest::Url::parse(url).map_err(|_| "not a valid URL".to_string())?;
-    if acceptable_url(&parsed) {
-        Ok(parsed)
-    } else {
-        Err("refused: not a public https address".to_string())
-    }
-}
-
-async fn one_click_post(url: &str) -> Result<(), String> {
-    let target = one_click_target(url)?;
-    let resp = http()
-        .post(target)
-        .header(
-            reqwest::header::CONTENT_TYPE,
-            "application/x-www-form-urlencoded",
-        )
-        .body("List-Unsubscribe=One-Click")
-        .send()
-        .await
-        .map_err(|e| e.without_url().to_string())?;
-    let status = resp.status();
-    if status.is_success() {
-        Ok(())
-    } else {
-        Err(format!("HTTP {}", status.as_u16()))
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::avatars::net::is_public_ip;
-
-    #[test]
-    fn one_click_targets_must_be_public_https_names() {
-        assert!(one_click_target("https://list.example/u?t=abc").is_ok());
-        for bad in [
-            "http://list.example/u",
-            "https://127.0.0.1/u",
-            "https://10.0.0.8/u",
-            "https://192.168.1.1/u",
-            "https://169.254.169.254/latest/meta-data",
-            "https://[::1]/u",
-            "https://[fd00::1]/u",
-            "https://localhost/u",
-            "https://tauri.localhost/u",
-            "https://router.local/u",
-            "https://intranet/u",
-            "https://list.example:8443/u",
-            "https://user:pw@list.example/u",
-            "javascript:alert(1)",
-            "data:text/plain,x",
-            "not a url",
-        ] {
-            assert!(one_click_target(bad).is_err(), "{bad}");
-        }
-    }
-
-    #[test]
-    fn resolver_drops_private_addresses() {
-        // Names that resolve to these are refused by PublicOnlyResolver.
-        for ip in [
-            "127.0.0.1",
-            "10.1.2.3",
-            "172.16.0.1",
-            "192.168.0.10",
-            "100.64.0.1",
-            "::1",
-            "fe80::1",
-            "fd12::1",
-            "::ffff:10.0.0.1",
-        ] {
-            assert!(!is_public_ip(ip.parse().unwrap()), "{ip}");
-        }
-        assert!(is_public_ip("93.184.216.34".parse().unwrap()));
-    }
-
-    /// DNS rebinding: a name that passes the URL check but resolves only to
-    /// private addresses is refused by the client's resolver, before any
-    /// connection. `localhost` resolves to loopback without the network.
-    #[tokio::test]
-    async fn resolver_refuses_names_that_resolve_to_private_addresses() {
-        use reqwest::dns::Resolve;
-        let name: reqwest::dns::Name = "localhost".parse().unwrap();
-        assert!(PublicOnlyResolver.resolve(name).await.is_err());
-    }
-
-    #[test]
-    fn body_link_is_found_through_the_renderer() {
-        let m = Message {
-            account_id: "me@example.com".into(),
-            id: "m1".into(),
-            thread_id: "t1".into(),
-            date: 0,
-            from: Address {
-                name: None,
-                email: "hello@shop.example".into(),
-            },
-            to: vec![],
-            cc: vec![],
-            bcc: vec![],
-            reply_to: vec![],
-            subject: "Sale".into(),
-            snippet: String::new(),
-            body_text: String::new(),
-            body_html: Some(
-                r#"<p>Sale!</p><p><a href="https://shop.example/unsub?u=1&amp;k=2">Unsubscribe</a></p>"#
-                    .into(),
-            ),
-            label_ids: vec!["INBOX".into()],
-            attachments: vec![],
-            message_id_header: None,
-            in_reply_to: None,
-            references: vec![],
-            list_unsubscribe: None,
-            list_unsubscribe_post: None,
-            sender_authenticated: true,
-        };
-        let p = plan_for(&m).unwrap();
-        assert_eq!(p.offer.method, UnsubscribeMethod::Link);
-        assert_eq!(p.url.as_deref(), Some("https://shop.example/unsub?u=1&k=2"));
-    }
-}
+// Tests for the one-click target rules, the public-only resolver and the
+// body-link plan live with the code in penguin-provider (unsubscribe.rs).

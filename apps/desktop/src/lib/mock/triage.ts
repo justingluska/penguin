@@ -91,7 +91,8 @@ export const triageHandlers: Record<string, MockHandler> = {
       const replyLater = rl
         ? mockMail.threads().filter((s) => s.accountId === accountId && s.labelIds.includes(rl) && !s.labelIds.includes("TRASH") && !s.labelIds.includes("SPAM")).length
         : 0;
-      return { accountId, replyLater, followUp: follow.filter((s) => s.accountId === accountId).length };
+      const drafts = mockMail.threads().filter((s) => s.accountId === accountId && s.labelIds.includes("DRAFT")).length;
+      return { accountId, replyLater, followUp: follow.filter((s) => s.accountId === accountId).length, drafts };
     });
   },
   dismiss_follow_ups: ({ targets, dismissed: on }) => {

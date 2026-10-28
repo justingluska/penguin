@@ -275,7 +275,7 @@ export const ThreadRow = memo(function ThreadRow({
             <SmartLine row={smart} stacked />
           ) : otp ? (
             <span className="otp-slot">
-              <OtpPill otp={otp} />
+              <OtpPill otp={otp} thread={t} />
             </span>
           ) : invite ? (
             <span className="inv-slot">
@@ -295,7 +295,7 @@ export const ThreadRow = memo(function ThreadRow({
               <SmartLine row={smart} stacked={false} />
             ) : otp ? (
               <span className="otp-slot">
-                <OtpPill otp={otp} />
+                <OtpPill otp={otp} thread={t} />
               </span>
             ) : invite ? (
               <span className="inv-slot">

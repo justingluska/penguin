@@ -12,12 +12,11 @@ use tauri::{AppHandle, Emitter, State};
 use super::cache::Cache;
 use super::net::HttpNet;
 use super::people::{self, ContactPhotos, SyncError};
+pub use super::ContactsState;
 use super::{now_secs, AvatarInfo, AvatarRequest, Avatars, Resolver, EVENT_AVATARS_CHANGED};
 use crate::error::{CmdError, CmdResult};
 use crate::state::{blocking, AppState};
 
-/// Network resolves in flight at once.
-const CONCURRENCY: usize = 4;
 /// Jobs taken per worker round (one store query covers them all).
 const BATCH: usize = 64;
 /// Contact photo maps are refreshed after this long.
@@ -25,15 +24,6 @@ const CONTACTS_TTL: u64 = 24 * 3600;
 const MAX_LOOKUP: usize = 500;
 
 pub const CONTACT_SCOPES: [&str; 2] = [CONTACTS_OTHER_READONLY_SCOPE, CONTACTS_READONLY_SCOPE];
-
-#[derive(Debug, Clone, Default, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct ContactsState {
-    /// Unix ms of the last successful sync.
-    pub synced_at: Option<i64>,
-    pub photos: usize,
-    pub error: Option<String>,
-}
 
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -101,62 +91,16 @@ pub fn spawn(app: AppHandle, state: Arc<AppState>, avatars: Arc<Avatars>) {
 }
 
 async fn worker(app: AppHandle, state: Arc<AppState>, avatars: Arc<Avatars>) {
-    let limit = Arc::new(tokio::sync::Semaphore::new(CONCURRENCY));
     loop {
-        let jobs = avatars.take(BATCH);
-        if jobs.is_empty() {
+        if avatars.queued() == 0 {
             avatars.wake.notified().await;
             continue;
         }
-        let now = now_secs();
         let prefs = state.settings.get().avatar_prefs();
-
-        // One store scan for every address whose authentication is unknown.
-        let unknown: Vec<String> = jobs
-            .iter()
-            .filter(|j| j.authenticated.is_none() && avatars.needs_evidence(&j.email, now))
-            .map(|j| j.email.clone())
-            .collect();
-        if !unknown.is_empty() {
-            let store = state.store.clone();
-            let asked = unknown.clone();
-            match blocking(move || Ok(store.latest_sender_authenticated(&asked)?)).await {
-                Ok(found) => avatars.set_evidence(found, &unknown, now),
-                Err(e) => tracing::warn!(error = %e, "sender authentication lookup failed"),
-            }
-        }
-
-        let mut set = tokio::task::JoinSet::new();
-        for job in jobs {
-            let (avatars, limit) = (avatars.clone(), limit.clone());
-            set.spawn(async move {
-                let _permit = limit.acquire_owned().await;
-                let authed = avatars.authenticated_for(&job, now);
-                let changed = avatars
-                    .resolver
-                    .resolve(&job.email, &prefs, authed, now)
-                    .await;
-                avatars.done(&job);
-                changed.then_some(job.email)
-            });
-        }
-        let mut changed = Vec::new();
-        while let Some(res) = set.join_next().await {
-            if let Ok(Some(email)) = res {
-                changed.push(email);
-            }
-        }
-        let av = avatars.clone();
-        let _ = blocking(move || {
-            if let Err(e) = av.resolver.cache.flush() {
-                tracing::warn!(error = %e, "could not write the avatar index");
-            }
-            Ok(())
-        })
-        .await;
+        let changed = avatars
+            .resolve_batch(&state.store, prefs, BATCH, now_secs())
+            .await;
         if !changed.is_empty() {
-            changed.sort();
-            changed.dedup();
             emit(
                 &app,
                 AvatarsChanged {

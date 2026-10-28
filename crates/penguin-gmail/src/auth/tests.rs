@@ -956,6 +956,74 @@ async fn refresh_uses_the_client_that_minted_each_token() {
 }
 
 #[tokio::test]
+async fn a_device_without_a_desktop_client_refreshes_with_the_one_from_pairing() {
+    let google = FakeGoogle::start(Arc::new(|_, _| {
+        (200, r#"{"access_token":"at","expires_in":3600}"#.into())
+    }))
+    .await;
+    let clock = TestClock::new(1_000_000);
+    let store = Arc::new(MemoryStore::default());
+    let mac_client = "123456789012-desk.apps.googleusercontent.com";
+    let desktop = |id: &str| TokenClient::Desktop {
+        client_id: Some(id.into()),
+    };
+    store
+        .save(
+            "paired@example.com",
+            &StoredCredential::new("rt-p".into(), vec![], 1).with_client(desktop(mac_client)),
+        )
+        .unwrap();
+    store
+        .save(
+            "stranger@example.com",
+            &StoredCredential::new("rt-s".into(), vec![], 1)
+                .with_client(desktop("123456789012-elsewhere.apps.googleusercontent.com")),
+        )
+        .unwrap();
+    store
+        .save(
+            "legacy@example.com",
+            &StoredCredential::new("rt-l".into(), vec![], 1),
+        )
+        .unwrap();
+    // The phone: no desktop client of its own, the Mac's from pairing.
+    let paired = Arc::new(paired_clients::PairedClients::new(Box::new(Arc::new(
+        keychain::memory::MemoryBackend::default(),
+    ))));
+    paired
+        .add(&OAuthClientConfig {
+            client_id: mac_client.into(),
+            client_secret: Some("GOCSPX-fictional".into()),
+        })
+        .unwrap();
+    let auth = AuthManager::with_parts(
+        OAuthClientConfig {
+            client_id: String::new(),
+            client_secret: None,
+        },
+        test_http(),
+        google.endpoints(),
+        store.clone(),
+        clock.clock(),
+    )
+    .with_paired_clients(paired);
+
+    assert_eq!(auth.access_token("paired@example.com").await.unwrap(), "at");
+    for email in ["stranger@example.com", "legacy@example.com"] {
+        let err = auth.access_token(email).await.unwrap_err();
+        assert!(matches!(&err, Error::NeedsReauth(e) if e == email), "{err}");
+    }
+    // Only the paired token went to Google, with the Mac's client.
+    let calls = google.calls_to("/token");
+    assert_eq!(calls.len(), 1);
+    assert_eq!(calls[0]["refresh_token"], "rt-p");
+    assert_eq!(calls[0]["client_id"], mac_client);
+    assert_eq!(calls[0]["client_secret"], "GOCSPX-fictional");
+    // The tokens it can't use stay stored, for a later pairing to replace.
+    assert!(store.load("stranger@example.com").unwrap().is_some());
+}
+
+#[tokio::test]
 async fn sheet_rejects_mismatched_state() {
     let challenge: Arc<StdMutex<String>> = Arc::default();
     let google =

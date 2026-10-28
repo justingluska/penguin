@@ -9,7 +9,7 @@
 //!    entry for the domain, then the ISPDB entry for the MX host's domain.
 //! 4. Otherwise unknown (the UI offers the picker and manual IMAP).
 //!
-//! Only the domain ever leaves the Mac. Every network step has a timeout;
+//! Only the domain ever leaves the device. Every network step has a timeout;
 //! when DNS and HTTP all fail the answer is marked `offline` and not cached.
 //! Answers are cached per domain for the session.
 
@@ -17,13 +17,13 @@ use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
-use crate::avatars::net::{BoxFut, FetchError, HttpNet, Net};
+pub use penguin_avatars::net::BoxFut;
+use penguin_avatars::net::{FetchError, HttpNet, Net};
 
-use super::autoconfig::{self, Autoconfig};
-use super::table::{self, Known, ServerTemplate};
-use super::{
-    connectable, AuthMethod, DetectedProvider, DetectionSource, ProviderKind, ServerSettings,
-    SetupKind,
+use crate::autoconfig::{self, Autoconfig};
+use crate::table::{self, Known, ServerTemplate};
+use crate::{
+    AuthMethod, DetectedProvider, DetectionSource, ProviderKind, ServerSettings, SetupKind,
 };
 
 /// The network detection uses, behind a trait so tests run without sockets.
@@ -60,7 +60,7 @@ impl ProviderNet for SystemNet {
     fn mx<'a>(&'a self, domain: &'a str) -> BoxFut<'a, Result<Vec<(u16, String)>, String>> {
         let domain = domain.to_string();
         Box::pin(async move {
-            tokio::task::spawn_blocking(move || crate::avatars::dns::mx(&domain))
+            tokio::task::spawn_blocking(move || penguin_avatars::dns::mx(&domain))
                 .await
                 .map_err(|e| e.to_string())?
         })
@@ -206,7 +206,7 @@ fn from_autoconfig(ac: Autoconfig, source: DetectionSource, domain: &str) -> Dom
     }
 }
 
-fn personalize(info: &DomainInfo, addr: &Address) -> DetectedProvider {
+fn personalize(info: &DomainInfo, addr: &Address, available: &Available) -> DetectedProvider {
     let fill = |s: &Option<ServerTemplate>| {
         s.as_ref().map(|t| ServerSettings {
             host: t.host.clone(),
@@ -237,7 +237,7 @@ fn personalize(info: &DomainInfo, addr: &Address) -> DetectedProvider {
         mx_host: info.mx_host.clone(),
         gateway: info.gateway.clone(),
         offline: info.offline,
-        available: connectable(info.auth) && info.setup != SetupKind::Unsupported,
+        available: info.setup != SetupKind::Unsupported && available(info.auth, info.setup),
     }
 }
 
@@ -252,11 +252,16 @@ enum Fetched {
 
 const CACHE_MAX: usize = 256;
 
+/// Whether this build can connect an account signed in with this method
+/// and set up this way ([`DetectedProvider::available`]).
+pub type Available = Arc<dyn Fn(AuthMethod, SetupKind) -> bool + Send + Sync>;
+
 pub struct Detector {
     net: Arc<dyn ProviderNet>,
     cache: Mutex<HashMap<String, DomainInfo>>,
     dns_timeout: Duration,
     http_timeout: Duration,
+    available: Available,
 }
 
 impl Detector {
@@ -270,7 +275,18 @@ impl Detector {
             cache: Mutex::new(HashMap::new()),
             dns_timeout: dns,
             http_timeout: http,
+            available: Arc::new(|_, _| true),
         }
+    }
+
+    /// What this build can connect. Without it every provider Penguin
+    /// knows counts as available (an unsupported domain never does).
+    pub fn with_available(
+        mut self,
+        available: impl Fn(AuthMethod, SetupKind) -> bool + Send + Sync + 'static,
+    ) -> Detector {
+        self.available = Arc::new(available);
+        self
     }
 
     /// Detect the provider for `email`, or with `choose`, give the chosen
@@ -291,7 +307,7 @@ impl Detector {
                 from_known(known, DetectionSource::Manual)
             }
         };
-        Ok(personalize(&info, &addr))
+        Ok(personalize(&info, &addr, &self.available))
     }
 
     fn cached(&self, domain: &str) -> Option<DomainInfo> {

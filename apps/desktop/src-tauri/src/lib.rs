@@ -15,6 +15,7 @@ pub mod actions;
 pub mod agent;
 /// The app side of agent access: the agent socket, Settings → Developer → Agents.
 pub mod agent_app;
+pub mod agent_chat;
 /// The macOS menu bar.
 pub mod app_menu;
 pub mod applog;
@@ -23,11 +24,14 @@ pub mod attachments;
 pub mod avatars;
 pub mod calendar;
 pub mod cli_install;
+pub mod cloud;
 pub mod commands;
 pub mod diagnostics;
 pub mod error;
+pub mod extensions;
 pub mod extract;
 pub mod file_export;
+pub mod handoff;
 pub mod image_viewer;
 pub mod inline_images;
 pub mod logging;
@@ -40,6 +44,8 @@ pub mod notify;
 pub mod ops;
 pub mod outbox;
 pub mod outgoing;
+pub mod pair_iphone;
+pub mod preview_docs;
 pub mod providers;
 pub mod qos;
 pub mod receipts;
@@ -201,7 +207,9 @@ pub fn run() {
     let builder = builder
         .plugin(link_guard())
         .manage(sign_in::PendingSignIn::default())
+        .manage(pair_iphone::Pairing::default())
         .manage(notify::Notifier::default())
+        .manage(handoff::Handoff::default())
         .manage(summary::Summarizer::system())
         .manage(writing::Writer::new())
         .manage(windows::Seeds::default())
@@ -231,11 +239,19 @@ pub fn run() {
             // Before any sync starts, so the first requests pace at the setting.
             penguin_gmail::api::set_units_per_min(state.settings.get().gmail_units_per_min);
             app.manage(state.clone());
+            // Sync with iCloud (src/cloud.rs): before anything writes
+            // settings or synced records, so every change is recorded.
+            app.manage(cloud::start(app.handle(), &state));
+            // Handoff with the iPhone (src/handoff.rs): continued activities
+            // reach Rust from here on.
+            handoff::install(app.handle());
             outbox::spawn(app.handle().clone(), state.clone());
             // Share links (src/share/): settings, uploads, expiry cleanup.
             let share = share::Share::init(&state);
             app.manage(share.clone());
             share::spawn_cleanup(share.clone());
+            // Chat with the user's Claude Code or Codex (src/agent_chat/).
+            app.manage(agent_chat::AgentChat::init(&state));
             // The agent socket (penguin-cli draft/send/share-link, MCP write tools).
             agent_app::start(app.handle(), state.clone(), share);
             let rules = rules::Rules::init(app.handle(), &state);
@@ -312,17 +328,26 @@ pub fn run() {
                 if let Some(state) = window.try_state::<Arc<AppState>>() {
                     state.poke_all();
                 }
+                // And what the iPhone changed (snoozes, settings).
+                cloud::on_focus();
                 if let Some(cal) = window.try_state::<Arc<calendar::commands::Calendar>>() {
                     cal.on_focus();
                 }
                 // Menu items that act on a window go to this one now.
                 app_menu::window_focused(window.app_handle(), window.label());
+                // Handoff offers what this window shows.
+                if let Some(h) = window.try_state::<handoff::Handoff>() {
+                    h.window_focused(window.label());
+                }
             }
             // A conversation or compose window closed for real.
             if let WindowEvent::Destroyed = event {
                 app_menu::window_gone(window.app_handle(), window.label());
                 if let Some(seeds) = window.try_state::<windows::Seeds>() {
                     seeds.forget(window.label());
+                }
+                if let Some(h) = window.try_state::<handoff::Handoff>() {
+                    h.window_gone(window.label());
                 }
             }
             // macOS: closing the main window (red button, ⌘W) hides it like
@@ -352,6 +377,12 @@ pub fn run() {
             sign_in::reopen_sign_in,
             commands::set_ios_oauth_client,
             commands::clear_ios_oauth_client,
+            pair_iphone::pair_iphone_start,
+            pair_iphone::pair_iphone_confirm,
+            pair_iphone::pair_iphone_cancel,
+            cloud::cloud_status,
+            cloud::set_cloud_sync,
+            cloud::cloud_sync_now,
             providers::detect_provider,
             providers::microsoft_client_status,
             providers::set_microsoft_client,
@@ -372,6 +403,7 @@ pub fn run() {
             commands::sanitize_compose_html,
             commands::save_attachment,
             commands::preview_attachment,
+            commands::quick_look_attachment,
             commands::preview_outgoing_file,
             commands::get_message_details,
             commands::get_message_source,
@@ -397,6 +429,11 @@ pub fn run() {
             share::share_link_config_test,
             share::share_file,
             share::share_delete,
+            agent_chat::agent_chat_setup,
+            agent_chat::agent_chat_config_set,
+            agent_chat::agent_chat_api_key_set,
+            agent_chat::agent_chat_send,
+            agent_chat::agent_chat_stop,
             commands::save_draft,
             commands::quote_sources,
             commands::delete_draft,
@@ -405,6 +442,7 @@ pub fn run() {
             commands::update_settings,
             commands::diagnostics,
             commands::diagnostics_table_sizes,
+            commands::mail_stats,
             commands::reveal_path,
             commands::optimize_index,
             semantic::semantic_status,
@@ -460,6 +498,10 @@ pub fn run() {
             calendar::commands::respond_to_event,
             calendar::invites::respond_to_invite,
             calendar::commands::calendar_sync_now,
+            extensions::list_extensions,
+            extensions::set_extension_allowed,
+            extensions::run_extension_action,
+            extensions::open_extensions_folder,
             text_services::native_paste,
             text_services::copy_text,
             text_services::spell_check,
@@ -482,6 +524,8 @@ pub fn run() {
             notify::notification_permission,
             notify::request_notification_permission,
             notify::test_notification,
+            handoff::set_handoff_activity,
+            handoff::take_handoff_open,
             summary::summary_availability,
             summary::cached_summary,
             summary::summarize_thread,

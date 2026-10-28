@@ -291,6 +291,10 @@ Claude Desktop (`~/Library/Application Support/Claude/claude_desktop_config.json
 
 Settings → Developer → Agents shows these snippets with the exact path of your install (`mcp_info`).
 
+Penguin can also run Claude Code or Codex itself, with this server as its only tools, in a chat panel beside your mail (Settings → AI → Chat with Claude Code or Codex; docs/AGENT-CHAT.md). Those chats go through the same level, audit log, outbox delay and Undo.
+
+`tools/list` carries `ttlMs: 0` and `cacheScope: "private"`, which MCP 2026-07-28 requires: Claude Code 2.1 drops a tool list without them, so none of Penguin's tools load.
+
 ### Use from another machine
 
 An agent on another computer (a Linux agent box, say) can use Penguin's MCP server over SSH. The server still runs on the Mac, next to the app and the mail; SSH only carries its stdin and stdout.

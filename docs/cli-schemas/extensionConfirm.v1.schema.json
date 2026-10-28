@@ -1,0 +1,125 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "ConfirmAnswer",
+  "description": "`{\"confirm\": {...}}` on stdout, and nothing else beside it.",
+  "type": "object",
+  "properties": {
+    "confirm": {
+      "$ref": "#/$defs/ExtensionConfirm"
+    }
+  },
+  "additionalProperties": false,
+  "required": [
+    "confirm"
+  ],
+  "$defs": {
+    "ConfirmChoice": {
+      "type": "object",
+      "properties": {
+        "detail": {
+          "description": "One muted line under the label.",
+          "type": [
+            "string",
+            "null"
+          ],
+          "default": null
+        },
+        "label": {
+          "type": "string"
+        },
+        "value": {
+          "description": "Comes back as `continuation.choice`. Unique, at most 200 characters.",
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "value",
+        "label"
+      ]
+    },
+    "ConfirmStep": {
+      "type": "object",
+      "properties": {
+        "text": {
+          "description": "At most 300 characters.",
+          "type": "string"
+        },
+        "url": {
+          "description": "An http(s) link for the step.",
+          "type": [
+            "string",
+            "null"
+          ],
+          "default": null
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "text"
+      ]
+    },
+    "ExtensionConfirm": {
+      "description": "What Penguin shows before running the action again. Limits are checked\nstrictly, like the manifest's: a confirm that breaks one is an error.",
+      "type": "object",
+      "properties": {
+        "choiceLabel": {
+          "description": "The question above the choices, e.g. \"Which task?\".",
+          "type": [
+            "string",
+            "null"
+          ],
+          "default": null
+        },
+        "choices": {
+          "description": "When present (1–20), the person picks one before confirming.",
+          "type": "array",
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/ConfirmChoice"
+          }
+        },
+        "confirmLabel": {
+          "description": "The confirm button's text, e.g. \"Close task\". At most 40 characters.",
+          "type": [
+            "string",
+            "null"
+          ],
+          "default": null
+        },
+        "detail": {
+          "description": "One line of context under the title. At most 300 characters.",
+          "type": [
+            "string",
+            "null"
+          ],
+          "default": null
+        },
+        "state": {
+          "description": "Opaque; comes back unchanged as `continuation.state`. At most 8 KB.",
+          "type": [
+            "string",
+            "null"
+          ],
+          "default": null
+        },
+        "steps": {
+          "description": "What confirming will do, in order. At most 12.",
+          "type": "array",
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/ConfirmStep"
+          }
+        },
+        "title": {
+          "description": "What will happen, e.g. \"Close FOR-123 with a comment\". At most 200 characters.",
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "title"
+      ]
+    }
+  }
+}

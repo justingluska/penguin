@@ -99,6 +99,22 @@ What's left to check on a real account:
 - **Deleted afterwards.** By default Penguin deletes each upload once its link expires, retrying if it can't; a bucket lifecycle rule on the `penguin/` prefix is the recommended backstop. "Delete now" on the toast deletes it at once.
 - **A remote picture** in a message body is fetched once more (the same hardened request Save makes), so its sender's server sees that request.
 
+## Chat with Claude Code or Codex: what leaves the Mac
+
+Off by default (Settings → AI). When on, Penguin runs the user's own Claude Code or Codex with Penguin's MCP server as its tools (`docs/AGENT-CHAT.md`).
+
+- **Through the user's CLI and account.** What the user types, and the mail the agent reads through the tools, go to Anthropic or OpenAI the way they do when the user runs that CLI in a terminal. Penguin itself contacts no one.
+- **Only what the agent asks for.** The prompt names the open conversation by account and thread id; the agent reads mail only through tools at the level in Settings → Developer → Agents, and every call is in the agent audit log.
+- **An API key, if saved,** stays in the Keychain and is given only to that CLI's process. Penguin logs that a chat turn ran, never its text.
+
+## Handoff: what leaves the Mac
+
+Handoff (docs/CROSS-DEVICE-STATE.md) offers the conversation or saved draft on screen to the user's own iPhone, through Apple's Handoff, which works only between devices signed in to the same Apple Account and encrypts what it carries between them. No Penguin server is involved.
+- **Only ids and a subject.** The account address, the provider thread id or the Gmail draft id, and the subject as the activity's title (shown in the iPhone's app switcher and Dock). Never a body, a snippet, recipients or attachments; a draft's text goes through Gmail, where it already is.
+- **Not indexed.** The activities are eligible for Handoff only: not for Spotlight, public indexing or Siri suggestions.
+- **Only while on screen.** A hidden or minimized window offers nothing, and an account that isn't Gmail is never offered.
+- Penguin logs which kind of activity came in or went out, never ids or subjects.
+
 ## Sources
 
 Read statuses and receipts:

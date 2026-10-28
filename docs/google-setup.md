@@ -2,7 +2,7 @@
 
 Checked against Google’s live documentation on **2026-09-23**. Allow about **10 minutes for Google configuration and installing the client JSON**, with additional time for administrator changes or propagation. Mailbox backfill runs afterward.
 
-**Recommended:** one project, one **Desktop app** client, **External → In production**, used only by your own Google accounts. Choose **Internal** instead only if every account belongs to the same Workspace organization. Penguin connects directly from the Mac to Google; there is no Penguin server.
+**Recommended:** one project, one **Desktop app** client, **External → In production** (in Testing, Google expires your sign-in every 7 days), used only by your own Google accounts. Choose **Internal** instead only if every account belongs to the same Workspace organization. Penguin connects directly from the Mac to Google; there is no Penguin server.
 
 ## 1. Choose the organization, create the project, enable Gmail — 2 minutes
 
@@ -234,21 +234,21 @@ Use only one creation variant. The organization ID comes from [`gcloud organizat
 | --- | ---: |
 | Per user, per project | **6,000 quota units/minute** (100/second averaged) |
 | Across the project | **1,200,000 quota units/minute** |
-| `messages.get` | **20 units/message** |
+| `messages.get` | **20 units/message**, **60** with `format=full` (what Penguin uses for full mail) |
 | `messages.list` | **5 units/request** |
 | Daily project billing threshold | **80,000,000 units/24 hours** |
 
 These are Google’s [current Gmail API quotas](https://developers.google.com/workspace/gmail/api/reference/quota). The daily number is a **billing threshold**, not a published per-user daily message-fetch allowance. Standard usage is currently without additional Gmail API charges; Google says billing above thresholds will follow at least 90 days’ notice. The checked docs do not supply a final price or effective billing date. [2026 billing rollout](https://developers.google.com/workspace/tools-safety).
 
-The following are **calculated quota-only minimums**, not measured Penguin performance. Assume one `messages.get` per message, sustained full quota, and no listing, retries, attachments, network, bandwidth, or indexing overhead:
+The following are **calculated quota-only minimums**, not measured Penguin performance. Assume one full `messages.get` (60 units) per message, sustained full quota, and no listing, retries, attachments, network, bandwidth, or indexing overhead:
 
-| Mailbox messages | Requested old-rate scenario: 250 ÷ 5 = 50 messages/s | New-project budget: 6,000 ÷ 20 = 300 messages/min |
+| Mailbox messages | Requested old-rate scenario: 250 ÷ 5 = 50 messages/s | New-project budget: 6,000 ÷ 60 = 100 messages/min |
 | --- | ---: | ---: |
-| 50,000 | **16 min 40 sec** | **2 hr 46 min 40 sec** |
-| 250,000 | **1 hr 23 min 20 sec** | **13 hr 53 min 20 sec** |
-| 1,000,000 | **5 hr 33 min 20 sec** | **55 hr 33 min 20 sec** |
+| 50,000 | **16 min 40 sec** | **8 hr 20 min** |
+| 250,000 | **1 hr 23 min 20 sec** | **41 hr 40 min** |
+| 1,000,000 | **5 hr 33 min 20 sec** | **166 hr 40 min** (about 7 days) |
 
-Formula: `seconds = message_count × units_per_get ÷ units_per_second`. The old-rate column is the requested hypothetical comparison, not a promise for grandfathered projects. At an illustrative 70% backfill budget on a new project, allow about **4 hours / 20 hours / 80 hours**, before additional bottlenecks. Each account has its own user budget; three parallel accounts still share the project budget. Three users at the new per-user maximum consume at most **25.92 million units/day** combined, below the daily threshold.
+Formula: `seconds = message_count × units_per_get ÷ units_per_second`. The old-rate column is the requested hypothetical comparison, not a promise for grandfathered projects. At an illustrative 70% backfill budget on a new project, allow about **12 hours / 60 hours / 240 hours**, before additional bottlenecks. Penguin measures the real cost as it goes (`crates/penguin-gmail/src/api.rs`), and in practice the wait is much shorter: newest mail lands first, so the inbox is usable within minutes, and by default only the last 6 months are fetched in full. Older mail comes in as headers only (`format=metadata`, 20 units, about 300 messages a minute) and its body is fetched when you open it. Settings → Sync changes the window. Each account has its own user budget; three parallel accounts still share the project budget. Three users at the new per-user maximum consume at most **25.92 million units/day** combined, below the daily threshold.
 
 Bandwidth can make those estimates substantially longer: Gmail API has per-user bandwidth limits equal to, but independent of, IMAP, shared across that user’s Gmail API clients. Workspace’s published IMAP limits are **2,500 MB downloaded/day** and **500 MB uploaded/day**. A mailbox’s total transferred bytes therefore matter as well as its message count. [API bandwidth behavior](https://developers.google.com/workspace/gmail/api/guides/handle-errors#bandwidth_limits), [bandwidth numbers](https://knowledge.workspace.google.com/admin/gmail/gmail-bandwidth-limits).
 

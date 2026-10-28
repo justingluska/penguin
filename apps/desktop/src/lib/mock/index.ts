@@ -7,6 +7,7 @@
 //   ./compose.ts — rich-text composer helpers (richtext agent)
 //   ./menus.ts — text services and label edits behind context menus (menus agent)
 //   ./rules.ts — rules & automations (rules agent)
+//   ./extensions.ts — extensions (a fictional Tasks extension)
 //   ./me.ts — Settings → You photo, native menu bar context (native agent)
 //   ./calendar.ts — Google Calendar, plus the search's Calendar group (calendar agent)
 //   ./invites.ts — invitations: row chips, cards, answering (calendar agent)
@@ -17,6 +18,7 @@
 //   ./providers.ts — Add account: provider detection, Microsoft client, connect_account (onboarding agent)
 //   ./triage.ts — Reply Later label, Follow up list and dismissals, seeded examples
 //   ./notifications.ts — new-mail notifications: permission, screen context
+//   ./handoff.ts — Handoff with the iPhone: what each window offers, ?mockHandoff= arriving at launch
 //   ./semanticIndex.ts — search by meaning: model download and indexing progress, semantic_status (semantic agent)
 //   ./summaries.ts — thread summaries: a fake streaming "on-device model" (summaries agent)
 //   ./smart.ts — smart views: seeded receipts, trips, parcels, bills, bookings, files; lists, headers, counts
@@ -24,6 +26,9 @@
 //   ./split.ts — Split Inbox: the inbox filtered by a split's queries, and the tab counts
 //   ./appWindows.ts — conversation and compose windows: window.open with the app's query, composer seeds
 //   ./share.ts — share links: storage settings, the Test, fake uploads and links on share.example
+//   ./stats.ts — Settings → Stats: a seeded year of sending and receiving
+//   ./cloud.ts — Settings → Accounts → Sync with iCloud (?mockCloud=off|noAccount|quota|unavailable)
+//   ./pairIphone.ts — Settings → Accounts → Pair iPhone: a fictional phone scans the code
 import type { UnlistenFn } from "@tauri-apps/api/event";
 import { mailHandlers, withAgentCancel } from "./mail";
 import { searchHandlers } from "./search";
@@ -32,6 +37,7 @@ import { avatarHandlers } from "./avatars";
 import { composeHandlers } from "./compose";
 import { menuHandlers } from "./menus";
 import { ruleHandlers } from "./rules";
+import { extensionHandlers } from "./extensions";
 import { meHandlers } from "./me";
 import { calendarHandlers, withEvents } from "./calendar";
 import { askHandlers } from "./ask";
@@ -43,6 +49,7 @@ import { snoozeHandlers } from "./snooze";
 import { providerHandlers } from "./providers";
 import { triageHandlers, withReplyLaterClear } from "./triage";
 import { notificationHandlers } from "./notifications";
+import { handoffHandlers } from "./handoff";
 import { inviteHandlers, withInviteCards, withInvites } from "./invites";
 import { summaryHandlers } from "./summaries";
 import { smartHandlers } from "./smart";
@@ -51,16 +58,22 @@ import { writingHandlers } from "./writing";
 import { splitHandlers, withSplits } from "./split";
 import { appWindowHandlers } from "./appWindows";
 import { shareHandlers } from "./share";
+import { agentChatHandlers } from "./agentChat";
+import { statsHandlers } from "./stats";
+import { pairIphoneHandlers } from "./pairIphone";
+import { cloudHandlers } from "./cloud";
+import { withDownloads } from "./downloads";
 
 export type MockHandler = (args: Record<string, any>) => unknown | Promise<unknown>;
 
-const handlers: Record<string, MockHandler> = { ...mailHandlers, ...searchHandlers, ...windowHandlers, ...avatarHandlers, ...composeHandlers, ...menuHandlers, ...ruleHandlers, ...meHandlers, ...calendarHandlers, ...askHandlers, ...unsubscribeHandlers, ...snoozeHandlers, ...providerHandlers, ...triageHandlers, ...notificationHandlers, ...inviteHandlers, ...summaryHandlers, ...smartHandlers, ...semanticIndexHandlers, ...imageHandlers, ...writingHandlers, ...splitHandlers, ...appWindowHandlers, ...shareHandlers };
+const handlers: Record<string, MockHandler> = { ...mailHandlers, ...searchHandlers, ...windowHandlers, ...avatarHandlers, ...composeHandlers, ...menuHandlers, ...ruleHandlers, ...extensionHandlers, ...meHandlers, ...calendarHandlers, ...askHandlers, ...unsubscribeHandlers, ...snoozeHandlers, ...providerHandlers, ...triageHandlers, ...notificationHandlers, ...handoffHandlers, ...inviteHandlers, ...summaryHandlers, ...smartHandlers, ...semanticIndexHandlers, ...imageHandlers, ...writingHandlers, ...splitHandlers, ...appWindowHandlers, ...shareHandlers, ...agentChatHandlers, ...statsHandlers, ...pairIphoneHandlers, ...cloudHandlers };
 handlers.search = withEvents(handlers.search);
 handlers.send_message = withReplyLaterClear(handlers.send_message);
 handlers.cancel_scheduled_send = withAgentCancel(handlers.cancel_scheduled_send);
 handlers.list_threads = withSplits(withInvites(handlers.list_threads));
 Object.assign(handlers, splitHandlers(handlers.list_threads));
 handlers.event_invite = withInviteCards(handlers.event_invite);
+withDownloads(handlers);
 const listeners = new Map<string, Set<(p: unknown) => void>>();
 
 export const mockBackend = {

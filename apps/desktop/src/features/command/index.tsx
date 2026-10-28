@@ -26,6 +26,7 @@ import { isDemo, setDemoMode } from "../../app/demoMode";
 import { useSetting } from "../../lib/settings";
 import { sidebarSmartItems, smartDef } from "../smart/catalog";
 import { composeCommands } from "../compose/commands";
+import { extensionCommands } from "../extensions/palette";
 import { useWriterReady } from "../compose/ai";
 import { splitPaletteCommands } from "../split/palette";
 import { isMainWindow } from "../../lib/windowBus";
@@ -53,7 +54,7 @@ interface Cmd {
   run: () => void;
 }
 
-const GROUP_ORDER = ["Suggested", "Best matches", "People", "Search", "Go to", "Split Inbox", "Views", "Triage", "Compose", "Labels", "Accounts", "App", "Settings"];
+const GROUP_ORDER = ["Suggested", "Best matches", "People", "Search", "Go to", "Split Inbox", "Views", "Triage", "Compose", "Extensions", "Labels", "Accounts", "App", "Settings"];
 
 /** Shown first when the palette opens (only those active right now). */
 const SUGGESTED = ["k:compose.reply", "k:triage.done", "k:compose.new", "k:search.open", "k:triage.label", "k:triage.move"];
@@ -80,7 +81,7 @@ function iconFor(s: Shortcut): IconName {
     "triage.read": "unread", "triage.unread": "unread", "triage.unsubscribe": "belloff", "triage.label": "tag", "triage.move": "folder", "triage.snooze": "snooze", "triage.undo": "undo", "thread.copy": "copy",
     "compose.new": "compose", "compose.reply": "reply", "compose.replyAll": "replyall", "compose.forward": "forward",
     "search.open": "search", "app.shortcuts": "keyboard", "app.theme": getUi().theme === "dark" ? "sun" : "moon",
-    "app.sync": "refresh", "acct.all": "users", "ctx.toggle": "columns", "thread.openWindow": "window", "compose.newWindow": "window",
+    "app.sync": "refresh", "app.agentChat": "sparkles", "acct.all": "users", "ctx.toggle": "columns", "thread.openWindow": "window", "compose.newWindow": "window",
   };
   return byId[s.id] ?? GROUP_ICON[s.group ?? ""] ?? "command";
 }
@@ -151,6 +152,7 @@ function Palette() {
       add({ id: `k:${s.id}`, group, label: s.label, keys: s.keys, icon: iconFor(s), run: s.run });
     }
     for (const c of composeCommands(writerReady)) add(c);
+    for (const c of extensionCommands()) add(c);
     // A conversation window lists what it can do to its conversation; views,
     // labels, accounts and Settings belong to the main window.
     if (!isMainWindow) return out;

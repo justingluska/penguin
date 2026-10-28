@@ -1,4 +1,4 @@
-// Sidebar counts for Reply Later and Follow up (api.triageCounts, per
+// Sidebar counts for Reply Later, Follow up and Drafts (api.triageCounts, per
 // account). Loaded by the first component that asks; refreshed, coalesced,
 // on mail-changed (marking, sending, dismissing and sync all emit it) and when
 // the Follow up wait changes in Settings. Follow up also moves with the clock,
@@ -40,7 +40,7 @@ export function shiftTriageCount(refs: { accountId: string }[], field: "replyLat
   seq++;
   const next = counts.map((c) => (by.has(c.accountId) ? { ...c, [field]: Math.max(0, c[field] + by.get(c.accountId)!) } : c));
   for (const [accountId, d] of by)
-    if (!counts.some((c) => c.accountId === accountId) && d > 0) next.push({ accountId, replyLater: 0, followUp: 0, [field]: d });
+    if (!counts.some((c) => c.accountId === accountId) && d > 0) next.push({ accountId, replyLater: 0, followUp: 0, drafts: 0, [field]: d });
   counts = next;
   subs.forEach((f) => f());
 }
@@ -70,8 +70,8 @@ function start() {
   void load();
 }
 
-/** Reply Later and Follow up sizes in scope: one account, a set (a profile), or all. */
-export function useTriageCounts(accountFilter: string | null, accountIds: string[] | null): { replyLater: number; followUp: number } {
+/** Reply Later, Follow up and Drafts sizes in scope: one account, a set (a profile), or all. */
+export function useTriageCounts(accountFilter: string | null, accountIds: string[] | null): { replyLater: number; followUp: number; drafts: number } {
   useEffect(start, []);
   const all = useSyncExternalStore(
     (cb) => {
@@ -82,10 +82,12 @@ export function useTriageCounts(accountFilter: string | null, accountIds: string
   );
   let replyLater = 0;
   let followUp = 0;
+  let drafts = 0;
   for (const c of all) {
     if (accountFilter ? c.accountId !== accountFilter : accountIds && !accountIds.includes(c.accountId)) continue;
     replyLater += c.replyLater;
     followUp += c.followUp;
+    drafts += c.drafts;
   }
-  return { replyLater, followUp };
+  return { replyLater, followUp, drafts };
 }

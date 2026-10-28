@@ -285,7 +285,7 @@ function handmade(): Handmade[] {
           paragraphs: ["Hi Sam,", "Scope of work v3 is attached, with the milestones re-timed to the new kickoff date and the discovery report."],
           list: ["Discovery moves to weeks 1–3.", "The report now covers both pilot sites."],
           signoff: "Dana",
-          attachments: [att("Scope_of_work_v3.pdf", 1.6 * MB, "application/pdf"), att("Discovery_report.docx", 420_000, "application/vnd.openxmlformats-officedocument.wordprocessingml.document")],
+          attachments: [att("Scope_of_work_v3.pdf", 1.6 * MB, "application/pdf"), att("Discovery_report.docx", 420_000, "application/vnd.openxmlformats-officedocument.wordprocessingml.document"), att("Q4_budget.xlsx", 48_000, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"), att("Kickoff_deck.pptx", 3.1 * MB, "application/vnd.openxmlformats-officedocument.presentationml.presentation")],
         },
         { from: me.nw, to: [people.dana], date: todayAt(8, 5, 0), paragraphs: ["Thanks Dana, this looks right. I'll pass it on to finance."], signoff: "Sam" },
       ],
@@ -1143,11 +1143,45 @@ function mockPreview(a: AttachmentMeta) {
   const base = { mimeType: a.mimeType, filename: a.filename, size: a.size, dataUrl: null, text: null, truncated: false, reason: null };
   if (["png", "jpg", "jpeg", "gif", "webp"].includes(ext)) return { ...base, kind: "image", mimeType: "image/png", dataUrl: sampleImage(a.filename) };
   if (ext === "pdf") return { ...base, kind: "pdf", mimeType: "application/pdf", dataUrl: samplePdf(a.filename.replace(/\.pdf$/i, "")) };
-  if (["md", "csv", "txt", "json", "log", "html", "ics"].includes(ext)) {
-    return { ...base, kind: "text", text: SAMPLE_TEXT[ext] ?? SAMPLE_TEXT[ext === "csv" ? "csv" : "md"] };
+  if (ext === "csv") return { ...base, kind: "sheet", sheets: [mockCsvSheet(a.filename, SAMPLE_TEXT.csv)] };
+  if (["xlsx", "xls", "ods"].includes(ext)) return { ...base, kind: "sheet", sheets: MOCK_WORKBOOK };
+  if (ext === "docx") return { ...base, kind: "document", html: MOCK_DOCX_HTML };
+  if (["md", "txt", "json", "log", "html", "ics"].includes(ext)) {
+    return { ...base, kind: "text", text: SAMPLE_TEXT[ext] ?? SAMPLE_TEXT.md };
   }
   return { ...base, kind: "unsupported", reason: "type" };
 }
+
+/** A CSV as the backend reads it (preview_docs::delimited_sheet), for the mock's simple samples. */
+function mockCsvSheet(name: string, text: string) {
+  const rows = text.trim().split("\n").map((l) => l.split(","));
+  return { name, rows, totalRows: rows.length, totalCols: Math.max(...rows.map((r) => r.length)) };
+}
+
+const MOCK_WORKBOOK = [
+  {
+    name: "Q4 budget",
+    rows: [
+      ["Line", "Owner", "Oct", "Nov", "Dec", "Total"],
+      ["Brand refresh (Linden & Co)", "Sam", "12,400", "8,200", "4,100", "24,700"],
+      ["Launch ads", "Theo", "3,000", "6,500", "6,500", "16,000"],
+      ["Events", "Ana", "1,800", "0", "2,400", "4,200"],
+      ["Tools", "Dana", "620", "620", "620", "1,860"],
+      ["", "", "", "", "Total", "46,760"],
+    ],
+    totalRows: 6,
+    totalCols: 6,
+  },
+  { name: "Notes", rows: [["Figures in USD, approved Sep 30."]], totalRows: 1, totalCols: 1 },
+];
+
+/** What preview_docs::docx_html writes for a short report (escaped text, Penguin's own tags). */
+const MOCK_DOCX_HTML =
+  "<h1>Discovery report</h1><p><i>Northwind · prepared for the Q4 brand refresh</i></p>" +
+  "<h2>What we heard</h2><p>Customers describe Northwind as <b>dependable</b> but hard to tell apart from two larger rivals. Six of nine interviews named the logo unprompted.</p>" +
+  "<ul><li>Keep the wordmark recognizable at small sizes.</li><li>Warm gray tested better than the cooler neutral.</li><li>Move the stakeholder review to Monday the 28th.</li></ul>" +
+  "<h2>Timeline</h2><table><tr><td><p><b>Phase</b></p></td><td><p><b>Dates</b></p></td></tr><tr><td><p>Directions</p></td><td><p>Sep 17 – Sep 30</p></td></tr><tr><td><p>Lockups</p></td><td><p>Oct 1 – Oct 8</p></td></tr></table>" +
+  "<p>Questions to Sam Okafor &lt;sam@northwind.example&gt;.</p>";
 
 /** preview_outgoing_file: a composer file from its own bytes (the extension decides here; Rust sniffs the bytes). */
 function mockOutgoingPreview(filename: string, mimeType: string, dataBase64: string) {
@@ -1291,13 +1325,16 @@ function mockSuggestRecipients(query: string, limit: number): Address[] {
   const words = query.toLowerCase().split(/[\s@.]+/).filter(Boolean);
   if (!words.length) return [];
   const seen = new Map<string, { a: Address; n: number }>();
-  for (const t of threads.values())
+  for (const t of threads.values()) {
+    // Spam senders are never suggested (as in the real store).
+    if (t.summary.labelIds.includes("SPAM")) continue;
     for (const a of t.summary.participants) {
       const k = a.email.toLowerCase();
       const cur = seen.get(k);
       if (cur) cur.n++;
       else seen.set(k, { a, n: 1 });
     }
+  }
   const hay = (a: Address) => `${a.name ?? ""} ${a.email}`.toLowerCase().split(/[\s@.]+/);
   return [...seen.values()]
     .filter(({ a }) => !/no-?reply|notifications?@/i.test(a.email) && words.every((w) => hay(a).some((h) => h.startsWith(w))))
@@ -1360,7 +1397,7 @@ function mockPersonSummary(raw: string) {
   };
 }
 
-function findMockMessage(accountId: string, messageId: string): MessageView | undefined {
+export function findMockMessage(accountId: string, messageId: string): MessageView | undefined {
   const view = getThread(accountId, String(messageId).replace(/-m\d+$/, ""));
   const found = view?.messages.find((m) => m.id === messageId);
   if (found) return found;
@@ -1561,6 +1598,8 @@ export const mailHandlers: Record<string, MockHandler> = {
     if (!a) throw { code: "notFound", message: "Attachment not found" };
     return mockPreview(a);
   },
+  // The real one opens macOS Quick Look; the browser has none.
+  quick_look_attachment: () => undefined,
   remove_account: () => undefined,
   update_account: ({ accountId, patch }) => {
     const a = accounts.find((x) => x.id === accountId);
@@ -1604,6 +1643,7 @@ const mockSettings: import("../types").Settings = {
     { id: "news", name: "News", query: "is:newsletter", hideWhenEmpty: false },
   ],
   getToZero: true,
+  getToZeroButton: false,
   zeroCelebration: true,
   remoteImages: "ask",
   trustedImageSenders: [],
@@ -1623,6 +1663,7 @@ const mockSettings: import("../types").Settings = {
   corners: (devQuery("corners") as import("../types").CornerStyle | null) ?? "rounded",
   // ?darkBodies=1 turns on the experimental dark email bodies.
   darkEmailBodies: devQuery("darkBodies") === "1",
+  threadLatestFirst: devQuery("stacked") !== "1",
   // ?floe=1 starts in Floe mode; ?composeFont=literata presets the composer font.
   floeMode: devQuery("floe") === "1",
   composeFont: (devQuery("composeFont") as import("../types").ComposeFont | null) ?? "inter",
@@ -1702,6 +1743,7 @@ const mockSettings: import("../types").Settings = {
       : [],
   // Dev screenshots: ?hideAll=1 leaves the personal account out of All accounts.
   hiddenFromAll: devQuery("hideAll") === "1" ? [ACC.pe] : [],
+  keepHere: [],
   // Sidebar drag order; ?order=pe starts with the personal account first.
   accountOrder: devQuery("order") === "pe" ? [ACC.pe] : [],
   // Smart views (features/smart): all off, like the backend. ?views=demo turns
@@ -1892,8 +1934,16 @@ Object.assign(mailHandlers, {
       throw { code: "other", message: "Penguin couldn't open your browser (launcher exited with status 1)." };
     window.open(mockLink.url, "_blank", "noopener");
   },
-  reconnect_account: async ({ accountId }) => {
-    await mockBrowserSignIn(accounts.find((a) => a.id === accountId)?.email ?? null);
+  reconnect_account: async ({ accountId, password }) => {
+    const account = accounts.find((a) => a.id === accountId);
+    if (account?.provider === "imap") {
+      // A password account: the typed password, checked against IMAP and SMTP. "wrong" is refused.
+      await new Promise((r) => setTimeout(r, 700));
+      if (!password || password === "wrong")
+        throw { code: "invalidInput", message: "Fastmail didn't accept that password. Use an app password (Fastmail Settings → Privacy & Security → App passwords), not your Fastmail password. (The server said: [AUTHENTICATIONFAILED] Invalid credentials)" };
+    } else {
+      await mockBrowserSignIn(account?.email ?? null);
+    }
     if (devQuery("mockReconnect") === "fail") {
       throw { code: "invalidInput", message: "You signed in as someone@else.example; choose " + accountId + " instead" };
     }
@@ -1920,6 +1970,7 @@ if (typeof location !== "undefined" && new URLSearchParams(location.search).get(
   sync[ACC.nw].indexed = TOTAL_NW;
   mockRecordFailure(sync[ACC.nw], "internal", "internal sync error (index out of bounds: the len is 0 but the index is 0); restart sync to retry", NOW - 60_000, null);
   mockRecordFailure(sync[ACC.hl], "auth", "account needs to sign in again: token revoked", NOW - 60_000, null);
+  mockRecordFailure(sync[ACC.fm], "auth", "AUTHENTICATE Invalid credentials", NOW - 60_000, null);
 }
 
 // A flaky server for the "Can't reach …" states (lib/syncHealth.ts), on the

@@ -232,7 +232,23 @@ async fn run_once(
         return Ok((Vec::new(), Vec::new()));
     }
     let mut accounts = outbox::due_accounts(&state.store, now).await?;
-    accounts.extend(snoozes::due_accounts(&state.store, now).await?);
+    let snoozes_due = snoozes::due_accounts(&state.store, now).await?;
+    if !snoozes_due.is_empty() || !accounts.is_empty() {
+        // With sync on, a wake or a reminder reaches the provider only after
+        // a fetch that started after it (another device may have snoozed it
+        // again, or fired or cancelled the reminder), and another device's
+        // schedule may have been sent or claimed meanwhile; ask for a fetch
+        // now rather than waiting for the next push. The fetch wakes this
+        // loop when it's done (cloud.rs).
+        let store = state.store.clone();
+        let stale = crate::state::blocking(move || Ok(!store.sync_pull_fresh(now)?))
+            .await
+            .unwrap_or(false);
+        if stale {
+            crate::cloud::fetch_for_wake();
+        }
+    }
+    accounts.extend(snoozes_due);
     accounts.sort();
     accounts.dedup();
     if accounts.is_empty() {

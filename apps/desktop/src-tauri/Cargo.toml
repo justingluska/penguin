@@ -40,12 +40,24 @@ tauri = { version = "2", features = [] }
 tauri-plugin-opener = "2"
 # Rules "notify" action (Rust-side only; no JS permission is granted).
 tauri-plugin-notification = "2"
+penguin-avatars.workspace = true
 penguin-core.workspace = true
 penguin-gmail.workspace = true
 penguin-graph.workspace = true
 penguin-imap.workspace = true
+# Add account: provider detection and the connect request (shared with the iPhone).
+penguin-onboard.workspace = true
 penguin-provider.workspace = true
 penguin-render.workspace = true
+# Cross-device state (src/cloud.rs, docs/CROSS-DEVICE-STATE.md): records,
+# settings rules and the status Settings shows.
+penguin-sync.workspace = true
+# Pair iPhone (src/pair_iphone.rs, docs/PAIRING.md): the protocol and its
+# listener; the QR code; the Mac's addresses and Bonjour name for it.
+penguin-pair = { workspace = true, features = ["tokio"] }
+qrcodegen = "1.8"
+if-addrs = "0.15"
+gethostname = "1"
 # Search by meaning (src/semantic/): the real embedder (ONNX Runtime,
 # statically linked).
 penguin-semantic = { workspace = true, features = ["onnx"] }
@@ -71,9 +83,12 @@ sha2 = "0.10"
 url = "2"
 image = { version = "0.25", default-features = false, features = ["png", "jpeg", "gif", "webp", "ico", "bmp"] }
 resvg = { version = "0.45", default-features = false }
-# Add account: Thunderbird autoconfig XML (src/providers/autoconfig.rs);
-# already in the tree via resvg/usvg. Refuses DTDs by default.
-roxmltree = "0.20"
+# Attachment previews (src/preview_docs.rs): spreadsheets (xlsx, xls, xlsb,
+# ods) as rows of text; Word documents read from their XML (zip and
+# quick-xml are already in the tree through calamine).
+calamine = { version = "0.36", default-features = false, features = ["dates"] }
+zip = { version = "8.6", default-features = false, features = ["deflate"] }
+quick-xml = "0.41"
 # Share links (src/share/): SigV4 signing for S3-compatible storage (R2,
 # S3, MinIO), sans-IO, so requests go through the reqwest above. 0.8 keeps
 # the RustCrypto 0.10 generation (sha2, hmac, digest) the tree already has;

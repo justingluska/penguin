@@ -28,6 +28,8 @@ import { showContextMenu } from "../../components/ContextMenu";
 import { toast } from "../../components/Toast";
 import { useKeyTip } from "../../lib/shortcutHints";
 import { loadPreview } from "../thread/AttachmentPreview";
+import { fractionOf, progressText, useAttachmentProgress } from "../thread/attachmentProgress";
+import { ProgressRing } from "../../components/ProgressRing";
 import { copyImage, copyImageAddress, copyImagePath, nativeFiles, openInPreview, openLabel, previewImage, revealImage, saveAllImages, saveImage, saveImageAs, savedPath } from "./actions";
 import { copyShareLink } from "../share/actions";
 import { pictureShare } from "../share/model";
@@ -179,6 +181,19 @@ const FIT: View = { scale: null, x: 0, y: 0, animate: true };
 /** Room around a fitted picture (the bar is above the stage). */
 const PAD = 28;
 const MAX_SCALE = 8;
+
+/** The picture on its way: how far along its attachment download is, when it is one. */
+function LoadingImage({ item }: { item: ViewerItem }) {
+  const a = item.kind === "attachment" ? item.attachment : item.remote ? null : item.attachment;
+  const progress = useAttachmentProgress(item.message, a ?? { id: "" });
+  const counted = a ? progressText(progress) : "";
+  return (
+    <div className="iv-msg">
+      {a && progress ? <ProgressRing value={fractionOf(progress)} size={28} label={`Downloading ${item.name}`} /> : <span className="iv-spinner" aria-hidden="true" />}
+      <span className="iv-msg-body tnum">{counted ? `Downloading ${counted}` : "Loading image…"}</span>
+    </div>
+  );
+}
 
 function Viewer({ st }: { st: State }) {
   const tip = useKeyTip();
@@ -430,10 +445,7 @@ function Viewer({ st }: { st: State }) {
             <div className="iv-msg-body">{error}</div>
           </div>
         ) : !url ? (
-          <div className="iv-msg">
-            <span className="iv-spinner" aria-hidden="true" />
-            <span className="iv-msg-body">Loading image…</span>
-          </div>
+          <LoadingImage item={item} />
         ) : (
           <img
             key={item.key}

@@ -136,7 +136,7 @@ export const Sidebar = memo(function Sidebar() {
     inbox: accountFilter ? sumUnread(labels, "INBOX", accountFilter) : inboxUnread(labels, mailIds),
     replyLater: triage.replyLater,
     followUp: triage.followUp,
-    drafts: undefined,
+    drafts: triage.drafts,
     snoozed: useSnoozedCount(accountFilter, mailIds),
     spam: sumUnreadIn(labels, "SPAM", viewIds),
   };

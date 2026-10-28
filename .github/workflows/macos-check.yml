@@ -17,14 +17,22 @@
 # developer.apple.com/forums/thread/787445): the smoke test checks the
 # bridge answers "unavailable" cleanly, not the model itself.
 #
-# Runs on pushes to ai/** branches and by hand. Never on main (release.yml
-# owns main).
+# Runs on pushes to ai/** branches that touch the Mac app (apps/desktop, its
+# signing script included) or the Rust crates, and by hand. Never on main (release.yml owns main).
+# Pushes that only change docs or other apps skip it: each run is several
+# macOS jobs, and macOS minutes bill at 10x on this private repo.
 name: macos-check
 
 on:
   workflow_dispatch:
   push:
     branches: ["ai/**"]
+    paths:
+      - "apps/desktop/**"
+      - "crates/**"
+      - "Cargo.toml"
+      - "Cargo.lock"
+      - ".github/workflows/macos-check.yml"
 
 concurrency:
   group: macos-check-${{ github.ref }}
@@ -64,6 +72,14 @@ jobs:
         run: |
           lib="$(find "$BRIDGE/.build" -name libPenguinAI.a | head -1)"
           nm -gU "$lib" | grep -E ' _penguin_ai_(availability|build_features|cancel|context_size|generate|prewarm)$'
+          # Sync with iCloud (CloudSyncBridge.swift, src/cloud.rs).
+          for f in availability start stop pending fetch send check_account; do
+            nm -gU "$lib" | grep -qE " _penguin_cloud_${f}$" || { echo "::error::_penguin_cloud_$f not exported"; exit 1; }
+          done
+          # Handoff with the iPhone (Handoff.swift, src/handoff.rs).
+          for f in install publish resign; do
+            nm -gU "$lib" | grep -qE " _penguin_handoff_${f}$" || { echo "::error::_penguin_handoff_$f not exported"; exit 1; }
+          done
 
   app:
     name: App build + bridge smoke test (${{ matrix.name }})
@@ -166,3 +182,109 @@ jobs:
           chmod +x summary_bridge
           ./summary_bridge | tee out.txt
           grep -q 'reason: Some(OsTooOld)' out.txt || { echo "::error::expected OsTooOld on macOS 15"; exit 1; }
+
+  # Sync with iCloud (docs/CROSS-DEVICE-STATE.md), and Handoff's activity
+  # types and receiving hook (src/handoff.rs): the app signed the way
+  # release.yml signs it (Developer ID, the iCloud and push entitlements, the
+  # provisioning profile embedded) must launch (AMFI kills an app whose
+  # restricted entitlements its profile doesn't allow) and find CloudKit
+  # usable. Not notarized; skipped without the signing secrets.
+  cloud-signing:
+    name: Signed with iCloud, launches, sync available
+    runs-on: macos-26
+    timeout-minutes: 60
+    steps:
+      - id: secrets
+        env:
+          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+          PENGUIN_MAC_PROVISION_PROFILE: ${{ secrets.PENGUIN_MAC_PROVISION_PROFILE }}
+        run: |
+          if [ -n "$APPLE_CERTIFICATE" ] && [ -n "$PENGUIN_MAC_PROVISION_PROFILE" ]; then
+            echo "ready=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "::warning::No APPLE_CERTIFICATE or PENGUIN_MAC_PROVISION_PROFILE; skipping"
+          fi
+      - uses: actions/checkout@v4
+        if: steps.secrets.outputs.ready == 'true'
+      - uses: actions/setup-node@v4
+        if: steps.secrets.outputs.ready == 'true'
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: apps/desktop/package-lock.json
+      - uses: dtolnay/rust-toolchain@stable
+        if: steps.secrets.outputs.ready == 'true'
+      - uses: Swatinem/rust-cache@v2
+        if: steps.secrets.outputs.ready == 'true'
+        with:
+          workspaces: ". -> target"
+          key: macos-check-cloud
+      - name: Import the Developer ID certificate
+        if: steps.secrets.outputs.ready == 'true'
+        env:
+          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+        run: |
+          kc="$RUNNER_TEMP/signing.keychain-db"
+          kcpw="$(openssl rand -hex 24)"
+          echo "$APPLE_CERTIFICATE" | base64 --decode > "$RUNNER_TEMP/cert.p12"
+          security create-keychain -p "$kcpw" "$kc"
+          security set-keychain-settings -lut 21600 "$kc"
+          security unlock-keychain -p "$kcpw" "$kc"
+          security import "$RUNNER_TEMP/cert.p12" -P "$APPLE_CERTIFICATE_PASSWORD" -A -t cert -f pkcs12 -k "$kc"
+          security set-key-partition-list -S apple-tool:,apple: -k "$kcpw" "$kc" >/dev/null
+          security list-keychain -d user -s "$kc" $(security list-keychains -d user | tr -d '"')
+          rm "$RUNNER_TEMP/cert.p12"
+          identity="$(security find-identity -v -p codesigning "$kc" | awk -F'"' '/Developer ID Application/ { print $2; exit }')"
+          [ -n "$identity" ] || { echo "::error::no Developer ID Application identity"; exit 1; }
+          echo "APPLE_SIGNING_IDENTITY=$identity" >> "$GITHUB_ENV"
+      - name: Entitlements from the profile
+        if: steps.secrets.outputs.ready == 'true'
+        env:
+          PENGUIN_MAC_PROVISION_PROFILE: ${{ secrets.PENGUIN_MAC_PROVISION_PROFILE }}
+        run: |
+          printf '%s' "$PENGUIN_MAC_PROVISION_PROFILE" | base64 --decode > "$RUNNER_TEMP/penguin.provisionprofile"
+          bundle_id="$(node -p 'require("./apps/desktop/src-tauri/tauri.conf.json").identifier')"
+          apps/desktop/scripts/mac-cloud-signing.sh "$RUNNER_TEMP/penguin.provisionprofile" "$bundle_id" "$RUNNER_TEMP/cloud"
+          cat "$RUNNER_TEMP/cloud/Penguin.entitlements" | grep -v -E '<string>[A-Z0-9]{10}' 
+      - name: Build the signed app
+        if: steps.secrets.outputs.ready == 'true'
+        working-directory: apps/desktop
+        env:
+          CARGO_PROFILE_RELEASE_LTO: "off"
+          CARGO_PROFILE_RELEASE_CODEGEN_UNITS: "16"
+        run: |
+          npm ci
+          npm run tauri build -- --bundles app --config "$RUNNER_TEMP/cloud/tauri-macos.json"
+      - name: Signed with iCloud, launches, sync available
+        if: steps.secrets.outputs.ready == 'true'
+        run: |
+          app="$(find target/release/bundle/macos apps/desktop/src-tauri/target/release/bundle/macos -maxdepth 1 -name Penguin.app 2>/dev/null | head -1)"
+          codesign --verify --deep --strict --verbose=2 "$app"
+          codesign -d --entitlements - --xml "$app" | plutil -p - | grep -E 'icloud|aps-environment' | sed -E 's/[A-Z0-9]{10}\./TEAM./'
+          [ -f "$app/Contents/embedded.provisionprofile" ] || { echo "::error::no embedded profile"; exit 1; }
+          # Handoff: src-tauri/Info.plist's activity types made it into the bundle.
+          plutil -extract NSUserActivityTypes json -o - "$app/Contents/Info.plist" | tee "$RUNNER_TEMP/types.json"
+          for t in co.gluska.penguin.conversation co.gluska.penguin.draft; do
+            grep -q "\"$t\"" "$RUNNER_TEMP/types.json" || { echo "::error::$t isn't in the bundle's NSUserActivityTypes"; exit 1; }
+          done
+          "$app/Contents/MacOS/penguin-desktop" > "$RUNNER_TEMP/run.txt" 2>&1 &
+          pid=$!
+          sleep 25
+          if ! kill -0 "$pid" 2>/dev/null; then
+            echo "::error::the signed app quit or was killed at launch"
+            cat "$RUNNER_TEMP/run.txt"
+            log show --last 2m --predicate 'process == "amfid" OR process == "taskgated" OR eventMessage CONTAINS "penguin"' | tail -40 || true
+            exit 1
+          fi
+          kill "$pid" || true
+          log="$(find "$HOME/Library/Logs" -name penguin.log 2>/dev/null | head -1)"
+          echo "log: $log"
+          grep -i 'icloud\|sync with' "$log" | tail -20 || true
+          grep -q 'sync with iCloud: available' "$log" || { echo "::error::sync isn't available in the signed app"; exit 1; }
+          # Handoff: the continueUserActivity wrapper went onto tao's app delegate.
+          grep -i 'handoff' "$log" | tail -5 || true
+          grep -q 'handoff: receiving from the iPhone is on' "$log" || { echo "::error::Handoff receiving isn't installed"; exit 1; }
+      - name: Clean up the keychain
+        if: always()
+        run: security delete-keychain "$RUNNER_TEMP/signing.keychain-db" 2>/dev/null || true

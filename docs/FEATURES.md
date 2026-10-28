@@ -101,7 +101,9 @@ The screenshots show the demo mode's stand-in for the model, which rearranges th
 - **Remind me** if nobody replies in 1, 2 or 3 days or a week.
 - Rich text, per-account signatures, emoji, attachments, and a From picker that keeps replies on the account they came to.
 - **Attachments in and out.** Drag an attachment card out of a conversation as the real file, into Finder, the Desktop, another app or a composer in any Penguin window. Copy (⌘C on a focused card, or the card's menu) puts the file on the clipboard the way Finder does, so a paste in Finder, Slack, Mail or a composer gives the file; a file copied in Finder pastes into a composer as an attachment, in the text or in Subject and To. The card's menu reads Preview (Space), Open, Copy, Copy Image, Copy File Path, Copy Share Link, Copy File Name, Save to Downloads, Save As…, Show in Finder.
+- **Attachment previews** for pictures, PDFs, text and code, video and audio (played right there), Word documents (read as a clean page: headings, lists, tables), and spreadsheets and CSVs (a table with a tab per sheet). Anything else (Keynote, PowerPoint, Pages, Numbers…) opens in macOS Quick Look from the preview.
 - **Preview before it goes out.** Click an attachment in the composer (or its eye, or Space on it) to see exactly the file that will be sent, whether you just added it, it's on a saved draft or it comes with a forward: pictures, PDFs and text in the same preview as received mail, ←/→ between files, Remove to take it off.
+- **Copy as image.** The picture button in the composer puts the draft on the clipboard as a PNG (From, To, Cc by name, the subject, the body as you see it and the attached files' names; not the quoted original), to paste into a chat and show someone before you send.
 - **Spell check while typing**, in the message and the subject (never the address fields), in every window. Right-click a misspelled word for suggestions or Learn spelling. Settings → Compose "Check spelling while typing" (on) and "Check grammar with spelling" (off) are the same switches as Edit → Spelling and Grammar, which also has Show Spelling and Grammar (⇧⌘;) and Check Document Now.
 - **Windows and tabs.** **Pop out** moves the message you're writing (new, reply or forward) into a window of its own, exactly as it is; ⌥⌘N or a right-click on New starts one there. ⇧O (or Open in new window in the right-click menu) opens a conversation in its own window, where you read, reply and triage it; archiving it closes the window, with Undo in the main window. Sending from a compose window counts down in the main window, so Undo send is always there. All of Penguin's windows join macOS tabs: Window → Merge All Windows, or "Prefer tabs" in System Settings.
 
@@ -146,6 +148,10 @@ Settings → Privacy ([PRIVACY.md](PRIVACY.md)):
 - **Read receipts, the standard way** (off by default): your mail asks for a `Disposition-Notification-To` receipt that the recipient's app shows and lets them decline. When one comes back you see "Read by …". Penguin never adds hidden tracking to your mail and never sends receipts for mail you receive.
 - A line above each message says what was done to it ("2 trackers removed · 3 links cleaned"), and a click shows each tracker by company.
 
+## Reading a conversation
+
+- **The latest reply first.** Opening a conversation with replies shows its newest message, marked Latest, with a timeline beside it listing every message newest first (sender, date, files, unread dot). Click one, or use `n` / `p`, to read it in place; a bar says it's an older message and takes you back to the latest in one click or `⇧L`. "Show all" (or `o`) stacks every message oldest first. With the person panel open, the timeline sits in it (under the person, above their meetings) and the message gets the whole middle; in a narrow window it becomes a strip above the message. The reading pane works the same way: the newest message alone under a bar that says how many earlier messages there are and who wrote them ("3 earlier messages · from Marco, Priya and you"); a click opens the timeline (with each sender's photo) in a dialog, and an older pick shows with the same Back to latest bar. Settings → General "Open conversations at the latest reply" (on) turns it all off for the classic stack, oldest first.
+
 ## Keyboard
 
 <p>
@@ -183,15 +189,18 @@ penguin-cli thread <account> <threadId> --md | claude -p "what does Priya need f
 claude mcp add penguin -- /Applications/Penguin.app/Contents/MacOS/penguin-cli mcp
 ```
 
-The MCP server is **off until you turn it on** (Settings → Developer) and **read-only by construction**: the database is opened read-only, the Keychain is never touched, and there are no send, label, archive or delete tools. Tools: `search`, `list_threads`, `get_thread`, `thread_context`, `people`, `list_labels`, `list_accounts`, `ask`, `get_attachment_text`. Every result wraps mail content in tags with a per-call nonce and a warning not to follow instructions inside it, and every call is written to an audit log (without message content). Verification codes never appear in CLI or MCP output. [CLI.md](CLI.md)
+The MCP server is **off until you turn it on** (Settings → Developer → Agents), and you pick how far agents may go: **read only** (the database is opened read-only and the Keychain is never touched; tools like `search`, `get_thread`, `people`, `ask` and `get_attachment_text`), **read, organize and draft** (archive, labels, star, snooze, Reply Later, Trash and spam, all undoable and capped, plus drafts of their own), or **send** (each send waits in the outbox first). Anything that changes mail is a request to the running app, which checks the level and does the work with its own credentials. Every result wraps mail content in tags with a per-call nonce and a warning not to follow instructions inside it, and every call is written to an audit log (without message content). Verification codes never appear in CLI or MCP output. [CLI.md](CLI.md)
 
 ## And more
 
 - **Verification codes** show as chips in the list, one click to copy (⌘⇧C in the thread); sign-in links get a button.
 - **Rules and automations:** conditions are searches, so anything you can find you can automate. Triggers: new mail, a label added, a schedule, or by hand. Actions: label, archive, mark read, star, trash, forward, notify, or run a shell hook or a signed webhook. New rules start in test mode. Create one from a search or from a conversation (⇧A, "Always do this…").
+- **Extensions:** your own buttons on every email, in its menu and in ⌘K, each running a program on your Mac with the email as JSON: make a task, file it in a CRM, save it to notes. An action can ask a few questions first (a title, a board). Nothing runs until you allow it in Settings → Extensions, and any edit to an extension's files turns it off until you allow it again. See [EXTENSIONS.md](EXTENSIONS.md).
 - **Unsubscribe** in one click (RFC 8058 one-click where the sender supports it), always asking first.
+- **Handoff with the iPhone:** the conversation you're reading, or the draft you're writing once it's saved to Gmail, shows up on your iPhone's app switcher, and the other way round. Only ids and the subject go across, through Apple's encrypted Handoff between your own devices. Gmail accounts.
 - **Notifications** (off by default): per account, optionally only from people you've written to; sender and subject, never the body.
 - **Person cards and a context panel:** who someone is, your recent threads and meetings with them, shared files.
+- **Stats** (Settings → Stats): your year in email, counted on your Mac. Sent and received totals, sends per day, your current and longest streak of days with a send, typical reply time, a GitHub-style grid of every day (sent or received), when in the week you write, and the people you trade the most mail with. Per account or all of them.
 - **Demo mode** for screenshots and demos without your mail, a log viewer and a diagnostics page, and in-app updates for signed release builds.
 
 ## How it compares

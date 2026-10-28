@@ -25,6 +25,8 @@ import { isMainWindow } from "../../lib/windowBus";
 import { copyShareLink } from "../share/actions";
 import { attachmentShare, pictureShare } from "../share/model";
 import { refreshShareStatus, shareReady as currentShareReady } from "../share/state";
+import { actionLabel, allowedActions, runExtensionAction } from "../extensions/state";
+import { ExtensionIcon } from "../extensions/ExtensionIcon";
 
 function gmailMessageUrl(email: string, messageId: string): string {
   return `https://mail.google.com/mail/u/${encodeURIComponent(email)}/#all/${encodeURIComponent(messageId)}`;
@@ -41,6 +43,13 @@ export function messageMenu(m: MessageView, opts: { expanded: boolean; onToggle?
     !draft && { label: "Reply", icon: "reply", keys: "r", onSelect: compose("reply") },
     !draft && { label: "Reply all", icon: "replyall", keys: "a", onSelect: compose("replyAll") },
     !draft && { label: "Forward", icon: "forward", keys: "f", onSelect: compose("forward") },
+    // Allowed extensions' actions (Settings → Extensions).
+    { type: "separator" },
+    ...(draft ? [] : allowedActions()).map((a) => ({
+      label: actionLabel(a),
+      lead: <ExtensionIcon icon={a.action.icon} svg={a.action.iconSvg} />,
+      onSelect: () => void runExtensionAction(a, m),
+    })),
     { type: "separator" },
     // (A conversation window already is one.)
     isMainWindow && { label: "Open conversation in new window", icon: "window", keys: "shift+o", onSelect: () => void openThreadWindow(thread) },

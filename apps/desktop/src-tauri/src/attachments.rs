@@ -25,12 +25,18 @@ use serde::Serialize;
 
 use crate::error::{CmdError, CmdResult, ErrorCode};
 use crate::ops::{safe_component, Paths};
+use crate::preview_docs;
 
 /// Images and PDFs travel to the UI as base64 data: URLs; past this they get
 /// the "No preview · Download" panel instead.
 pub const MAX_BINARY_PREVIEW: u64 = 20 * 1024 * 1024;
 /// Text previews show at most this many bytes (the rest is marked truncated).
 pub const MAX_TEXT_PREVIEW: usize = 1024 * 1024;
+/// Audio and video travel as data: URLs too, up to Gmail's 25 MB attachment
+/// limit with room.
+pub const MAX_MEDIA_PREVIEW: u64 = 30 * 1024 * 1024;
+/// CSV and TSV files are parsed from at most this many bytes.
+const MAX_DELIMITED_PREVIEW: usize = 8 * 1024 * 1024;
 
 #[derive(Debug, Clone, Copy, Serialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
@@ -38,6 +44,13 @@ pub enum PreviewKind {
     Image,
     Pdf,
     Text,
+    /// Played in the preview (preview_docs::sniff_media).
+    Video,
+    Audio,
+    /// A Word document as HTML Penguin wrote (preview_docs::docx_html).
+    Document,
+    /// A spreadsheet's sheets as text cells (preview_docs).
+    Sheet,
     Unsupported,
 }
 
@@ -45,7 +58,7 @@ pub enum PreviewKind {
 #[derive(Debug, Clone, Copy, Serialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub enum NoPreviewReason {
-    /// A type Penguin doesn't preview (docx, xlsx, zip, heic, …).
+    /// A type Penguin doesn't preview (pptx, zip, heic, …).
     Type,
     /// Bigger than MAX_BINARY_PREVIEW.
     TooLarge,
@@ -61,12 +74,18 @@ pub struct AttachmentPreview {
     pub mime_type: String,
     pub filename: String,
     pub size: u64,
-    /// image: `data:image/...;base64,…`; pdf: `data:application/pdf;base64,…`.
+    /// image: `data:image/...;base64,…`; pdf: `data:application/pdf;base64,…`;
+    /// video / audio: `data:<sniffed type>;base64,…`.
     pub data_url: Option<String>,
     /// text: UTF-8 (lossy), at most MAX_TEXT_PREVIEW bytes.
     pub text: Option<String>,
-    /// text: the file was longer than what `text` holds.
+    /// text, document, sheet: the file was longer than what's shown.
     pub truncated: bool,
+    /// document: the body as HTML Penguin wrote; every character of the
+    /// file is escaped. Shown in a sandboxed frame with no scripts.
+    pub html: Option<String>,
+    /// sheet: each sheet's first rows.
+    pub sheets: Option<Vec<crate::preview_docs::SheetPreview>>,
     /// unsupported: why.
     pub reason: Option<NoPreviewReason>,
 }
@@ -77,6 +96,11 @@ enum Planned {
     Image,
     Pdf,
     Text,
+    Media,
+    Docx,
+    Workbook,
+    /// CSV (false) or TSV (true).
+    Delimited(bool),
     None,
 }
 
@@ -203,6 +227,18 @@ fn plan(att: &AttachmentMeta) -> Planned {
     if mime == "application/pdf" || ext == "pdf" {
         return Planned::Pdf;
     }
+    if preview_docs::is_docx(&ext, &mime) {
+        return Planned::Docx;
+    }
+    if preview_docs::is_workbook(&ext, &mime) {
+        return Planned::Workbook;
+    }
+    if let Some(tab) = preview_docs::delimited(&ext, &mime) {
+        return Planned::Delimited(tab);
+    }
+    if preview_docs::is_media(&ext, &mime) {
+        return Planned::Media;
+    }
     if mime.starts_with("text/")
         || TEXT_MIMES.contains(&mime.as_str())
         || TEXT_EXTS.contains(&ext.as_str())
@@ -213,20 +249,8 @@ fn plan(att: &AttachmentMeta) -> Planned {
 }
 
 /// The image type the bytes really are (never trust the declared type: it
-/// ends up in a data: URL).
-pub(crate) fn sniff_image(bytes: &[u8]) -> Option<&'static str> {
-    if bytes.starts_with(b"\x89PNG\r\n\x1a\n") {
-        Some("image/png")
-    } else if bytes.starts_with(&[0xFF, 0xD8, 0xFF]) {
-        Some("image/jpeg")
-    } else if bytes.starts_with(b"GIF87a") || bytes.starts_with(b"GIF89a") {
-        Some("image/gif")
-    } else if bytes.len() >= 12 && &bytes[..4] == b"RIFF" && &bytes[8..12] == b"WEBP" {
-        Some("image/webp")
-    } else {
-        None
-    }
-}
+/// ends up in a data: URL). Shared with the iPhone (penguin-avatars).
+pub(crate) use penguin_avatars::picture::sniff_image;
 
 /// PDF readers accept the header anywhere in the first 1 KiB.
 fn is_pdf(bytes: &[u8]) -> bool {
@@ -256,6 +280,8 @@ fn preview_base(att: &AttachmentMeta, kind: PreviewKind) -> AttachmentPreview {
         data_url: None,
         text: None,
         truncated: false,
+        html: None,
+        sheets: None,
         reason: None,
     }
 }
@@ -272,9 +298,10 @@ fn unsupported(att: &AttachmentMeta, reason: NoPreviewReason) -> AttachmentPrevi
 pub fn without_bytes(att: &AttachmentMeta) -> Option<AttachmentPreview> {
     match plan(att) {
         Planned::None => Some(unsupported(att, NoPreviewReason::Type)),
-        Planned::Image | Planned::Pdf if att.size > MAX_BINARY_PREVIEW => {
+        Planned::Image | Planned::Pdf | Planned::Docx | Planned::Workbook if att.size > MAX_BINARY_PREVIEW => {
             Some(unsupported(att, NoPreviewReason::TooLarge))
         }
+        Planned::Media if att.size > MAX_MEDIA_PREVIEW => Some(unsupported(att, NoPreviewReason::TooLarge)),
         _ => None,
     }
 }
@@ -284,10 +311,64 @@ pub fn from_bytes(att: &AttachmentMeta, bytes: &[u8]) -> AttachmentPreview {
     let size = bytes.len() as u64;
     match plan(att) {
         Planned::None => unsupported(att, NoPreviewReason::Type),
-        Planned::Image | Planned::Pdf if size > MAX_BINARY_PREVIEW => AttachmentPreview {
+        Planned::Image | Planned::Pdf | Planned::Docx | Planned::Workbook if size > MAX_BINARY_PREVIEW => AttachmentPreview {
             size,
             ..unsupported(att, NoPreviewReason::TooLarge)
         },
+        Planned::Media if size > MAX_MEDIA_PREVIEW => AttachmentPreview {
+            size,
+            ..unsupported(att, NoPreviewReason::TooLarge)
+        },
+        Planned::Media => match preview_docs::sniff_media(bytes) {
+            Some((mime, video)) => AttachmentPreview {
+                mime_type: mime.to_string(),
+                size,
+                data_url: Some(data_url(mime, bytes)),
+                ..preview_base(att, if video { PreviewKind::Video } else { PreviewKind::Audio })
+            },
+            None => AttachmentPreview {
+                size,
+                ..unsupported(att, NoPreviewReason::Unreadable)
+            },
+        },
+        Planned::Docx => match preview_docs::docx_html(bytes) {
+            Some((html, truncated)) => AttachmentPreview {
+                size,
+                html: Some(html),
+                truncated,
+                ..preview_base(att, PreviewKind::Document)
+            },
+            None => AttachmentPreview {
+                size,
+                ..unsupported(att, NoPreviewReason::Unreadable)
+            },
+        },
+        Planned::Workbook => match preview_docs::workbook_sheets(bytes) {
+            Some(sheets) => AttachmentPreview {
+                size,
+                truncated: sheets.iter().any(|s| s.total_rows as usize > s.rows.len() || s.total_cols as usize > preview_docs::MAX_SHEET_COLS),
+                sheets: Some(sheets),
+                ..preview_base(att, PreviewKind::Sheet)
+            },
+            None => AttachmentPreview {
+                size,
+                ..unsupported(att, NoPreviewReason::Unreadable)
+            },
+        },
+        Planned::Delimited(_) if looks_binary(bytes) => AttachmentPreview {
+            size,
+            ..unsupported(att, NoPreviewReason::Unreadable)
+        },
+        Planned::Delimited(tab) => {
+            let shown = &bytes[..bytes.len().min(MAX_DELIMITED_PREVIEW)];
+            let sheet = preview_docs::delimited_sheet(&att.filename, &String::from_utf8_lossy(shown), tab);
+            AttachmentPreview {
+                size,
+                truncated: bytes.len() > MAX_DELIMITED_PREVIEW || sheet.total_rows as usize > sheet.rows.len(),
+                sheets: Some(vec![sheet]),
+                ..preview_base(att, PreviewKind::Sheet)
+            }
+        }
         Planned::Image => match sniff_image(bytes) {
             Some(mime) => AttachmentPreview {
                 mime_type: mime.to_string(),
@@ -534,6 +615,19 @@ pub async fn bytes(
     message_id: &str,
     att: &AttachmentMeta,
 ) -> CmdResult<Vec<u8>> {
+    bytes_progress(paths, provider, account_id, message_id, att, &|_| {}).await
+}
+
+/// `bytes`, telling `progress` the file bytes received while it downloads
+/// (nothing on a cache hit).
+pub async fn bytes_progress(
+    paths: &Paths,
+    provider: &dyn MailProvider,
+    account_id: &str,
+    message_id: &str,
+    att: &AttachmentMeta,
+    progress: &penguin_provider::Progress<'_>,
+) -> CmdResult<Vec<u8>> {
     let path = cache_file(paths, account_id, message_id, &att.id);
     let cached = path.clone();
     let hit = crate::state::blocking(move || match std::fs::read(&cached) {
@@ -549,7 +643,10 @@ pub async fn bytes(
     if let Some(b) = hit {
         return Ok(b);
     }
-    let fetched = match provider.get_attachment(message_id, att).await {
+    let fetched = match provider
+        .get_attachment_progress(message_id, att, progress)
+        .await
+    {
         Ok(b) => b,
         Err(e) => {
             tracing::warn!(account = %account_id, message = %message_id, attachment = %att.id, provider = provider.provider().as_str(), error = %e, "attachment download failed");
@@ -624,12 +721,15 @@ mod tests {
             (p.kind, p.reason),
             (PreviewKind::Unsupported, Some(NoPreviewReason::Unreadable))
         );
+        // A .docx is read from its bytes; "PK" alone isn't one.
         let p = outgoing_preview(
             "Plan.docx".into(),
             "application/octet-stream".into(),
             &b64(b"PK"),
         )
         .unwrap();
+        assert_eq!(p.reason, Some(NoPreviewReason::Unreadable));
+        let p = outgoing_preview("Deck.key".into(), "application/octet-stream".into(), &b64(b"PK")).unwrap();
         assert_eq!(p.reason, Some(NoPreviewReason::Type));
         assert!(outgoing_preview("x.txt".into(), "text/plain".into(), "not base64!").is_err());
         let huge = "A".repeat(MAX_OUTGOING_PREVIEW / 3 * 4 + 8);
@@ -639,19 +739,43 @@ mod tests {
     #[test]
     fn unsupported_types_need_no_bytes() {
         let p = without_bytes(&att(
-            "Budget.xlsx",
-            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            "Deck.pptx",
+            "application/vnd.openxmlformats-officedocument.presentationml.presentation",
             10,
         ))
         .unwrap();
         assert_eq!(p.kind, PreviewKind::Unsupported);
         assert_eq!(p.reason, Some(NoPreviewReason::Type));
+        // Spreadsheets, Word documents and media are read from their bytes.
+        assert!(without_bytes(&att("Budget.xlsx", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", 10)).is_none());
+        assert!(without_bytes(&att("Lease.docx", "application/octet-stream", 10)).is_none());
+        assert!(without_bytes(&att("clip.mov", "video/quicktime", 10)).is_none());
+        let p = without_bytes(&att("long.mp4", "video/mp4", MAX_MEDIA_PREVIEW + 1)).unwrap();
+        assert_eq!(p.reason, Some(NoPreviewReason::TooLarge));
         let p = without_bytes(&att("IMG_1.heic", "image/heic", 10)).unwrap();
         assert_eq!(p.kind, PreviewKind::Unsupported);
         let p = without_bytes(&att("big.pdf", "application/pdf", MAX_BINARY_PREVIEW + 1)).unwrap();
         assert_eq!(p.reason, Some(NoPreviewReason::TooLarge));
         assert!(without_bytes(&att("a.png", "image/png", 10)).is_none());
         assert!(without_bytes(&att("notes.md", "application/octet-stream", 10)).is_none());
+    }
+
+    #[test]
+    fn media_documents_and_sheets_from_their_bytes() {
+        let mp4 = [&[0, 0, 0, 0x18][..], b"ftypmp42", &[0; 8]].concat();
+        let p = from_bytes(&att("clip.mp4", "application/octet-stream", 20), &mp4);
+        assert_eq!((p.kind, p.mime_type.as_str()), (PreviewKind::Video, "video/mp4"));
+        assert!(p.data_url.unwrap().starts_with("data:video/mp4;base64,"));
+        let p = from_bytes(&att("song.mp3", "audio/mpeg", 10), b"ID3\x04\0\0\0\0\0\0");
+        assert_eq!(p.kind, PreviewKind::Audio);
+        // A "video" that's really something else isn't played.
+        let p = from_bytes(&att("clip.mp4", "video/mp4", 10), b"<html>hi</html>");
+        assert_eq!((p.kind, p.reason), (PreviewKind::Unsupported, Some(NoPreviewReason::Unreadable)));
+        let p = from_bytes(&att("Lease.docx", "application/vnd.openxmlformats-officedocument.wordprocessingml.document", 9), b"not a zip");
+        assert_eq!((p.kind, p.reason), (PreviewKind::Unsupported, Some(NoPreviewReason::Unreadable)));
+        let p = from_bytes(&att("people.csv", "text/csv", 12), b"a,b\n1,2\n");
+        assert_eq!(p.kind, PreviewKind::Sheet);
+        assert_eq!(p.sheets.unwrap()[0].rows, vec![vec!["a".to_string(), "b".to_string()], vec!["1".to_string(), "2".to_string()]]);
     }
 
     #[test]

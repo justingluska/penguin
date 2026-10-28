@@ -11,6 +11,9 @@ import { isMainWindow, thisWindowLabel } from "./thisWindow";
 import type { MockLike } from "./mockBridge";
 import type {
   Address,
+  ExtensionResult,
+  ExtensionsOverview,
+  RunExtensionRequest,
   SmartCount,
   SplitCounts,
   SmartViewInfo,
@@ -22,6 +25,11 @@ import type {
   PersonSummary,
   MessageDetails,
   McpInfo,
+  AgentChatConfigPatch,
+  AgentChatEvent,
+  AgentChatRequest,
+  AgentChatSetup,
+  AgentCliKind,
   AgentActivity,
   AgentOrganized,
   AgentPendingSend,
@@ -50,6 +58,9 @@ import type {
   ListQuery,
   MailChangedEvent,
   OAuthClientStatus,
+  PairEvent,
+  PairStart,
+  CloudStatus,
   SignInLink,
   ConnectAccountRequest,
   DetectedProvider,
@@ -61,6 +72,7 @@ import type {
   ThreadAction,
   ActionFailedEvent,
   BodyFetchFailedEvent,
+  AttachmentProgressEvent,
   ThreadRef,
   ThreadSummary,
   ThreadView,
@@ -70,6 +82,7 @@ import type {
   Settings,
   SettingsPatch,
   TableSizes,
+  MailStats,
   WindowEstimate,
   SyncCoverage,
   FreeUpSpace,
@@ -93,6 +106,8 @@ import type {
   MenuEvent,
   NotifyContext,
   NotificationOpen,
+  HandoffActivity,
+  HandoffOpen,
   NotificationPermission,
   CalendarChangedEvent,
   CalendarEvent,
@@ -146,9 +161,14 @@ export const EVENTS = {
   update: "penguin://update",
   signInUrl: "penguin://sign-in-url",
   notificationOpen: "penguin://notification-open",
+  handoffOpen: "penguin://handoff-open",
   summaryProgress: "penguin://summary-progress",
   imageOpen: "penguin://image-open",
   writeProgress: "penguin://write-progress",
+  agentChat: "penguin://agent-chat",
+  attachmentProgress: "penguin://attachment-progress",
+  pairIphone: "penguin://pair-iphone",
+  cloudStatus: "penguin://cloud-status",
 } as const;
 
 const inTauri = typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
@@ -315,6 +335,17 @@ export const api = {
   setOauthClient: (json: string) => call<OAuthClientStatus>("set_oauth_client", { json }),
   /** iOS client (bare id, Google's .plist, or JSON) → system sign-in sheet. Bad input rejects invalidInput. */
   setIosOauthClient: (input: string) => call<OAuthClientStatus>("set_ios_oauth_client", { input }),
+  /** Settings → Accounts → Pair iPhone: open the listener and get the QR code (docs/PAIRING.md). Main window only. */
+  pairIphoneStart: () => call<PairStart>("pair_iphone_start"),
+  /** Answer the Send prompt once a phone has connected (false = don't send). */
+  pairIphoneConfirm: (sessionId: string, send: boolean) => call<void>("pair_iphone_confirm", { sessionId, send }),
+  pairIphoneCancel: (sessionId: string) => call<void>("pair_iphone_cancel", { sessionId }),
+  /** Settings → Accounts → Sync with iCloud (docs/CROSS-DEVICE-STATE.md). Updates: onCloudStatus. */
+  cloudStatus: () => call<CloudStatus>("cloud_status"),
+  /** Off keeps every record where it is; on again sends what changed meanwhile. */
+  setCloudSync: (enabled: boolean) => call<CloudStatus>("set_cloud_sync", { enabled }),
+  /** Fetch and send now. Rejects with the reason when this build can't sync. */
+  cloudSyncNow: () => call<CloudStatus>("cloud_sync_now"),
   clearIosOauthClient: () => call<OAuthClientStatus>("clear_ios_oauth_client"),
   listAccounts: () => call<Account[]>("list_accounts"),
   /**
@@ -344,7 +375,8 @@ export const api = {
    * access the account already had. Rejects with invalidInput if a different
    * Google account was chosen, or `cancelled` after cancelSignIn.
    */
-  reconnectAccount: (accountId: string) => call<Account>("reconnect_account", { accountId }),
+  /** `password`: a new password for an IMAP account (the others sign in in the browser). */
+  reconnectAccount: (accountId: string, password?: string) => call<Account>("reconnect_account", { accountId, password: password ?? null }),
   /** Abandon the pending browser sign-in (add or reconnect). Resolves true if one was pending. */
   cancelSignIn: () => call<boolean>("cancel_sign_in"),
   /** The browser sign-in waiting for the user, or null (also sent as penguin://sign-in-url; see onSignInUrl). */
@@ -496,6 +528,9 @@ export const api = {
   /** In-app preview (image / PDF / text, else unsupported). Fetches once, cached for saveAttachment. */
   previewAttachment: (accountId: string, messageId: string, attachmentId: string) =>
     call<AttachmentPreview>("preview_attachment", { accountId, messageId, attachmentId }),
+  /** macOS Quick Look on an attachment (decks, Pages, Numbers…); the temp copy goes when its window closes. */
+  quickLookAttachment: (accountId: string, messageId: string, attachmentId: string) =>
+    call<void>("quick_look_attachment", { accountId, messageId, attachmentId }),
   /** The same preview for a composer file not on any message yet (its base64 bytes; Rust sniffs them). */
   previewOutgoingFile: (filename: string, mimeType: string, dataBase64: string) =>
     call<AttachmentPreview>("preview_outgoing_file", { filename, mimeType, dataBase64 }),
@@ -605,6 +640,16 @@ export const api = {
   updateSettings: (patch: SettingsPatch) => call<Settings>("update_settings", { patch }),
   /** Agents (MCP server + CLI) status and copyable client config for Settings → Developer. Change the level via updateSettings({ mcp }). */
   mcpInfo: () => call<McpInfo>("mcp_info"),
+  /** Chat with Claude Code or Codex: the setup and what was found; `detect` searches this Mac again. */
+  agentChatSetup: (detect = false) => call<AgentChatSetup>("agent_chat_setup", { detect }),
+  /** Turn the chat on or off, pick the CLI, set or clear its path (turning it on searches this Mac). */
+  agentChatConfigSet: (patch: AgentChatConfigPatch) => call<AgentChatSetup>("agent_chat_config_set", { patch }),
+  /** Save an API key for `cli` in the Keychain (null removes it); it only ever reaches the CLI's process. */
+  agentChatApiKeySet: (cli: AgentCliKind, key: string | null) => call<AgentChatSetup>("agent_chat_api_key_set", { cli, key }),
+  /** Run one turn; the reply streams as onAgentChat events. Resolves once the CLI started. */
+  agentChatSend: (request: AgentChatRequest) => call<void>("agent_chat_send", { request }),
+  /** Stop the running turn; true if one was running. */
+  agentChatStop: () => call<boolean>("agent_chat_stop"),
   /** Let agents send, after the confirmation: `acknowledgement` is what the user typed ("I understand"). */
   enableAgentSend: (acknowledgement: string) => call<Settings>("enable_agent_send", { acknowledgement }),
   /** The newest agent calls from the audit log, newest first (counts and ids, never content). */
@@ -625,6 +670,8 @@ export const api = {
   diagnostics: () => call<Diagnostics>("diagnostics"),
   /** Per-table/index sizes (dbstat). Slower than diagnostics on a big DB, so it's separate. */
   diagnosticsTableSizes: () => call<TableSizes>("diagnostics_table_sizes"),
+  /** Settings → Stats: a year of sending and receiving (null: every account). */
+  mailStats: (accountIds: string[] | null = null) => call<MailStats>("mail_stats", { accountIds }),
   // sender avatars (src-tauri/src/avatars/)
   /**
    * Photos/logos for up to 500 senders, from local state only (never waits
@@ -690,6 +737,12 @@ export const api = {
   /** Shows "New mail will show up like this." */
   testNotification: () => call<void>("test_notification"),
 
+  // Handoff with the iPhone (src-tauri/src/handoff.rs, features/handoff).
+  /** What this window shows; the front window's is offered to the iPhone. Sent when it changes. */
+  setHandoffActivity: (activity: HandoffActivity) => call<void>("set_handoff_activity", { activity }),
+  /** What the iPhone handed over, once (main window). */
+  takeHandoffOpen: () => call<HandoffOpen | null>("take_handoff_open"),
+
   // Google Calendar (src-tauri/src/calendar/). Reads are local only.
   /** Per-account connection, calendars and sync state (Settings → Calendar). */
   calendarStatus: () => call<CalendarStatus>("calendar_status"),
@@ -734,6 +787,14 @@ export const api = {
     }),
   calendarSyncNow: () => call<void>("calendar_sync_now"),
 
+  // extensions (src-tauri/src/extensions.rs; Settings → Extensions)
+  listExtensions: () => call<ExtensionsOverview>("list_extensions"),
+  /** Allow the extension's folder as it is now, or take the approval back. */
+  setExtensionAllowed: (id: string, allowed: boolean) => call<ExtensionsOverview>("set_extension_allowed", { id, allowed }),
+  /** Run one action on a message; rejects when the program fails. */
+  runExtensionAction: (request: RunExtensionRequest) => call<ExtensionResult>("run_extension_action", { request }),
+  openExtensionsFolder: () => call<void>("open_extensions_folder"),
+
   // rules & automations (src-tauri/src/rules/; Settings → Rules)
   listRules: () => call<RulesOverview>("list_rules"),
   /** Create (id null) or replace. Trash/forward actions need `confirmed: true`. */
@@ -774,6 +835,16 @@ export function onSignInUrl(cb: (e: SignInLink) => void): Promise<UnlistenFn> {
   return listenHere<SignInLink>(EVENTS.signInUrl, (e) => cb(e.payload));
 }
 
+export function onCloudStatus(cb: (s: CloudStatus) => void): Promise<UnlistenFn> {
+  if (isMock) return mockBackend().then((m) => m.listen(EVENTS.cloudStatus, cb as (p: unknown) => void));
+  return listenHere<CloudStatus>(EVENTS.cloudStatus, (e) => cb(e.payload));
+}
+
+export function onPairIphone(cb: (e: PairEvent) => void): Promise<UnlistenFn> {
+  if (isMock) return mockBackend().then((m) => m.listen(EVENTS.pairIphone, cb as (p: unknown) => void));
+  return listenHere<PairEvent>(EVENTS.pairIphone, (e) => cb(e.payload));
+}
+
 export function onSyncStatus(cb: (s: SyncStatus) => void): Promise<UnlistenFn> {
   if (isMock) return mockBackend().then((m) => m.listen(EVENTS.syncStatus, cb as (p: unknown) => void));
   return listenHere<SyncStatus>(EVENTS.syncStatus, (e) => cb(e.payload));
@@ -792,6 +863,11 @@ export function onActionFailed(cb: (e: ActionFailedEvent) => void): Promise<Unli
 export function onBodyFetchFailed(cb: (e: BodyFetchFailedEvent) => void): Promise<UnlistenFn> {
   if (isMock) return mockBackend().then((m) => m.listen(EVENTS.bodyFetchFailed, cb as (p: unknown) => void));
   return listenHere<BodyFetchFailedEvent>(EVENTS.bodyFetchFailed, (e) => cb(e.payload));
+}
+
+export function onAttachmentProgress(cb: (e: AttachmentProgressEvent) => void): Promise<UnlistenFn> {
+  if (isMock) return mockBackend().then((m) => m.listen(EVENTS.attachmentProgress, cb as (p: unknown) => void));
+  return listenHere<AttachmentProgressEvent>(EVENTS.attachmentProgress, (e) => cb(e.payload));
 }
 
 export function onSettingsChanged(cb: (s: Settings) => void): Promise<UnlistenFn> {
@@ -853,6 +929,12 @@ export function onNotificationOpen(cb: (e: NotificationOpen) => void): Promise<U
   return listenHere<NotificationOpen>(EVENTS.notificationOpen, (e) => cb(e.payload));
 }
 
+/** The iPhone handed over a conversation or a draft: take it with api.takeHandoffOpen (src-tauri/src/handoff.rs). */
+export function onHandoffOpen(cb: () => void): Promise<UnlistenFn> {
+  if (isMock) return mockBackend().then((m) => m.listen(EVENTS.handoffOpen, () => cb()));
+  return listenHere<null>(EVENTS.handoffOpen, () => cb());
+}
+
 /** A native menu bar item was chosen (src-tauri/src/app_menu.rs); real inside Tauri even in a mock build. */
 export function onSnoozeWoke(cb: (e: SnoozeWokeBatch) => void): Promise<UnlistenFn> {
   if (isMock) return mockBackend().then((m) => m.listen(EVENTS.snoozeWoke, cb as (p: unknown) => void));
@@ -884,6 +966,12 @@ export function onRuleFired(cb: (e: RuleFiredEvent) => void): Promise<UnlistenFn
 export function onWriteProgress(cb: (e: WriteProgress) => void): Promise<UnlistenFn> {
   if (isMock) return mockBackend().then((m) => m.listen(EVENTS.writeProgress, cb as (p: unknown) => void));
   return listenHere<WriteProgress>(EVENTS.writeProgress, (e) => cb(e.payload));
+}
+
+/** A chat turn's progress (src-tauri/src/agent_chat). */
+export function onAgentChat(cb: (e: AgentChatEvent) => void): Promise<UnlistenFn> {
+  if (isMock) return mockBackend().then((m) => m.listen(EVENTS.agentChat, cb as (p: unknown) => void));
+  return listenHere<AgentChatEvent>(EVENTS.agentChat, (e) => cb(e.payload));
 }
 
 /** A summary in progress: notes on part of a long thread, or the summary so far. */

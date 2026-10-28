@@ -9,12 +9,13 @@ use std::sync::Arc;
 use std::time::Instant;
 
 use penguin_core::{
-    Account, AccountProvider, Label, ListQuery, SearchRequest, SearchResponse, SyncStatus,
+    Account, AccountProvider, Label, ListQuery, MailStats, SearchRequest, SearchResponse, SyncStatus,
     ThreadSummary,
 };
 use penguin_gmail::auth::{OAuthClientConfig, SignedInAccount};
 use penguin_provider::compose::Draft;
 use penguin_provider::{DraftRef, LabelColor, LabelUpdate, OpenedDraft};
+use chrono::TimeZone;
 use tauri::{AppHandle, Manager, State};
 use tauri_plugin_opener::OpenerExt;
 
@@ -27,7 +28,8 @@ use crate::outgoing;
 use crate::settings::{RemoteImages, Settings, SettingsPatch};
 use crate::state::{blocking, AppState};
 use crate::views::{
-    message_view, thread_view, MessageView, OAuthClientStatus, ThreadAction, ThreadRef, ThreadView,
+    message_view, thread_view, AttachmentProgressEvent, MessageView, OAuthClientStatus,
+    ThreadAction, ThreadRef, ThreadView,
 };
 
 type AppStateRef<'a> = State<'a, Arc<AppState>>;
@@ -178,16 +180,18 @@ pub async fn add_account(
 /// account is also in Penguin its fresh credentials are kept (and its sync
 /// restarted), otherwise they are discarded. Asks for the same calendar
 /// scopes as add_account, plus any calendar access the account already had.
+/// `password`: a new password for an IMAP account (ignored by the others).
 #[tauri::command]
 pub async fn reconnect_account(
     app: AppHandle,
     state: AppStateRef<'_>,
     calendar: CalendarRef<'_>,
     account_id: String,
+    password: Option<String>,
 ) -> CmdResult<Account> {
     let account = state.account(&account_id).await?;
     if account.provider != AccountProvider::Gmail {
-        return crate::providers::connect::reconnect(&app, state.inner(), account).await;
+        return crate::providers::connect::reconnect(&app, state.inner(), account, password).await;
     }
     let calendar_scopes = crate::calendar::commands::sign_in_scopes(&state, Some(&account)).await;
     let signed = browser_sign_in(&app, &state, Some(&account.email), &calendar_scopes).await?;
@@ -849,17 +853,60 @@ pub(crate) async fn attachment_bytes(
     attachment_id: &str,
 ) -> CmdResult<(penguin_core::AttachmentMeta, Vec<u8>)> {
     let attachment = find_attachment(state, account_id, message_id, attachment_id).await?;
-    let provider = state.provider(account_id).await?;
     // Reuses bytes a preview already fetched.
-    let bytes = attachments::bytes(
+    let bytes = reported_bytes(state, account_id, message_id, &attachment).await?;
+    Ok((attachment, bytes))
+}
+
+/// Emit penguin://attachment-progress at most this often while a download runs.
+const PROGRESS_EVERY: std::time::Duration = std::time::Duration::from_millis(100);
+
+/// An attachment's bytes (cache, else downloaded) for something the user
+/// is waiting on, with penguin://attachment-progress while it downloads so
+/// the card can show how far along it is. The last event says `done`.
+async fn reported_bytes(
+    state: &AppState,
+    account_id: &str,
+    message_id: &str,
+    attachment: &penguin_core::AttachmentMeta,
+) -> CmdResult<Vec<u8>> {
+    let provider = state.provider(account_id).await?;
+    let event = |received: u64, done: bool| AttachmentProgressEvent {
+        account_id: account_id.to_string(),
+        message_id: message_id.to_string(),
+        attachment_id: attachment.id.clone(),
+        received,
+        total: (attachment.size > 0).then_some(attachment.size),
+        done,
+    };
+    // (when it last emitted, the bytes then); None until the download starts.
+    let last: std::sync::Mutex<Option<(Instant, u64)>> = std::sync::Mutex::new(None);
+    let progress = |received: u64| {
+        let mut last = last.lock().unwrap();
+        let due = match *last {
+            None => true,
+            Some((at, n)) => received != n && at.elapsed() >= PROGRESS_EVERY,
+        };
+        if due {
+            *last = Some((Instant::now(), received));
+            state.emit_attachment_progress(event(received, false));
+        }
+    };
+    let result = attachments::bytes_progress(
         &state.paths,
         provider.as_ref(),
         account_id,
         message_id,
-        &attachment,
+        attachment,
+        &progress,
     )
-    .await?;
-    Ok((attachment, bytes))
+    .await;
+    let started = last.lock().unwrap().is_some();
+    if started {
+        let received = result.as_ref().map(|b| b.len() as u64).unwrap_or(0);
+        state.emit_attachment_progress(event(received, true));
+    }
+    result
 }
 
 /// The stored attachment a Download/Preview names (see attachments::find).
@@ -1007,15 +1054,7 @@ pub async fn preview_attachment(
         if let Some(preview) = attachments::without_bytes(&attachment) {
             return Ok(preview);
         }
-        let provider = state.provider(&account_id).await?;
-        let bytes = attachments::bytes(
-            &state.paths,
-            provider.as_ref(),
-            &account_id,
-            &message_id,
-            &attachment,
-        )
-        .await?;
+        let bytes = reported_bytes(&state, &account_id, &message_id, &attachment).await?;
         blocking(move || Ok(attachments::from_bytes(&attachment, &bytes))).await
     }
     .await
@@ -1032,6 +1071,57 @@ pub async fn preview_outgoing_file(
     data_base64: String,
 ) -> CmdResult<AttachmentPreview> {
     blocking(move || attachments::outgoing_preview(filename, mime_type, &data_base64)).await
+}
+
+/// macOS Quick Look on an attachment the preview can't show itself (a
+/// Keynote or PowerPoint deck, Pages, Numbers, HEIC…): its bytes go to a
+/// private folder in the cache (a random name per call), `qlmanage -p` shows
+/// them in the system's Quick Look window, and the folder is removed when
+/// that window closes.
+#[tauri::command]
+pub async fn quick_look_attachment(
+    state: AppStateRef<'_>,
+    account_id: String,
+    message_id: String,
+    attachment_id: String,
+) -> CmdResult<()> {
+    if !cfg!(target_os = "macos") {
+        return Err(CmdError::invalid("Quick Look is part of macOS"));
+    }
+    let (attachment, bytes) = attachment_bytes(&state, &account_id, &message_id, &attachment_id)
+        .await
+        .inspect_err(|e| attachment_failed("quick look", &account_id, &message_id, &attachment_id, e))?;
+    let mut token = [0u8; 8];
+    getrandom::fill(&mut token).map_err(|e| CmdError::other(format!("Couldn't prepare Quick Look: {e}")))?;
+    let dir = state
+        .paths
+        .cache_dir
+        .join("quick-look")
+        .join(token.iter().map(|b| format!("{b:02x}")).collect::<String>());
+    let name = ops::sanitize_filename(&attachment.filename);
+    let path = blocking(move || {
+        std::fs::create_dir_all(&dir).map_err(|e| CmdError::other(format!("Couldn't prepare Quick Look: {e}")))?;
+        let path = dir.join(name);
+        std::fs::write(&path, &bytes).map_err(|e| CmdError::other(format!("Couldn't prepare Quick Look: {e}")))?;
+        Ok(path)
+    })
+    .await?;
+    let mut child = std::process::Command::new("/usr/bin/qlmanage")
+        .arg("-p")
+        .arg(&path)
+        .stdin(std::process::Stdio::null())
+        .stdout(std::process::Stdio::null())
+        .stderr(std::process::Stdio::null())
+        .spawn()
+        .map_err(|e| CmdError::other(format!("Couldn't open Quick Look: {e}")))?;
+    tracing::info!(account = %account_id, message = %message_id, "attachment in quick look");
+    std::thread::spawn(move || {
+        let _ = child.wait();
+        if let Some(dir) = path.parent() {
+            let _ = std::fs::remove_dir_all(dir);
+        }
+    });
+    Ok(())
 }
 
 /// Opens only files this session saved; the UI can't open arbitrary paths.
@@ -1269,6 +1359,26 @@ pub async fn diagnostics(app: AppHandle, state: AppStateRef<'_>) -> CmdResult<Di
             .filter(|&n| n > 0),
         took_ms: started.elapsed().as_secs_f64() * 1000.0,
     })
+}
+
+/// Settings → Stats: the last year of sent and received mail for
+/// `account_ids` (None: every account), bucketed in the Mac's local time.
+/// Local store only; one scan of the year's headers.
+#[tauri::command]
+pub async fn mail_stats(state: AppStateRef<'_>, account_ids: Option<Vec<String>>) -> CmdResult<MailStats> {
+    let started = Instant::now();
+    let store = state.store.clone();
+    let stats = blocking(move || {
+        Ok(store.mail_stats(account_ids.as_deref(), ops::now_ms(), |ms| {
+            chrono::Local
+                .timestamp_millis_opt(ms)
+                .single()
+                .map_or(0, |t| i64::from(t.offset().local_minus_utc()) * 1000)
+        })?)
+    })
+    .await?;
+    tracing::debug!(took_ms = started.elapsed().as_millis() as u64, "mail stats");
+    Ok(stats)
 }
 
 /// Per-table/index sizes via dbstat. Reads every page of the database, so it

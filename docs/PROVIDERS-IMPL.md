@@ -465,6 +465,8 @@ The Dovecot config used: the image's defaults (static password `pass`,
 sdbox) with `protocols = imap` and a `namespace inbox` declaring Drafts,
 Sent, Trash, Junk, Archive (special_use, `auto = subscribe`) and Receipts.
 
-Known gaps: reconnect can't take a new password yet (remove and re-add);
-`sender_authenticated` is only trusted for Gmail (`mx.google.com`); the
+Reconnect asks for a new password (`reconnect_account`'s `password`), with the
+provider's app-password guide, and replaces the saved one once it logs in.
+
+Known gaps: `sender_authenticated` is only trusted for Gmail (`mx.google.com`); the
 sync progress total counts every folder's messages, not the window.

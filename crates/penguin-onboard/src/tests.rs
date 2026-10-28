@@ -5,13 +5,10 @@ use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
-use crate::avatars::net::BoxFut;
-
-use super::autoconfig;
-use super::detect::{parse_email, Detector, ProviderNet};
-use super::ms_client;
-use super::table;
-use super::*;
+use crate::autoconfig;
+use crate::detect::{parse_email, BoxFut, Detector, ProviderNet};
+use crate::table;
+use crate::*;
 
 #[derive(Clone)]
 enum Answer<T> {
@@ -314,6 +311,28 @@ async fn google_microsoft_and_imap_accounts_are_available() {
     ] {
         assert!(d.detect(email, None).await.unwrap().available, "{email}");
     }
+}
+
+#[tokio::test]
+async fn the_app_says_what_it_can_connect() {
+    // The iPhone: no Proton Mail Bridge, and a build without a Microsoft client.
+    let (d, _) = detector(FakeNet::default());
+    let d = d.with_available(|auth, setup| {
+        setup != SetupKind::Proton && auth != AuthMethod::MicrosoftOAuth
+    });
+    for (email, available) in [
+        ("sam@gmail.com", true),
+        ("sam@icloud.com", true),
+        ("sam@outlook.com", false),
+        ("sam@proton.me", false),
+    ] {
+        let p = d.detect(email, None).await.unwrap();
+        assert_eq!(p.available, available, "{email}");
+    }
+    // An unsupported domain is never available, whatever the app says.
+    let (d, _) = detector(FakeNet::default());
+    let d = d.with_available(|_, _| true);
+    assert!(!d.detect("sam@quiet.example", None).await.unwrap().available);
 }
 
 // ---------------------------------------------------------------------------
@@ -924,16 +943,14 @@ fn connect_request_matches_what_the_ui_sends_and_never_prints_the_password() {
 #[test]
 fn microsoft_client_ids_are_found_and_normalized() {
     let id = "1b2c3d4e-0000-1111-2222-333344445555";
-    assert_eq!(ms_client::normalize_client_id(id).unwrap(), id);
+    assert_eq!(normalize_client_id(id).unwrap(), id);
     assert_eq!(
-        ms_client::normalize_client_id("{1B2C3D4E-0000-1111-2222-333344445555}").unwrap(),
+        normalize_client_id("{1B2C3D4E-0000-1111-2222-333344445555}").unwrap(),
         id
     );
     assert_eq!(
-        ms_client::normalize_client_id(
-            "Application (client) ID : 1b2c3d4e-0000-1111-2222-333344445555 "
-        )
-        .unwrap(),
+        normalize_client_id("Application (client) ID : 1b2c3d4e-0000-1111-2222-333344445555 ")
+            .unwrap(),
         id
     );
     for bad in [
@@ -943,23 +960,7 @@ fn microsoft_client_ids_are_found_and_normalized() {
         "1b2c3d4e00001111222233334444555566",
         "zb2c3d4e-0000-1111-2222-333344445555",
     ] {
-        assert!(ms_client::normalize_client_id(bad).is_err(), "{bad:?}");
+        assert!(normalize_client_id(bad).is_err(), "{bad:?}");
     }
-    assert!(ms_client::normalize_client_id("ünïcode 1b2c3d4e-0000-1111-2222-333344445555").is_ok());
-}
-
-#[test]
-fn microsoft_client_id_round_trips_through_the_config_dir() {
-    let dir = std::env::temp_dir().join(format!("penguin-ms-client-{}", std::process::id()));
-    let _ = std::fs::remove_dir_all(&dir);
-    assert_eq!(ms_client::load(&dir), None);
-    ms_client::save(&dir, Some("1b2c3d4e-0000-1111-2222-333344445555")).unwrap();
-    assert_eq!(
-        ms_client::load(&dir).as_deref(),
-        Some("1b2c3d4e-0000-1111-2222-333344445555")
-    );
-    ms_client::save(&dir, None).unwrap();
-    assert_eq!(ms_client::load(&dir), None);
-    ms_client::save(&dir, None).unwrap();
-    let _ = std::fs::remove_dir_all(&dir);
+    assert!(normalize_client_id("ünïcode 1b2c3d4e-0000-1111-2222-333344445555").is_ok());
 }

@@ -351,7 +351,7 @@ function cardOf(f: Fixture): InviteCard {
     conflicts: conflicts(f),
     canRespond: r !== "none",
     route: r,
-    rsvpAvailable: r === "email" && f.accountId !== FM && !g.rsvp,
+    rsvpAvailable: r === "email" && f.accountId !== FM && g.granted && !g.rsvp,
     canPropose: r !== "none" && !f.snap.recurring,
     response: f.snap.method === "request" ? f.response : null,
     sent: f.sent,

@@ -34,6 +34,7 @@ import { ShortcutCoach } from "./app/ShortcutCoach";
 import { SettingsModal } from "./features/settings/SettingsModal";
 import { LogViewerHost } from "./features/logs/LogViewer";
 import { ReconnectModal } from "./features/settings/ReconnectModal";
+import { AgentChatHost } from "./features/agent-chat/AgentChatPanel";
 import { AddAccountModal } from "./features/onboarding/AddAccountModal";
 import { WelcomeHost } from "./features/welcome";
 import { registerSettingsShortcuts } from "./features/settings/state";
@@ -46,6 +47,7 @@ import { registerOtpShortcuts } from "./features/otp/otp";
 import { startSyncToasts } from "./app/syncToasts";
 import { startUpdateToasts } from "./app/updates";
 import { startNotifications } from "./features/notifications";
+import { startHandoff } from "./features/handoff";
 import { installProfiles } from "./app/profiles";
 import { installFloe, useFloe } from "./features/floe/state";
 import { useFloeMorph } from "./features/floe/morph";
@@ -105,6 +107,7 @@ function MainApp() {
       setAccounts(accounts);
       startMail();
       startNotifications();
+      startHandoff();
       setPhase("ready");
       // Once the first rows are on screen, fetch the rarely used screens and
       // the compose editor in idle moments, so none of them waits on first use.
@@ -226,6 +229,8 @@ function MainApp() {
       <LogViewerHost />
       <AddAccountModal />
       <ReconnectModal />
+      {/* Chat with the user's Claude Code or Codex (features/agent-chat). */}
+      {phase === "ready" && <AgentChatHost />}
       <ToastHost />
       <ModalHost />
       <ConfirmHost />

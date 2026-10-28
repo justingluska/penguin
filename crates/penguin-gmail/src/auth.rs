@@ -10,7 +10,9 @@
 //!     127.0.0.1:<random port> and the "Desktop app" client.
 //!
 //!   A refresh token only refreshes with the client that minted it, so each
-//!   stored token records its client ([`keychain`]).
+//!   stored token records its client ([`keychain`]). A device that got a
+//!   Mac's browser sign-ins through Pair iPhone also holds that Mac's
+//!   desktop client, for refreshing them only ([`paired_clients`]).
 //! - Scopes: `https://www.googleapis.com/auth/gmail.modify` (read, label,
 //!   archive, trash, send — no permanent delete) + `openid email profile`,
 //!   plus optional extra scopes per sign-in (calendar at add-account, contacts
@@ -26,11 +28,13 @@
 mod ios_client;
 mod keychain;
 mod loopback;
+mod paired_clients;
 mod pkce;
 mod sheet;
 #[cfg(target_os = "macos")]
 mod sheet_apple;
 mod token;
+mod transfer;
 
 #[cfg(test)]
 mod tests;
@@ -48,9 +52,11 @@ use crate::{Error, Result};
 
 pub use ios_client::IosClientConfig;
 pub use keychain::{KEYCHAIN_SERVICE, VAULT_ACCOUNT};
+pub use paired_clients::PAIRED_CLIENTS_ACCOUNT;
 pub use sheet::{SheetError, SheetFuture, WebAuthSheet};
 #[cfg(target_os = "macos")]
 pub use sheet_apple::AppleWebAuthSheet;
+pub use transfer::{ImportReport, TokenOrigin};
 
 use keychain::{shared_keychain, CredentialStore, StoredCredential, TokenClient};
 use loopback::{Callback, LoopbackServer, PageKind};
@@ -301,6 +307,9 @@ struct Inner {
     clock: Clock,
     /// Optional iOS client for the system sign-in sheet.
     ios: StdRwLock<Option<IosClientConfig>>,
+    /// Desktop clients received from a Mac (Pair iPhone), for refreshing
+    /// the browser sign-ins it sent; see [`paired_clients`].
+    paired: Arc<paired_clients::PairedClients>,
     /// One slot per account. Holding a slot's lock while refreshing makes
     /// refresh single-flight: concurrent callers wait, then reuse the result.
     tokens: StdMutex<HashMap<String, TokenSlot>>,
@@ -337,9 +346,19 @@ impl AuthManager {
                 store,
                 clock,
                 ios: StdRwLock::new(None),
+                paired: default_paired_clients(),
                 tokens: StdMutex::default(),
             }),
         }
+    }
+
+    /// Tests: a chosen store for the desktop clients from pairing.
+    #[cfg(test)]
+    fn with_paired_clients(mut self, paired: Arc<paired_clients::PairedClients>) -> Self {
+        Arc::get_mut(&mut self.inner)
+            .expect("a manager nobody else holds yet")
+            .paired = paired;
+        self
     }
 
     /// Run the full browser sign-in flow. `open_url` opens the system browser.
@@ -692,20 +711,15 @@ impl AuthManager {
     }
 
     /// Refresh with the client that minted the token: iOS tokens need only
-    /// their stored client id (no secret); desktop tokens use the configured
-    /// desktop client.
+    /// their stored client id (no secret); desktop tokens use the desktop
+    /// client that minted them ([`desktop_client_for`](Self::desktop_client_for)).
     async fn refresh(&self, email: &str, credential: &StoredCredential) -> Result<TokenResponse> {
+        let desktop;
         let (client_id, secret) = match &credential.client {
             TokenClient::Ios { client_id } => (client_id.as_str(), None),
             TokenClient::Desktop { client_id } => {
-                let config = &self.inner.config;
-                if client_id
-                    .as_deref()
-                    .is_some_and(|id| id != config.client_id)
-                {
-                    tracing::warn!(account = %email, "token was issued to a different desktop client; refresh will likely fail");
-                }
-                (config.client_id.as_str(), config.client_secret.as_deref())
+                desktop = self.desktop_client_for(email, client_id.as_deref())?;
+                (desktop.client_id.as_str(), desktop.client_secret.as_deref())
             }
         };
         let mut form = vec![
@@ -717,6 +731,75 @@ impl AuthManager {
             form.push(("client_secret", secret));
         }
         self.post_token(&form, Grant::Refresh { email }).await
+    }
+
+    /// The desktop client to refresh a token `minted_by` (None: recorded
+    /// before client ids were, so the configured one): the configured
+    /// desktop client when it's that one, else one received from a Mac
+    /// (Pair iPhone). With neither, the token can't refresh on this device
+    /// and the account needs to sign in here ([`Error::NeedsReauth`]).
+    fn desktop_client_for(
+        &self,
+        email: &str,
+        minted_by: Option<&str>,
+    ) -> Result<OAuthClientConfig> {
+        let config = &self.inner.config;
+        let configured = !config.client_id.is_empty();
+        if configured && minted_by.is_none_or(|id| id == config.client_id) {
+            return Ok(config.clone());
+        }
+        if let Some(paired) = minted_by.and_then(|id| self.paired_desktop_client(id)) {
+            return Ok(paired);
+        }
+        if configured {
+            tracing::warn!(account = %email, "token was issued to a different desktop client; refresh will likely fail");
+            return Ok(config.clone());
+        }
+        tracing::warn!(account = %email, "token belongs to a desktop client this device doesn't have; needs sign-in");
+        Err(Error::NeedsReauth(email.to_owned()))
+    }
+
+    /// A desktop client received from a Mac, by id. A Keychain error reads
+    /// as "none" (the account then asks to sign in) and is logged.
+    fn paired_desktop_client(&self, client_id: &str) -> Option<OAuthClientConfig> {
+        self.inner.paired.get(client_id).unwrap_or_else(|e| {
+            tracing::warn!(error = %e, "can't read the desktop clients from pairing");
+            None
+        })
+    }
+
+    /// The configured "Desktop app" client (the Mac's browser sign-in), if
+    /// any: what Pair iPhone sends with the tokens it minted.
+    pub fn desktop_client(&self) -> Option<OAuthClientConfig> {
+        let config = &self.inner.config;
+        (!config.client_id.is_empty()).then(|| config.clone())
+    }
+
+    /// Whether the account has a token this device can refresh: any iOS
+    /// client's (they need only the id), or a desktop client's that this
+    /// device holds (configured, or received from a Mac). False with no
+    /// token. Says nothing about whether Google still honors it.
+    pub fn can_refresh(&self, email: &str) -> Result<bool> {
+        let email = normalize_email(email);
+        let Some(credential) = self.inner.store.load(&email)? else {
+            return Ok(false);
+        };
+        Ok(self.holds_client(&credential.client))
+    }
+
+    /// This device can refresh tokens minted by `client`.
+    fn holds_client(&self, client: &TokenClient) -> bool {
+        let config = &self.inner.config;
+        let configured = !config.client_id.is_empty();
+        match client {
+            TokenClient::Ios { .. } => true,
+            TokenClient::Desktop { client_id: None } => configured,
+            TokenClient::Desktop {
+                client_id: Some(id),
+            } => {
+                (configured && *id == config.client_id) || self.paired_desktop_client(id).is_some()
+            }
+        }
     }
 
     /// Drop the cached access token so the next [`access_token`](Self::access_token)
@@ -937,6 +1020,20 @@ fn unix_secs(t: SystemTime) -> u64 {
     t.duration_since(SystemTime::UNIX_EPOCH)
         .map(|d| d.as_secs())
         .unwrap_or(0)
+}
+
+/// The process-wide Keychain item in the app; an empty in-memory one in
+/// tests, which never touch a real Keychain.
+#[cfg(not(test))]
+fn default_paired_clients() -> Arc<paired_clients::PairedClients> {
+    paired_clients::shared_paired_clients()
+}
+
+#[cfg(test)]
+fn default_paired_clients() -> Arc<paired_clients::PairedClients> {
+    Arc::new(paired_clients::PairedClients::new(Box::new(Arc::new(
+        keychain::memory::MemoryBackend::default(),
+    ))))
 }
 
 fn network(e: reqwest::Error) -> Error {

@@ -63,6 +63,11 @@ export interface MenuOptions {
   /** Anchored menus open below the anchor, aligned to its start (default) or end. */
   align?: "start" | "end";
   onClose?: () => void;
+  /**
+   * The button that opened it (MenuButton, Select). A press on it isn't an
+   * outside click: the button's own handler toggles the menu closed.
+   */
+  trigger?: Element | null;
   /** Extra class on the root panel. */
   className?: string;
 }
@@ -350,7 +355,10 @@ function MenuStack({ menu }: { menu: OpenMenu }) {
     };
     const inside = (t: EventTarget | null) => t instanceof Node && panelRefs.current.some((p) => p?.contains(t));
     const onDown = (e: MouseEvent) => {
-      if (!inside(e.target)) closeMenu();
+      // Closing here on the trigger's press would re-render before its own
+      // onMouseDown runs, which then sees "closed" and opens it again.
+      const onTrigger = e.target instanceof Node && !!menu.opts.trigger?.contains(e.target);
+      if (!inside(e.target) && !onTrigger) closeMenu();
     };
     const onScroll = (e: Event) => {
       if (!inside(e.target)) closeMenu();
@@ -376,7 +384,7 @@ function MenuStack({ menu }: { menu: OpenMenu }) {
       window.removeEventListener("contextmenu", onContext, true);
       if (hoverTimer.current) clearTimeout(hoverTimer.current);
     };
-  }, [choose, openSub, setActive, setLevels]);
+  }, [choose, openSub, setActive, setLevels, menu.opts.trigger]);
 
   const onHover = (depth: number, index: number) => {
     if (hoverTimer.current) clearTimeout(hoverTimer.current);
@@ -578,7 +586,7 @@ export function MenuButton({
     const el = ref.current;
     if (!el) return;
     setOpen(true);
-    openMenu(el.getBoundingClientRect(), items(), { label, align, onClose: () => setOpen(false) }, keyboard);
+    openMenu(el.getBoundingClientRect(), items(), { label, align, trigger: el, onClose: () => setOpen(false) }, keyboard);
   };
   return (
     <button
@@ -592,7 +600,7 @@ export function MenuButton({
       onMouseDown={(e) => {
         if (e.button !== 0) return;
         // A second press on the open button closes it (the outside-click
-        // handler would otherwise close it and this press reopen it).
+        // handler leaves presses on the trigger to this).
         e.preventDefault();
         if (open) closeMenu();
         else show(false);

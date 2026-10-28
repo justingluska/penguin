@@ -98,7 +98,18 @@ function contentHeight(doc: Document): number | null {
 
 /** `trailing`: shown at the right end of the privacy row (the Unsubscribe
  * button); the row then shows even with nothing blocked. */
-export function MessageBody({ message, onLoadImages, trailing }: { message: MessageView; onLoadImages?: () => void; trailing?: ReactNode }) {
+export function MessageBody({
+  message,
+  onLoadImages,
+  trailing,
+  leading,
+}: {
+  message: MessageView;
+  onLoadImages?: () => void;
+  trailing?: ReactNode;
+  /** Shown first in the row (the reading pane's Timeline button). */
+  leading?: ReactNode;
+}) {
   const frameRef = useRef<HTMLIFrameElement>(null);
   const wrapRef = useRef<HTMLDivElement>(null);
   const [height, setHeight] = useState(MIN_HEIGHT);
@@ -361,6 +372,7 @@ export function MessageBody({ message, onLoadImages, trailing }: { message: Mess
     <div className="mb" ref={wrapRef} tabIndex={-1}>
       {blocked > 0 ? (
         <div className="mb-bar" role="status">
+          {leading}
           <Icon name="image" size="sm" />
           <span>
             Remote images blocked <span className="mb-count">({blocked})</span>
@@ -390,8 +402,9 @@ export function MessageBody({ message, onLoadImages, trailing }: { message: Mess
           {schemeToggle}
           {trailing ? <span className="mb-trail">{trailing}</span> : null}
         </div>
-      ) : summary || trailing || schemeToggle || saveAll ? (
+      ) : summary || trailing || schemeToggle || saveAll || leading ? (
         <div className="mb-bar is-quiet" role="status">
+          {leading}
           {summary ? (
             <button type="button" className={summaryClass} onClick={showPrivacy} title="What was removed and why">
               <Icon name={summary.tone === "warn" ? "eye" : "shield"} size="sm" />

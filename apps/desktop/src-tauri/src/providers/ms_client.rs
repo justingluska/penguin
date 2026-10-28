@@ -46,24 +46,25 @@ pub fn save(config_dir: &Path, client_id: Option<&str>) -> std::io::Result<()> {
     }
 }
 
-fn is_guid(s: &str) -> bool {
-    s.len() == 36
-        && s.bytes().enumerate().all(|(i, b)| match i {
-            8 | 13 | 18 | 23 => b == b'-',
-            _ => b.is_ascii_hexdigit(),
-        })
-}
+pub use penguin_onboard::normalize_client_id;
 
-/// The first GUID in `input`, lowercased. Takes the bare ID, `{…}`, or a line
-/// copied from the portal ("Application (client) ID : 1b2c…").
-pub fn normalize_client_id(input: &str) -> Result<String, String> {
-    let bytes = input.as_bytes();
-    (0..bytes.len().saturating_sub(35))
-        .filter(|&i| input.is_char_boundary(i) && input.is_char_boundary(i + 36))
-        .map(|i| &input[i..i + 36])
-        .find(|s| is_guid(s))
-        .map(str::to_ascii_lowercase)
-        .ok_or_else(|| {
-            "That isn't an Application (client) ID. Copy the ID from the app's Overview page; it looks like 1b2c3d4e-0000-1111-2222-333344445555.".into()
-        })
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn microsoft_client_id_round_trips_through_the_config_dir() {
+        let dir = std::env::temp_dir().join(format!("penguin-ms-client-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        assert_eq!(load(&dir), None);
+        save(&dir, Some("1b2c3d4e-0000-1111-2222-333344445555")).unwrap();
+        assert_eq!(
+            load(&dir).as_deref(),
+            Some("1b2c3d4e-0000-1111-2222-333344445555")
+        );
+        save(&dir, None).unwrap();
+        assert_eq!(load(&dir), None);
+        save(&dir, None).unwrap();
+        let _ = std::fs::remove_dir_all(&dir);
+    }
 }

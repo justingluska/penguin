@@ -33,7 +33,7 @@ use std::time::Instant;
 use rmcp::handler::server::router::tool::ToolRouter;
 use rmcp::handler::server::wrapper::Parameters;
 use rmcp::model::{
-    CallToolResult, ContentBlock, Implementation, ListToolsResult, PaginatedRequestParams,
+    CacheScope, CallToolResult, ContentBlock, Implementation, ListToolsResult, PaginatedRequestParams,
     ResourceContents, ServerCapabilities, ServerConfig,
 };
 use rmcp::schemars::JsonSchema;
@@ -1171,7 +1171,10 @@ impl ServerHandler for PenguinMcp {
 
     /// Only the tools the current level allows, and `create_share_link` only
     /// when share links are allowed for agents too (both are read each
-    /// time; clients re-list after reconnecting).
+    /// time; clients re-list after reconnecting). MCP 2026-07-28 requires
+    /// `ttlMs` on the list (Claude Code 2.1 drops a list without it, so no
+    /// tool loads): 0, since the level can change at any moment, and
+    /// private, since the list is this user's.
     async fn list_tools(
         &self,
         _request: Option<PaginatedRequestParams>,
@@ -1185,8 +1188,14 @@ impl ServerHandler for PenguinMcp {
             .into_iter()
             .filter(|t| listed(level, share_links, &t.name))
             .collect();
-        Ok(ListToolsResult::with_all_items(tools))
+        Ok(list_result(tools))
     }
+}
+
+fn list_result(tools: Vec<rmcp::model::Tool>) -> ListToolsResult {
+    ListToolsResult::with_all_items(tools)
+        .with_ttl_ms(0)
+        .with_cache_scope(CacheScope::Private)
 }
 
 /// Serve on stdin/stdout until the client disconnects. stdout carries only
@@ -1334,6 +1343,19 @@ mod tests {
             .as_str()
             .unwrap_or_default()
             .to_string()
+    }
+
+    /// Claude Code 2.1 speaks MCP 2026-07-28, whose tools/list must carry
+    /// `ttlMs`; without it Claude drops the whole list and no tool loads.
+    /// Older clients (the handshake below negotiates 2025-11-25 at most)
+    /// get the same fields, which they ignore.
+    #[tokio::test]
+    async fn tools_list_carries_its_cache_fields() {
+        let v = serde_json::to_value(list_result(Vec::new())).unwrap();
+        assert_eq!((v["ttlMs"].as_u64(), v["cacheScope"].as_str()), (Some(0), Some("private")), "{v}");
+        let (mut c, _root, _audit) = start("mcp-cache-fields").await;
+        let list = c.call(2, "tools/list", serde_json::json!({})).await;
+        assert_eq!(list["result"]["tools"].as_array().unwrap().len(), TOOLS.len(), "{list}");
     }
 
     /// Each level lists exactly its tools, re-read on every tools/list.

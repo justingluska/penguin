@@ -277,6 +277,47 @@ impl<T: Clone + Serialize + DeserializeOwned> SecretVault<T> {
     }
 }
 
+impl<T: Clone + Serialize + DeserializeOwned> SecretVault<T> {
+    /// The credentials of `account_ids` that are stored, as a vault item of
+    /// their own (`{"version":1,"accounts":{…}}`): what Pair iPhone sends.
+    /// Holds secrets: never log it, wipe it when done.
+    pub fn export(&self, account_ids: &[String]) -> Result<String> {
+        let mut state = self.lock();
+        let map = self.loaded(&mut state)?;
+        let file = VaultFile {
+            version: VAULT_VERSION,
+            accounts: account_ids
+                .iter()
+                .filter_map(|id| map.get(id).map(|c| (id.clone(), c.clone())))
+                .collect(),
+        };
+        serde_json::to_string(&file).map_err(|e| Error::Other(e.to_string()))
+    }
+}
+
+/// Read a vault item made by [`SecretVault::export`]: the credentials by
+/// account id. A newer format than this build reads is refused. The error
+/// never quotes the text (it holds secrets).
+pub fn parse_export<T: DeserializeOwned>(json: &str) -> Result<BTreeMap<String, T>> {
+    #[derive(Deserialize)]
+    #[serde(bound = "T: DeserializeOwned")]
+    struct Head<T> {
+        version: u32,
+        #[serde(default = "BTreeMap::new")]
+        accounts: BTreeMap<String, T>,
+    }
+    let file: Head<T> = serde_json::from_str(json).map_err(|e| {
+        Error::InvalidInput(format!("unreadable credentials (column {})", e.column()))
+    })?;
+    if file.version > VAULT_VERSION {
+        return Err(Error::InvalidInput(format!(
+            "credentials format {} is newer than this build reads",
+            file.version
+        )));
+    }
+    Ok(file.accounts)
+}
+
 /// An in-memory [`SecretBackend`] for tests, counting reads.
 #[derive(Default)]
 pub struct MemorySecrets {
@@ -359,6 +400,31 @@ mod tests {
             obtained_at: 0,
         };
         assert!(!format!("{ms:?}").contains("AAAA-secret"));
+    }
+
+    #[test]
+    fn export_carries_only_the_asked_accounts_and_reads_back() {
+        let mem = Arc::new(MemorySecrets::default());
+        let vault: SecretVault<PasswordCredential> = SecretVault::new(Box::new(mem.clone()));
+        vault.save("a@x.example", &pw("1")).unwrap();
+        vault.save("b@x.example", &pw("2")).unwrap();
+        let json = vault
+            .export(&["b@x.example".into(), "missing@x.example".into()])
+            .unwrap();
+        assert_eq!(
+            json,
+            r#"{"version":1,"accounts":{"b@x.example":{"password":"2","savedAt":7}}}"#
+        );
+        let back: BTreeMap<String, PasswordCredential> = parse_export(&json).unwrap();
+        assert_eq!(back.len(), 1);
+        assert_eq!(back["b@x.example"].password, "2");
+        assert!(parse_export::<PasswordCredential>(r#"{"version":2,"accounts":{}}"#).is_err());
+        let e = parse_export::<PasswordCredential>(
+            r#"{"version":1,"accounts":{"a":{"password":"sekrit","x":"#,
+        )
+        .unwrap_err();
+        assert!(!e.to_string().contains("sekrit"), "{e}");
+        assert!(parse_export::<PasswordCredential>("{}").is_err());
     }
 
     #[test]

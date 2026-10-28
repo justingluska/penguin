@@ -1,6 +1,8 @@
 //! Microsoft sign-in and tokens: authorization code + PKCE against the
 //! `/common` authority with the user's own public client (no secret), a
-//! loopback redirect on a random localhost port, refresh tokens in the
+//! loopback redirect on a random localhost port (the Mac) or the app's own
+//! redirect URI caught by its web sheet (the iPhone's
+//! `ASWebAuthenticationSession`, [`Auth::begin_redirect_sign_in`]), refresh tokens in the
 //! Microsoft Keychain vault (`penguin_provider::credentials`), access
 //! tokens in memory only.
 //!
@@ -287,6 +289,53 @@ pub struct SignInUi<'a> {
     pub on_success: Option<&'a (dyn Fn() + Send + Sync)>,
 }
 
+/// A sign-in shown in the app's own web sheet: open [`url`](Self::url),
+/// catch the redirect to `redirect_uri`, hand it to
+/// [`Auth::finish_redirect_sign_in`]. Holds the PKCE verifier and the
+/// state, so it is never printed.
+pub struct RedirectSignIn {
+    /// Microsoft's authorization page for this sign-in.
+    pub url: String,
+    client_id: String,
+    account_id: String,
+    redirect_uri: String,
+    state: String,
+    verifier: String,
+}
+
+impl RedirectSignIn {
+    /// The account being signed in (the typed address, lowercased).
+    pub fn account_id(&self) -> &str {
+        &self.account_id
+    }
+
+    pub fn client_id(&self) -> &str {
+        &self.client_id
+    }
+}
+
+impl fmt::Debug for RedirectSignIn {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("RedirectSignIn")
+            .field("client_id", &self.client_id)
+            .field("redirect_uri", &self.redirect_uri)
+            .finish_non_exhaustive()
+    }
+}
+
+/// Whether `url` is a redirect to `redirect_uri` (same scheme, host and
+/// path; the query is Microsoft's answer).
+fn is_redirect_to(url: &url::Url, redirect_uri: &str) -> bool {
+    let Ok(want) = url::Url::parse(redirect_uri) else {
+        return false;
+    };
+    url.scheme().eq_ignore_ascii_case(want.scheme())
+        && url.host_str().map(str::to_ascii_lowercase)
+            == want.host_str().map(str::to_ascii_lowercase)
+        && url.port() == want.port()
+        && url.path().trim_end_matches('/') == want.path().trim_end_matches('/')
+}
+
 type Clock = Arc<dyn Fn() -> SystemTime + Send + Sync>;
 type Slot = Arc<Mutex<Option<CachedToken>>>;
 
@@ -348,6 +397,12 @@ impl Auth {
         tokio::task::spawn_blocking(move || f(&vault))
             .await
             .map_err(|e| Error::Other(format!("keychain task failed: {e}")))?
+    }
+
+    /// The refresh tokens' vault (Pair iPhone exports from it on the Mac and
+    /// imports into it on the phone).
+    pub fn vault(&self) -> &Arc<SecretVault<MicrosoftCredential>> {
+        &self.vault
     }
 
     /// Whether a refresh token is stored (may block on the Keychain once).
@@ -577,6 +632,87 @@ impl Auth {
             hook();
         }
         result
+    }
+
+    /// Start a sign-in the app shows in its own web sheet, which catches
+    /// the redirect to `redirect_uri` (registered for the client, e.g.
+    /// `msauth.<bundle id>://auth` on the iPhone). Nothing is stored until
+    /// [`finish_redirect_sign_in`](Self::finish_redirect_sign_in).
+    pub fn begin_redirect_sign_in(
+        &self,
+        client_id: &str,
+        account_id: &str,
+        redirect_uri: &str,
+    ) -> Result<RedirectSignIn> {
+        let verifier = random_urlsafe(32)?;
+        let state = random_urlsafe(24)?;
+        let account_id = account_id.trim().to_lowercase();
+        let url = self.authorization_url(
+            client_id,
+            redirect_uri,
+            &challenge_s256(&verifier),
+            &state,
+            &account_id,
+        )?;
+        Ok(RedirectSignIn {
+            url,
+            client_id: client_id.to_string(),
+            account_id,
+            redirect_uri: redirect_uri.to_string(),
+            state,
+            verifier,
+        })
+    }
+
+    /// Finish a [`RedirectSignIn`] with the URL the sheet caught, or None
+    /// when the user closed it (`SignInCancelled`). Checks the state,
+    /// exchanges the code, refuses another account than the one typed, and
+    /// stores the refresh token under it.
+    pub async fn finish_redirect_sign_in(
+        &self,
+        pending: RedirectSignIn,
+        redirect_url: Option<&str>,
+    ) -> Result<SignedIn> {
+        let Some(raw) = redirect_url else {
+            return Err(Error::SignInCancelled);
+        };
+        let url = url::Url::parse(raw.trim())
+            .map_err(|_| Error::OAuth("Microsoft's answer wasn't a sign-in redirect".into()))?;
+        if !is_redirect_to(&url, &pending.redirect_uri) {
+            return Err(Error::OAuth(
+                "Microsoft's answer wasn't for this sign-in; start again".into(),
+            ));
+        }
+        let query: HashMap<String, String> = url.query_pairs().into_owned().collect();
+        let callback = Callback::from_query(&query)
+            .ok_or_else(|| Error::OAuth("Microsoft's answer had no sign-in code".into()))?;
+        if !constant_time_eq(callback.state(), &pending.state) {
+            tracing::warn!("ignoring Microsoft redirect with mismatched state");
+            return Err(Error::OAuth(
+                "This sign-in link has expired; start sign-in again".into(),
+            ));
+        }
+        match callback {
+            Callback::Code { code, .. } => {
+                self.complete_sign_in(
+                    &pending.client_id,
+                    &pending.account_id,
+                    &code,
+                    &pending.verifier,
+                    &pending.redirect_uri,
+                )
+                .await
+            }
+            Callback::Denied {
+                error,
+                description,
+                subcode,
+                ..
+            } => {
+                tracing::info!(%error, "Microsoft sign-in was not completed");
+                Err(callback_error(&error, &description, &subcode))
+            }
+        }
     }
 
     /// Exchange the code, check the grant and the identity, store the tokens.

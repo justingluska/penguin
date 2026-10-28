@@ -39,7 +39,9 @@ export const SETTINGS_PAGES: SettingsPage[] = [
   { id: "ai", label: "AI", icon: "sparkles", keywords: ["jev", "llm", "assistant", "machine learning"] },
   { id: "views", label: "Views", icon: "list", keywords: ["smart views", "sidebar", "receipts", "travel", "packages", "bills", "filtered lists", "saved searches"] },
   { id: "rules", label: "Rules", icon: "wand", keywords: ["filters", "automation", "automate", "auto label", "auto archive", "move", "forward"] },
+  { id: "extensions", label: "Extensions", icon: "zap", keywords: ["plugins", "add-ons", "addons", "integrations", "scripts", "buttons", "tasks"] },
   { id: "keyboard", label: "Keyboard", icon: "keyboard", keywords: ["shortcuts", "hotkeys", "keys"] },
+  { id: "stats", label: "Stats", icon: "chart", keywords: ["statistics", "analytics", "insights", "activity", "contributions", "heatmap", "how many emails", "sent per day", "streak", "reply time", "wrapped"] },
   { id: "diagnostics", label: "Developer", icon: "database", keywords: ["diagnostics", "debug", "advanced", "logs"] },
   { id: "whatsnew", label: "What's new", icon: "news", keywords: ["changelog", "release notes", "version", "updates"] },
   { id: "about", label: "About", icon: "info", keywords: ["version", "credits", "author", "open source", "github", "twitter", "x"] },
@@ -69,6 +71,8 @@ export const SETTINGS_INDEX: SettingEntry[] = [
   { page: "accounts", label: "Add account", find: "[data-setting='add-account']", keywords: ["new account", "sign in", "connect", "login", "yahoo", "icloud", "outlook", "imap"] },
   { page: "accounts", label: "Unfinished setups", find: ".setting-account.is-pending", keywords: ["pending", "resume", "setting up"] },
   { page: "accounts", label: "Show in All Inboxes", desc: "Leave an account's mail out of All accounts", keywords: ["unified inbox", "all accounts", "hide account", "combined"] },
+  { page: "accounts", label: "Pair iPhone", find: "[data-setting='pair-iphone']", desc: "Move these accounts to Penguin for iPhone with a QR code", keywords: ["iphone", "phone", "mobile", "ios", "qr code", "transfer", "move accounts", "pair"] },
+  { page: "accounts", label: "Sync with iCloud", find: "[data-setting='icloud-sync']", desc: "Snoozes, Follow up, snippets, signatures and settings on your iPhone too", keywords: ["icloud", "sync", "cloudkit", "iphone", "snooze", "snippets", "signatures", "devices"] },
   { page: "accounts", label: "Sign-in method", desc: "The Google sign-in client Penguin uses", keywords: ["oauth", "client id", "google cloud", "ios client", "credentials"] },
 
   // Profiles
@@ -77,12 +81,14 @@ export const SETTINGS_INDEX: SettingEntry[] = [
 
   // General
   { page: "general", label: "Theme", desc: "Dark, light or system", keywords: ["dark", "dark mode", "light mode", "night", "appearance", "system"] },
+  { page: "general", label: "Only on this Mac", desc: "Keep the theme off iCloud sync", keywords: ["theme", "sync", "icloud", "iphone", "follow system", "appearance"] },
   { page: "general", label: "Dark mode shade", desc: "Black, Charcoal, Dim or Navy", keywords: ["black", "charcoal", "dim", "navy", "gray", "grey", "midnight", "background", "night", "oled", "appearance"] },
   { page: "general", label: "Sidebar text size", desc: "Smaller or larger sidebar text", keywords: ["font", "font size", "text size", "bigger", "smaller", "zoom", "sidebar"] },
   { page: "general", label: "Sidebar theme", desc: "Tints the sidebar", keywords: ["color", "tint", "graphite", "midnight", "arctic", "lavender", "mint", "peach", "sky", "rose", "butter", "sage", "slate", "mauve", "sand", "mocha", "crimson", "amber", "olive", "forest", "teal", "ocean", "indigo", "plum"] },
   { page: "general", label: "Accent color", desc: "Caret, focus ring, unread dot and selection", keywords: ["accent", "highlight", "colour", "tint", "caret", "focus", "unread", "blue", "purple", "pink", "red", "orange", "yellow", "green", "teal", "graphite"] },
   { page: "general", label: "Corners", desc: "Rounded, subtle or square", keywords: ["corner", "radius", "rounded", "square", "sharp", "round"] },
   { page: "general", label: "Match accent to theme", keywords: ["accent", "caret", "focus ring", "unread marker", "blue"] },
+  { page: "general", label: "Open conversations at the latest reply", desc: "Newest message first, earlier ones in a timeline", keywords: ["thread", "timeline", "stacked", "classic", "newest", "conversation view"] },
   { page: "general", label: "Dark email bodies", desc: "HTML mail in the dark theme", keywords: ["dark mode", "invert", "html", "experimental"] },
   { page: "general", label: "Accounts in the sidebar", keywords: ["hide", "sidebar section"] },
   { page: "general", label: "Labels in the sidebar", keywords: ["hide", "folders", "sidebar section"] },
@@ -191,6 +197,10 @@ export const SETTINGS_INDEX: SettingEntry[] = [
   { page: "ai", label: "Read questions with Apple Intelligence", desc: "Ask, when its grammar can't read a question", keywords: ["ask", "answers in search", "questions", "understand", "apple intelligence", "on device", "foundation models"] },
   { page: "ai", label: "Write with AI", desc: "Draft and rewrite in the composer, on this Mac", keywords: ["write", "generate", "draft", "rewrite", "shorter", "friendlier", "formal", "grammar", "proofread", "apple intelligence"] },
   { page: "ai", label: "Suggested replies", desc: "Three short replies when you reply", keywords: ["smart reply", "instant reply", "quick replies", "suggestions", "apple intelligence"] },
+  { page: "ai", label: "Chat with Claude Code or Codex", desc: "Your own CLI, with Penguin as its tools", keywords: ["chat", "claude", "claude code", "codex", "openai", "anthropic", "agent", "assistant", "mcp", "panel"] },
+  { page: "ai", label: "CLI to chat with", keywords: ["claude", "codex", "found", "detect", "search again", "chat"] },
+  { page: "ai", label: "Path to the CLI", keywords: ["claude", "codex", "path", "binary", "install", "chat"] },
+  { page: "ai", label: "API key", desc: "Only for a CLI that isn't signed in", keywords: ["anthropic", "openai", "key", "token", "claude", "codex", "keychain", "chat"] },
   { page: "ai", label: "Thread summaries", desc: "Apple Intelligence, on this Mac", keywords: ["summary", "summarize", "tldr", "apple intelligence", "on device", "foundation models"] },
 
   // Views (features/smart): one row per smart view, plus order and pinned searches.
@@ -221,7 +231,17 @@ export const SETTINGS_INDEX: SettingEntry[] = [
     keywords: ["learn shortcuts", "tips", "hints", "teach", "mouse", "key promoter"],
   },
 
+  // Extensions
+  { page: "extensions", label: "Open extensions folder", find: ".ext-list", keywords: ["install", "add extension", "plugins", "folder", "finder"] },
+  { page: "extensions", label: "Not loaded", keywords: ["broken", "errors", "invalid extension"] },
+
   // Developer
+  // Stats
+  { page: "stats", label: "Every day this year", desc: "A grid of how much you sent or received each day", keywords: ["heatmap", "contributions", "activity", "github", "per day", "busiest day", "streak"] },
+  { page: "stats", label: "When you write", desc: "Sends by weekday and hour", keywords: ["punch card", "hours", "time of day", "weekends", "late night"] },
+  { page: "stats", label: "Typical reply time", find: ".stats-tiles", keywords: ["response time", "how fast", "reply speed"] },
+  { page: "stats", label: "Top people", find: ".stats-people", keywords: ["who I email most", "top contacts", "correspondents", "senders", "recipients"] },
+
   { page: "diagnostics", label: "Demo mode", desc: "Fictional accounts and mail", keywords: ["demo", "screenshots", "fake", "sample data", "fictional"] },
   { page: "diagnostics", label: "Gmail quota (units per minute per account)", keywords: ["quota", "rate limit", "api", "throttle", "google cloud"] },
   { page: "diagnostics", label: "Agents (CLI and MCP)", keywords: ["mcp", "model context protocol", "claude", "ai tools", "agent"] },

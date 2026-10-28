@@ -5,7 +5,8 @@
 // Keyboard: Esc closes; Enter runs `onEnter` unless focus is on a
 // button or link (which Enter activates as usual: focus the confirm button
 // to make Enter confirm). While it's up, no other
-// key reaches the app's single-key shortcuts (E, #, Enter to open…).
+// key reaches the app's single-key shortcuts (E, #, Enter to open…), nor
+// React's onKeyDown inside the dialog: `onKey` sees keys first instead.
 import { Fragment, useEffect, useRef, useSyncExternalStore, type ReactNode, type RefObject } from "react";
 import { createPortal } from "react-dom";
 import { Icon } from "./Icon";
@@ -15,6 +16,7 @@ export function Modal({
   label,
   onClose,
   onEnter,
+  onKey,
   initialFocus,
   className,
   role = "dialog",
@@ -24,6 +26,8 @@ export function Modal({
   label: string;
   onClose: () => void;
   onEnter?: () => void;
+  /** Keys the dialog handles itself, after Esc: return true to claim one. */
+  onKey?: (e: KeyboardEvent) => boolean | void;
   /** Focused on open; defaults to the dialog itself. */
   initialFocus?: RefObject<HTMLElement | null>;
   className?: string;
@@ -31,8 +35,8 @@ export function Modal({
   children: ReactNode;
 }) {
   const boxRef = useRef<HTMLDivElement>(null);
-  const handlers = useRef({ onClose, onEnter });
-  handlers.current = { onClose, onEnter };
+  const handlers = useRef({ onClose, onEnter, onKey });
+  handlers.current = { onClose, onEnter, onKey };
 
   useEffect(() => {
     const before = document.activeElement as HTMLElement | null;
@@ -42,6 +46,11 @@ export function Modal({
         e.preventDefault();
         e.stopPropagation();
         handlers.current.onClose();
+        return;
+      }
+      if (handlers.current.onKey?.(e)) {
+        e.preventDefault();
+        e.stopPropagation();
         return;
       }
       if (e.metaKey || e.ctrlKey) return;

@@ -139,7 +139,7 @@ pub fn find_unsubscribe_link(rendered: &str) -> Option<String> {
     best.map(|(_, href)| href)
 }
 
-fn is_web_url(href: &str) -> bool {
+pub(crate) fn is_web_url(href: &str) -> bool {
     let lower = href.trim().to_ascii_lowercase();
     let rest = match lower
         .strip_prefix("https://")
@@ -165,7 +165,7 @@ fn is_word_char(c: char) -> bool {
 }
 
 /// Lowercase, hyphens/underscores/nbsp as spaces, whitespace collapsed.
-fn normalize(s: &str) -> String {
+pub(crate) fn normalize(s: &str) -> String {
     let mut out = String::with_capacity(s.len());
     let mut space = true;
     for c in s.chars().flat_map(char::to_lowercase) {
@@ -199,7 +199,7 @@ fn has_phrase(text: &str, strength: Strength) -> bool {
 
 /// `phrase` in `text`, as whole words where the phrase's edge is a word
 /// character of a spaced script.
-fn contains_phrase(text: &str, phrase: &str) -> bool {
+pub(crate) fn contains_phrase(text: &str, phrase: &str) -> bool {
     let first = phrase.chars().next().is_some_and(is_word_char);
     let last = phrase.chars().next_back().is_some_and(is_word_char);
     text.match_indices(phrase).any(|(i, _)| {
@@ -218,11 +218,11 @@ fn contains_phrase(text: &str, phrase: &str) -> bool {
 }
 
 #[derive(Debug, Default)]
-struct Anchor {
-    href: String,
-    text: String,
-    before: String,
-    after: String,
+pub(crate) struct Anchor {
+    pub(crate) href: String,
+    pub(crate) text: String,
+    pub(crate) before: String,
+    pub(crate) after: String,
 }
 
 /// Tags that start or end a block: text on either side isn't "around" a link.
@@ -269,7 +269,7 @@ fn push_capped_tail(buf: &mut String, text: &str) {
     }
 }
 
-fn anchors(html: &str) -> Vec<Anchor> {
+pub(crate) fn anchors(html: &str) -> Vec<Anchor> {
     let mut out: Vec<Anchor> = Vec::new();
     // Text since the last block boundary (for the next link's `before`).
     let mut recent = String::new();

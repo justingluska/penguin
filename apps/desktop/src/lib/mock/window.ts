@@ -111,6 +111,7 @@ export const windowHandlers: Record<string, MockHandler> = {
         from: t.participants[0] ?? { name: null, email: "someone@mail.example" },
         // Pretend these are older than the window.
         date: Math.min(t.lastDate, start > 0 ? start - 40 * DAY : t.lastDate),
+        lastDate: t.lastDate,
         snippetHtml: t.snippet.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;"),
         matchCount: 1,
         labelIds: t.labelIds,

@@ -21,18 +21,20 @@
 use std::sync::Arc;
 use std::time::Duration;
 
-use penguin_core::{InviteResponse, Message};
+use penguin_core::Message;
 use penguin_gmail::calendar::{
     self as gcal, CalendarClient, CALENDAR_EVENTS_SCOPE, CALENDAR_READONLY_SCOPE,
 };
-use penguin_gmail::ics::{self, Invite};
-use penguin_gmail::imip;
+use penguin_gmail::ics::Invite;
 use penguin_provider::{Error as ProviderError, InvitationAnswer};
 use serde::Deserialize;
 use tauri::{AppHandle, State};
 
 use super::commands::{emit_changed, granted_scopes, has_scope, Calendar};
-use super::{invite_card, is_calendar_part, pick_invite_part, CardContext, InviteCard};
+use super::{
+    answers_series, calendar_part, can_answer, check_answer, email_answer, parse_part,
+    pick_invite_part, remember_and_card, response_record, CardContext, CheckedAnswer, InviteCard,
+};
 use crate::error::{CmdError, CmdResult, ErrorCode};
 use crate::ops::{self, now_ms};
 use crate::state::{blocking, AppState};
@@ -102,9 +104,9 @@ pub async fn load_invite(
     .inspect_err(|e| {
         tracing::warn!(account = %account_id, message = %message.id, part = %part.id, mime = %part.mime_type, code = ?e.code, error = %e.message, "invite: calendar part download failed");
     })?;
-    let text = String::from_utf8_lossy(&bytes[..bytes.len().min(ics::MAX_ICS_BYTES)]).into_owned();
-    let Some(invite) = ics::parse_invite(&text, &account.email) else {
-        tracing::warn!(account = %account_id, message = %message.id, part = %part.id, mime = %part.mime_type, bytes = bytes.len(), vevent = text.contains("BEGIN:VEVENT"), "invite: calendar part didn't parse");
+    let Some(invite) = parse_part(&bytes, &account.email) else {
+        let vevent = String::from_utf8_lossy(&bytes).contains("BEGIN:VEVENT");
+        tracing::warn!(account = %account_id, message = %message.id, part = %part.id, mime = %part.mime_type, bytes = bytes.len(), vevent, "invite: calendar part didn't parse");
         return Ok(None);
     };
     Ok(Some(Loaded {
@@ -127,14 +129,6 @@ pub async fn card(state: &AppState, loaded: &Loaded) -> CmdResult<InviteCard> {
     let message = loaded.message.clone();
     let invite = loaded.invite.clone();
     blocking(move || {
-        let snap = (!invite.is_own_answer()).then(|| invite.to_snapshot());
-        store.put_invite(
-            &account.id,
-            &message.id,
-            &message.thread_id,
-            message.date,
-            snap.as_ref(),
-        )?;
         let ctx = CardContext {
             account_id: &account.id,
             thread_id: &message.thread_id,
@@ -145,7 +139,13 @@ pub async fn card(state: &AppState, loaded: &Loaded) -> CmdResult<InviteCard> {
             calendar_connected: read,
             rsvp_granted: rsvp,
         };
-        Ok(invite_card(&store, &ctx, &invite, now_ms())?)
+        Ok(remember_and_card(
+            &store,
+            &ctx,
+            &message,
+            &invite,
+            now_ms(),
+        )?)
     })
     .await
 }
@@ -208,12 +208,7 @@ async fn scan_round(state: &Arc<AppState>) -> Round {
         let Ok(provider) = state.provider(&c.account_id).await else {
             continue;
         };
-        let part = c
-            .parts
-            .iter()
-            .filter(|p| is_calendar_part(p))
-            .find(|p| p.mime_type.eq_ignore_ascii_case("text/calendar"))
-            .or_else(|| c.parts.iter().find(|p| is_calendar_part(p)));
+        let part = calendar_part(&c.parts);
         let snapshot = match part {
             None => None,
             Some(part) => {
@@ -227,12 +222,10 @@ async fn scan_round(state: &Arc<AppState>) -> Round {
                 .await
                 {
                     Ok(bytes) => {
-                        let text =
-                            String::from_utf8_lossy(&bytes[..bytes.len().min(ics::MAX_ICS_BYTES)])
-                                .into_owned();
-                        let parsed = ics::parse_invite(&text, &account.email);
+                        let parsed = parse_part(&bytes, &account.email);
                         if parsed.is_none() {
-                            tracing::warn!(account = %c.account_id, message = %c.message_id, mime = %part.mime_type, bytes = bytes.len(), vevent = text.contains("BEGIN:VEVENT"), "invite scan: calendar part didn't parse");
+                            let vevent = String::from_utf8_lossy(&bytes).contains("BEGIN:VEVENT");
+                            tracing::warn!(account = %c.account_id, message = %c.message_id, mime = %part.mime_type, bytes = bytes.len(), vevent, "invite scan: calendar part didn't parse");
                         }
                         parsed
                             .filter(|i| !i.is_own_answer())
@@ -295,28 +288,27 @@ pub struct Proposal {
 async fn send_email_answer(
     state: &AppState,
     loaded: &Loaded,
-    answer: &imip::Answer,
+    answer: &CheckedAnswer,
+    now: i64,
 ) -> CmdResult<()> {
-    let organizer = loaded
-        .invite
-        .organizer
-        .clone()
-        .ok_or_else(|| CmdError::invalid("this invitation has no organizer to answer"))?;
-    let (in_reply_to, references) = ops::reply_headers(&loaded.message);
-    let raw = imip::answer_message(
+    let raw = email_answer(
         &ops::from_address(&loaded.account),
-        &organizer,
+        &loaded.message,
         &loaded.invite,
         answer,
-        in_reply_to.as_deref(),
-        &references,
+        now,
     )
     .map_err(CmdError::invalid)?;
     let provider = state.provider(&loaded.account.id).await?;
     provider
         .send_raw(&raw, Some(&loaded.message.thread_id))
         .await?;
-    tracing::info!(account = %loaded.account.id, method = answer.method(), "invitation answered by email");
+    let method = if answer.proposal.is_some() {
+        "COUNTER"
+    } else {
+        "REPLY"
+    };
+    tracing::info!(account = %loaded.account.id, method, "invitation answered by email");
     Ok(())
 }
 
@@ -350,53 +342,20 @@ pub async fn respond_to_invite(
     comment: Option<String>,
     proposal: Option<Proposal>,
 ) -> CmdResult<InviteCard> {
-    if !gcal::valid_response(&response) {
-        return Err(CmdError::invalid(
-            "response must be accepted, tentative or declined",
-        ));
-    }
-    let comment = comment
-        .map(|c| c.trim().chars().take(2000).collect::<String>())
-        .filter(|c| !c.is_empty());
-    let proposal = proposal.map(|p| (p.start, p.end));
-    if let Some((start, end)) = proposal {
-        if end <= start {
-            return Err(CmdError::invalid(
-                "the proposed time must end after it starts",
-            ));
-        }
-    }
+    let answer = check_answer(&response, comment, proposal.map(|p| (p.start, p.end)))
+        .map_err(CmdError::invalid)?;
     let loaded = load_invite(&state, &account_id, &thread_id, message_id.as_deref())
         .await?
         .ok_or_else(|| CmdError::not_found("there's no invitation in this conversation"))?;
     let before = card(&state, &loaded).await?;
-    if !before.can_respond {
-        return Err(CmdError::invalid(if before.method == "cancel" {
-            "This event was cancelled"
-        } else {
-            "This invitation can't be answered (it's over, or you organize it)"
-        }));
-    }
-    if proposal.is_some() && !before.can_propose {
-        return Err(CmdError::invalid(
-            "A new time can't be proposed for a whole recurring series",
-        ));
-    }
+    can_answer(&before, &answer).map_err(CmdError::invalid)?;
+    let (comment, proposal) = (answer.comment.clone(), answer.proposal);
     let now = now_ms();
-    let email_answer = imip::Answer {
-        response: response.clone(),
-        comment: comment.clone(),
-        proposal,
-        attendee: ops::from_address(&loaded.account),
-        dtstamp_ms: now,
-    };
     let via = match before.route.as_str() {
         "calendar" => {
             let services = state.services()?;
             let client = CalendarClient::new(services.auth.clone(), &loaded.account.email);
-            let series = before.recurring
-                && loaded.invite.recurrence_id.is_none()
-                && before.event.recurring_event_id.is_some();
+            let series = answers_series(&before, &loaded.invite);
             gcal::respond_with(
                 &client,
                 &state.store,
@@ -410,7 +369,7 @@ pub async fn respond_to_invite(
             // Google Calendar's API can't propose a time: that part goes by
             // email (a COUNTER the organizer's calendar shows as a proposal).
             if proposal.is_some() {
-                send_email_answer(&state, &loaded, &email_answer).await?;
+                send_email_answer(&state, &loaded, &answer, now).await?;
             }
             if series {
                 calendar.wake_now();
@@ -419,39 +378,31 @@ pub async fn respond_to_invite(
         }
         "graph" => {
             let provider = state.provider(&account_id).await?;
-            let answer = InvitationAnswer {
+            let graph_answer = InvitationAnswer {
                 response: response.clone(),
                 comment: comment.clone(),
                 proposal,
             };
             match provider
-                .respond_to_invitation(&loaded.message.id, &answer)
+                .respond_to_invitation(&loaded.message.id, &graph_answer)
                 .await
             {
                 Ok(()) => "graph",
                 Err(e) if graph_can_fall_back(&e) => {
                     tracing::info!(account = %account_id, error = %e, "Graph can't answer this invitation; answering by email");
-                    send_email_answer(&state, &loaded, &email_answer).await?;
+                    send_email_answer(&state, &loaded, &answer, now).await?;
                     "email"
                 }
                 Err(e) => return Err(e.into()),
             }
         }
         _ => {
-            send_email_answer(&state, &loaded, &email_answer).await?;
+            send_email_answer(&state, &loaded, &answer, now).await?;
             "email"
         }
     };
     let uid = loaded.invite.uid.clone().unwrap_or_default();
-    let record = InviteResponse {
-        response: response.clone(),
-        via: via.to_string(),
-        sequence: loaded.invite.sequence,
-        comment,
-        proposed_start: proposal.map(|p| p.0),
-        proposed_end: proposal.map(|p| p.1),
-        at: now,
-    };
+    let record = response_record(&loaded.invite, &answer, via, now);
     let store = state.store.clone();
     let (a, u, r) = (account_id.clone(), uid.clone(), loaded.invite.recurrence_id);
     let threads = blocking(move || {

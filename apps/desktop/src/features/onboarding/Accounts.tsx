@@ -411,7 +411,7 @@ export function SyncRow({ account, name, status, provider }: { account: Account;
         <span>{account.provider === "gmail" ? "Google" : service} signed this account out.</span>
         <span className="grow" />
         <button className="btn btn-secondary btn-sm" onClick={() => openReconnect(account.id)}>
-          Reconnect <Icon name="external" size="xs" />
+          Reconnect{account.provider !== "imap" && <> <Icon name="external" size="xs" /></>}
         </button>
       </div>
     );

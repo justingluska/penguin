@@ -17,7 +17,7 @@ use tauri::http::{header, Request, Response, StatusCode};
 
 use super::cache::{valid_image_hash, Cache};
 
-pub const SCHEME: &str = "avatar";
+pub use penguin_avatars::SCHEME;
 
 /// The image hash named by a request path, if the path is exactly
 /// `/<hash>.png`.

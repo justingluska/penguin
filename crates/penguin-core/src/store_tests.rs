@@ -1951,6 +1951,7 @@ fn scheduled(id: &str, account: &str, draft: &str, send_at: i64) -> ScheduledSen
         remind_after_ms: None,
         attempts: 0,
         last_error: None,
+        elsewhere: false,
     }
 }
 

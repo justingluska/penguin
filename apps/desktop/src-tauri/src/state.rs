@@ -29,7 +29,9 @@ use crate::inline_images::InlineImages;
 use crate::ops::Paths;
 use crate::providers::registry::Registry;
 use crate::settings::{Settings, SettingsState, EVENT_SETTINGS_CHANGED};
-use crate::views::{ActionFailedEvent, BodyFetchFailedEvent, MailChangedEvent};
+use crate::views::{
+    ActionFailedEvent, AttachmentProgressEvent, BodyFetchFailedEvent, MailChangedEvent,
+};
 
 pub const EVENT_SYNC_STATUS: &str = "penguin://sync-status";
 pub const EVENT_MAIL_CHANGED: &str = "penguin://mail-changed";
@@ -37,6 +39,8 @@ pub const EVENT_MAIL_CHANGED: &str = "penguin://mail-changed";
 pub const EVENT_ACTION_FAILED: &str = "penguin://action-failed";
 /// Downloading an opened thread's headers-only messages failed.
 pub const EVENT_BODY_FETCH_FAILED: &str = "penguin://body-fetch-failed";
+/// An attachment download's progress (AttachmentProgressEvent).
+pub const EVENT_ATTACHMENT_PROGRESS: &str = "penguin://attachment-progress";
 
 /// Google's services, built once a Google OAuth client exists; rebuilt if it
 /// is replaced. Gmail mail goes through `AppState::provider` like every
@@ -581,6 +585,10 @@ impl AppState {
 
     pub fn emit_body_fetch_failed(&self, event: BodyFetchFailedEvent) {
         emit(&self.app, EVENT_BODY_FETCH_FAILED, event);
+    }
+
+    pub fn emit_attachment_progress(&self, event: AttachmentProgressEvent) {
+        emit(&self.app, EVENT_ATTACHMENT_PROGRESS, event);
     }
 
     pub fn emit_settings_changed(&self, settings: Settings) {

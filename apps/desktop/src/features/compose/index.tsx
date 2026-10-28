@@ -13,6 +13,7 @@ import { displayName } from "../../lib/format";
 import { accountTone } from "../../lib/accountColor";
 import { Icon } from "../../components/Icon";
 import { toast } from "../../components/Toast";
+import { copyDraftImage } from "./draftImage";
 import { AccountAvatar, Avatar, accountName } from "../../components/Identity";
 import { matchPeople, seedPeople, usePeople } from "../search/people";
 import { applyDevParams } from "../search/dev";
@@ -63,6 +64,7 @@ import { useDismiss } from "../../lib/dismiss";
 import { isMainWindow, windowRoute } from "../../lib/windowBus";
 import { setThisWindowTitle } from "../../lib/windowChrome";
 import { composeTitle, type ComposeSeed } from "./seed";
+import { useHandoffDraft } from "../handoff";
 
 // The editor (TipTap) is its own chunk: App fetches it in the background once
 // the first mail rows have painted (lib/lazy.ts prefetchScreens), so the first
@@ -377,6 +379,13 @@ function Composer({ ctx }: { ctx: ComposeContext }) {
     if (st && saver && st.touched) saver.update(st);
   }, [st, saver]);
   const status = useSaveStatus(saver);
+  // Handoff: the iPhone can continue this message once autosave has made it
+  // a Gmail draft (features/handoff). The save re-renders through status.
+  useHandoffDraft(
+    st
+      ? { accountId: saver?.state.draftAccountId ?? st.accountId, draftId: saver?.draftId ?? null, threadId: st.replyToThreadId, subject: st.subject }
+      : null,
+  );
   const snippets = useSnippets();
   const undoSeconds = useSetting("undoSendSeconds");
 
@@ -406,6 +415,18 @@ function Composer({ ctx }: { ctx: ComposeContext }) {
   const update = (patch: Partial<EditorState>) => setSt((s) => (s ? { ...s, ...patch, touched: true } : s));
 
   const myName = account?.displayName || account?.email.split("@")[0] || "";
+
+  // The draft as a picture on the clipboard (draftImage.ts), from the click.
+  const copyAsImage = (from: HTMLElement) => {
+    const body = from.closest(".cmp")?.querySelector<HTMLElement>(".ProseMirror");
+    if (!st || !body) return;
+    const sender = account ? account.displayName || account.email : "";
+    const files = st.attachments.filter((a) => !a.contentId).map((a) => a.filename);
+    copyDraftImage({ from: sender, to: st.to, cc: st.cc, subject: st.subject, files, body }).then(
+      () => toast({ message: "Draft copied as an image", detail: "Paste it anywhere to show it." }),
+      (e) => toast({ tone: "error", message: "Couldn't copy the draft as an image", detail: asCommandError(e).message }),
+    );
+  };
   const snippetContext = (): SnippetContext => ({
     to: stRef.current?.to ?? [],
     replyingTo: stRef.current?.replyingTo ?? null,
@@ -1304,6 +1325,14 @@ function Composer({ ctx }: { ctx: ComposeContext }) {
             <button className="btn btn-ghost btn-sm" onClick={() => fileRef.current?.click()} title={`${tip("Attach files", "⌘⇧A")} — or drop or paste them`}>
               <Icon name="clip" size="xs" />
               Attach<span className="kbd">⌘⇧A</span>
+            </button>
+            <button
+              className="btn btn-ghost btn-sm btn-icon"
+              onClick={(e) => copyAsImage(e.currentTarget)}
+              title="Copy as image: a picture of this draft to paste anywhere, to show someone before you send"
+              aria-label="Copy draft as image"
+            >
+              <Icon name="image" size="xs" />
             </button>
             <input
               ref={fileRef}

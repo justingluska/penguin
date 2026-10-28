@@ -1,0 +1,17 @@
+[package]
+name = "penguin-sync"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish = false
+
+# Cross-device state (docs/CROSS-DEVICE-STATE.md): the record model, hybrid
+# logical clocks, merge rules, and the transport/local-store seam. Pure: no
+# SQLite, no networking, no Apple frameworks. penguin-core persists records;
+# the CloudKit transport is a Swift shim on each device.
+[dependencies]
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+# record names: a hash of (kind, key), so the server never sees thread ids
+sha2 = "0.10"

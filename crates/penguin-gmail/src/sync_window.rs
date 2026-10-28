@@ -648,6 +648,7 @@ pub async fn search_server<A: WindowApi>(
             subject: m.subject.clone(),
             from: m.from.clone(),
             date: m.date,
+            last_date: m.date,
             snippet_html: escape_html(&m.snippet),
             match_count: 1,
             has_attachments: m.attachments.iter().any(|a| !a.inline),

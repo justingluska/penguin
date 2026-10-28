@@ -457,6 +457,7 @@ mod tests {
                 remind_after_ms: None,
                 attempts: 0,
                 last_error: None,
+                elsewhere: false,
             })
             .unwrap();
         assert!(

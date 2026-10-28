@@ -933,6 +933,38 @@ struct AttachmentWire {
 
 // ---------- client ----------
 
+/// Body bytes received so far (see `GmailClient::call_progress`).
+pub type BodyProgress<'a> = dyn Fn(u64) + Send + Sync + 'a;
+
+/// A response's whole body, chunk by chunk when someone is counting.
+async fn read_body(
+    mut resp: reqwest::Response,
+    progress: Option<&BodyProgress<'_>>,
+) -> std::result::Result<Vec<u8>, reqwest::Error> {
+    let Some(progress) = progress else {
+        return resp.bytes().await.map(|b| b.to_vec());
+    };
+    let mut body = Vec::with_capacity(resp.content_length().unwrap_or(0) as usize);
+    progress(0);
+    while let Some(chunk) = resp.chunk().await? {
+        body.extend_from_slice(&chunk);
+        progress(body.len() as u64);
+    }
+    Ok(body)
+}
+
+/// The file bytes an attachment download has brought in, from the JSON
+/// received so far: Gmail sends the file as base64url (4 characters per 3
+/// bytes) inside a small JSON object, so this is 3/4 of it, never past `size`.
+pub(crate) fn attachment_bytes_received(wire: u64, size: u64) -> u64 {
+    let decoded = wire.saturating_mul(3) / 4;
+    if size > 0 {
+        decoded.min(size)
+    } else {
+        decoded
+    }
+}
+
 #[derive(Clone)]
 pub struct GmailClient {
     inner: Arc<Inner>,
@@ -969,6 +1001,24 @@ impl GmailClient {
         cost: Cost,
         priority: Priority,
         retry: Retry,
+    ) -> Result<Vec<u8>> {
+        self.call_progress(method, path, query, json, cost, priority, retry, None)
+            .await
+    }
+
+    /// `call`, telling `progress` the body bytes received so far while a 2xx
+    /// response streams in (a retry starts again from 0).
+    #[allow(clippy::too_many_arguments)]
+    pub(crate) async fn call_progress(
+        &self,
+        method: Method,
+        path: &str,
+        query: &[(&str, String)],
+        json: Option<&serde_json::Value>,
+        cost: Cost,
+        priority: Priority,
+        retry: Retry,
+        progress: Option<&BodyProgress<'_>>,
     ) -> Result<Vec<u8>> {
         let inner = &self.inner;
         let url = format!("{BASE}{path}");
@@ -1017,7 +1067,8 @@ impl GmailClient {
                         .and_then(|v| v.to_str().ok())
                         .and_then(|v| v.trim().parse::<u64>().ok())
                         .map(Duration::from_secs);
-                    match resp.bytes().await {
+                    let progress = progress.filter(|_| status.is_success());
+                    match read_body(resp, progress).await {
                         Ok(body) => {
                             self.classify(status, retry_after, &body, retry, &mut retried_401)?
                         }
@@ -1228,7 +1279,7 @@ impl GmailClient {
         let mut extra = HashMap::new();
         for att_id in convert::out_of_line_bodies(&gm) {
             let bytes = self
-                .fetch_attachment_bytes(&gm.id, &att_id, priority)
+                .fetch_attachment_bytes(&gm.id, &att_id, 0, priority, None)
                 .await?;
             extra.insert(att_id, bytes);
         }
@@ -1624,10 +1675,26 @@ impl GmailClient {
         &self,
         message_id: &str,
         attachment_id: &str,
+        size: u64,
         priority: Priority,
+        progress: Option<&BodyProgress<'_>>,
     ) -> Result<Vec<u8>> {
         let path = format!("/messages/{message_id}/attachments/{attachment_id}");
-        let a: AttachmentWire = self.get_json(&path, &[], LIGHT_GET, priority).await?;
+        let wire = progress.map(|p| move |n: u64| p(attachment_bytes_received(n, size)));
+        let bytes = self
+            .call_progress(
+                Method::GET,
+                &path,
+                &[],
+                None,
+                LIGHT_GET,
+                priority,
+                Retry::Idempotent,
+                wire.as_ref().map(|w| w as &BodyProgress<'_>),
+            )
+            .await?;
+        let a: AttachmentWire = serde_json::from_slice(&bytes)
+            .map_err(|e| Error::Other(format!("gmail {path}: bad json: {e}")))?;
         convert::b64url_decode(&a.data).ok_or_else(|| Error::Other("attachment: bad base64".into()))
     }
 
@@ -1638,6 +1705,17 @@ impl GmailClient {
         &self,
         message_id: &str,
         attachment: &AttachmentMeta,
+    ) -> Result<Vec<u8>> {
+        self.get_attachment_progress(message_id, attachment, None)
+            .await
+    }
+
+    /// `get_attachment`, telling `progress` the file bytes received so far.
+    pub async fn get_attachment_progress(
+        &self,
+        message_id: &str,
+        attachment: &AttachmentMeta,
+        progress: Option<&BodyProgress<'_>>,
     ) -> Result<Vec<u8>> {
         if let Some(part_id) = attachment.id.strip_prefix(PART_ID_PREFIX) {
             let gm = self
@@ -1651,7 +1729,13 @@ impl GmailClient {
                 .ok_or_else(|| Error::Other(format!("attachment part {part_id} has no data")));
         }
         match self
-            .fetch_attachment_bytes(message_id, &attachment.id, Priority::Interactive)
+            .fetch_attachment_bytes(
+                message_id,
+                &attachment.id,
+                attachment.size,
+                Priority::Interactive,
+                progress,
+            )
             .await
         {
             Err(Error::Http {
@@ -1674,8 +1758,14 @@ impl GmailClient {
                         Error::Other(format!("attachment part {part_id} has no data"))
                     });
                 }
-                self.fetch_attachment_bytes(message_id, &fresh, Priority::Interactive)
-                    .await
+                self.fetch_attachment_bytes(
+                    message_id,
+                    &fresh,
+                    attachment.size,
+                    Priority::Interactive,
+                    progress,
+                )
+                .await
             }
             other => other,
         }
@@ -1781,6 +1871,49 @@ fn collapse_history(wire: HistoryWire, fallback_history_id: u64) -> HistoryPage 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn attachment_progress_counts_file_bytes_from_the_base64_json() {
+        // 4 base64 characters carry 3 bytes of the file.
+        assert_eq!(attachment_bytes_received(0, 3000), 0);
+        assert_eq!(attachment_bytes_received(400, 3000), 300);
+        // The JSON around the data never pushes past the file's size.
+        assert_eq!(attachment_bytes_received(4100, 3000), 3000);
+        // Unknown size: the estimate alone.
+        assert_eq!(attachment_bytes_received(400, 0), 300);
+    }
+
+    #[tokio::test]
+    async fn read_body_reports_each_chunk_as_it_arrives() {
+        use std::sync::Mutex;
+        use tokio::io::{AsyncReadExt, AsyncWriteExt};
+        let listener = tokio::net::TcpListener::bind(("127.0.0.1", 0))
+            .await
+            .unwrap();
+        let addr = listener.local_addr().unwrap();
+        tokio::spawn(async move {
+            let (mut s, _) = listener.accept().await.unwrap();
+            let mut req = [0u8; 1024];
+            let _ = s.read(&mut req).await.unwrap();
+            s.write_all(b"HTTP/1.1 200 OK\r\nContent-Length: 8\r\n\r\nabcd")
+                .await
+                .unwrap();
+            s.flush().await.unwrap();
+            tokio::time::sleep(Duration::from_millis(50)).await;
+            s.write_all(b"efgh").await.unwrap();
+        });
+        let resp = reqwest::get(format!("http://{addr}/")).await.unwrap();
+        let seen = Mutex::new(Vec::new());
+        let body = read_body(resp, Some(&|n| seen.lock().unwrap().push(n)))
+            .await
+            .unwrap();
+        assert_eq!(body, b"abcdefgh");
+        let seen = seen.into_inner().unwrap();
+        assert_eq!(seen.first(), Some(&0));
+        assert_eq!(seen.last(), Some(&8));
+        assert!(seen.len() >= 3, "a count per chunk: {seen:?}");
+        assert!(seen.windows(2).all(|w| w[0] <= w[1]));
+    }
 
     #[test]
     fn label_patch_body_sends_only_given_fields() {

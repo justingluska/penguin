@@ -105,6 +105,21 @@ impl ThreadAction {
     }
 }
 
+/// Payload of `penguin://attachment-progress`: an attachment download under
+/// way (Save, Save As, preview, Quick Look, drag-out, copy). `received` and
+/// `total` are the file's bytes; `total` is None when the size is unknown.
+/// The last event of a download has `done` (it finished or failed).
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AttachmentProgressEvent {
+    pub account_id: String,
+    pub message_id: String,
+    pub attachment_id: String,
+    pub received: u64,
+    pub total: Option<u64>,
+    pub done: bool,
+}
+
 /// Payload of `penguin://mail-changed`.
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]

@@ -37,6 +37,7 @@ import {
   patchThreads,
   refreshList,
   removeLocal,
+  movedOnTo,
   restoreLocal,
   revertChange,
   settleRemoval,
@@ -307,6 +308,17 @@ const withLabel = (t: ThreadSummary, id: string, on: boolean): ThreadSummary => 
 
 export function markRead(refs = targets()) {
   modify(refs, { kind: "markRead" }, "mark read");
+}
+
+/**
+ * Opening a conversation marks it read; Z (or ⌘Z) then marks it unread again,
+ * as U would. Not when an archive moved on to it: Z still undoes the archive.
+ */
+export function markReadOnOpen(ref: ThreadRef) {
+  markRead([ref]);
+  if (movedOnTo(ref)) return;
+  const run = () => markUnreadAndSay([ref]);
+  setUndo("Mark as read", run);
 }
 
 export function markUnread(refs = targets()) {

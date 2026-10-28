@@ -3,13 +3,15 @@
 // copying, and ⌘⇧C. OWNER: otp.
 //
 // Codes are never logged or sent anywhere: the only thing done with one is
-// writing it to the clipboard on an explicit click or key press.
+// writing it to the clipboard on an explicit click or key press. Copying a
+// conversation's code counts as reading it: it's marked read.
 import { useSyncExternalStore } from "react";
 import type { Otp, ThreadRef } from "../../lib/types";
 import { registerShortcuts } from "../../lib/keyboard";
 import { getUi } from "../../lib/ui";
 import { list } from "../../app/store";
 import { toast } from "../../components/Toast";
+import { isUnread, markRead } from "../../app/actions";
 
 /** Services give codes 5–30 minutes; past this the pill dims ("expired?"). */
 export const FRESH_MS = 20 * 60_000;
@@ -68,11 +70,15 @@ export function useNow(enabled = true): number {
 }
 const noopSubscribe = () => () => {};
 
-/** Copy a code (inside a user gesture) and confirm with a toast. */
-export async function copyCode(code: string): Promise<boolean> {
+/**
+ * Copy a code (inside a user gesture) and confirm with a toast; the
+ * conversation it came from, if given, is marked read.
+ */
+export async function copyCode(code: string, from?: ThreadRef): Promise<boolean> {
   try {
     await navigator.clipboard.writeText(code);
     toast({ kind: "success", message: `Copied ${code}`, key: "otp-copied" });
+    if (from && isUnread(from)) markRead([from]);
     return true;
   } catch (e) {
     toast({ kind: "error", message: "Couldn't copy the code", detail: String((e as Error)?.message ?? e) });
@@ -91,16 +97,16 @@ export function clearBannerCode(entry: BannerCode) {
   if (bannerCode === entry) bannerCode = null;
 }
 
-function selectedCode(): string | null {
+function selectedCode(): { code: string; ref: ThreadRef } | null {
   const ui = getUi();
   const sel = ui.selected;
   if (!sel) return null;
   if (ui.threadOpen && bannerCode && bannerCode.ref.accountId === sel.accountId && bannerCode.ref.threadId === sel.threadId) {
-    return bannerCode.code;
+    return bannerCode;
   }
   const t = list.get().items.find((i) => i.accountId === sel.accountId && i.threadId === sel.threadId);
   const otp = rowCode(t?.otp, Date.now());
-  return otp?.kind === "code" ? otp.code : null;
+  return otp?.kind === "code" && otp.code ? { code: otp.code, ref: { accountId: sel.accountId, threadId: sel.threadId } } : null;
 }
 
 const noOverlay = () => {
@@ -120,8 +126,8 @@ export function registerOtpShortcuts(): () => void {
       group: "Triage",
       when: () => noOverlay() && getUi().surface === "mail" && selectedCode() !== null,
       run: () => {
-        const code = selectedCode();
-        if (code) void copyCode(code);
+        const sel = selectedCode();
+        if (sel) void copyCode(sel.code, sel.ref);
       },
     },
   ]);

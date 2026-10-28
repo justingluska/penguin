@@ -9,25 +9,31 @@ use std::path::{Path, PathBuf};
 use std::sync::RwLock;
 
 use penguin_core::Message;
+// Split Inbox splits, snippets, instant replies and their limits live in
+// penguin-core, shared with the iPhone app (penguin-ffi).
+pub use penguin_core::compose_prefs::{
+    default_snippets, normalize_instant_replies, normalize_snippets, InstantReplies, Snippet,
+    SnippetFile, MAX_INSTANT_REPLIES, MAX_INSTANT_REPLY, MAX_SNIPPETS, MAX_SNIPPET_ADDRESSES,
+    MAX_SNIPPET_BODY, MAX_SNIPPET_FILES, MAX_SNIPPET_SUBJECT, MAX_SNIPPET_TITLE, SEND_LATER_HOURS,
+    SEND_LATER_HOUR_DEFAULT, UNDO_SEND_CHOICES, UNDO_SEND_DEFAULT,
+};
+/// Settings → General → Notifications (penguin-core, shared with the iPhone).
+pub use penguin_core::notify::NotificationSettings;
+pub use penguin_core::profiles::{normalize_profiles, Profile, MAX_PROFILES};
+#[cfg(test)]
+use penguin_core::profiles::{DEFAULT_PROFILE_COLOR, MAX_PROFILE_NAME};
+pub use penguin_core::splits::{
+    default_inbox_splits, normalize_inbox_splits, InboxSplit, MAX_INBOX_SPLITS,
+};
 use serde::{Deserialize, Serialize};
 
 pub const SETTINGS_FILE: &str = "settings.json";
 /// Payload: the full `Settings` after the change.
 pub const EVENT_SETTINGS_CHANGED: &str = "penguin://settings-changed";
-/// Bound on the per-sender image allowlist (keeps the file and lookups small).
-const MAX_TRUSTED_SENDERS: usize = 5000;
-/// Bound on account profiles (⌃1–⌃9 reach the first nine).
-pub const MAX_PROFILES: usize = 20;
-const MAX_PROFILE_NAME: usize = 40;
-const MAX_PROFILE_ACCOUNTS: usize = 50;
-const MAX_EMOJI_CHARS: usize = 8;
-const DEFAULT_PROFILE_COLOR: &str = "#8d5ffe";
 /// Bound on the accounts hidden from All Inboxes.
 const MAX_HIDDEN_FROM_ALL: usize = 100;
 /// Bound on the saved account order.
 const MAX_ACCOUNT_ORDER: usize = 100;
-/// Bound on the per-account notification switches.
-const MAX_NOTIFY_ACCOUNTS: usize = 100;
 /// Bound on unfinished Add account setups, and on their saved error text.
 const MAX_PENDING_SETUPS: usize = 20;
 const MAX_PENDING_ERROR_CHARS: usize = 300;
@@ -75,17 +81,9 @@ fn lenient_list_style<'de, D: serde::Deserializer<'de>>(d: D) -> Result<ListStyl
     Ok(serde_json::from_value(raw).unwrap_or_default())
 }
 
-#[derive(Debug, Clone, Copy, Default, Serialize, Deserialize, PartialEq, Eq)]
-#[serde(rename_all = "camelCase")]
-pub enum RemoteImages {
-    /// Blocked until "Load images" (or a trusted sender).
-    #[default]
-    Ask,
-    /// Always loaded when a message is rendered.
-    Always,
-    /// Never loaded; load_remote_images refuses.
-    Never,
-}
+/// Settings → Privacy → Remote images and the per-message decision: the
+/// rule is penguin-core's (`remote_images`), shared with the iPhone.
+pub use penguin_core::remote_images::{RemoteImageDecision, RemoteImages};
 
 /// What a trackpad swipe on a list row does (swipe actions in the UI).
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
@@ -353,22 +351,6 @@ fn lenient_sidebar_text_size<'de, D: serde::Deserializer<'de>>(d: D) -> Result<i
         .unwrap_or(0))
 }
 
-/// A named group of accounts (a company, a role). The UI can narrow the
-/// inbox, search, labels and sync to one profile; the active profile is UI
-/// state, not a setting. An account may be in several profiles.
-#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
-#[serde(rename_all = "camelCase", default)]
-pub struct Profile {
-    /// Stable id chosen by the UI: 1–64 of [A-Za-z0-9_-].
-    pub id: String,
-    pub name: String,
-    /// `#rrggbb`, from the account palette.
-    pub color: String,
-    /// Member account ids (lowercased emails), in the user's order.
-    pub account_ids: Vec<String>,
-    pub emoji: Option<String>,
-}
-
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase", default)]
 pub struct Settings {
@@ -385,9 +367,13 @@ pub struct Settings {
     /// Important, Calendar and News.
     #[serde(deserialize_with = "lenient_inbox_splits")]
     pub inbox_splits: Vec<InboxSplit>,
-    /// Get to zero: "Archive older than…" for the inbox or a split (⌘K and
-    /// the list header). On by default.
+    /// Get to zero: "Archive older than…" for the inbox or a split (⌘K, a
+    /// split's menu and, with `get_to_zero_button`, the list header). On by
+    /// default.
     pub get_to_zero: bool,
+    /// Get to zero also has a button in the inbox list's header. Off by
+    /// default (⌘K and a split's menu still have it).
+    pub get_to_zero_button: bool,
     /// The inbox-zero screen celebrates (the penguin on its floe, how much
     /// you cleared today). On by default; off shows a plain "No mail".
     pub zero_celebration: bool,
@@ -442,6 +428,9 @@ pub struct Settings {
     /// Experimental: in the dark theme, HTML mail is shown dark (its own
     /// dark styles, or its colors adapted UI-side). Off by default.
     pub dark_email_bodies: bool,
+    /// Conversations open at their latest message, with a timeline of the
+    /// earlier ones; off stacks every message oldest first. On by default.
+    pub thread_latest_first: bool,
     /// Local MCP server (`penguin-cli mcp`) for AI tools. Off by default.
     pub mcp: McpSettings,
     /// Start in Floe mode (the single-column layout). Off by default.
@@ -562,48 +551,36 @@ pub struct Settings {
     /// file from before this setting, on an install with accounts, counts
     /// as done (`SettingsState::settle_welcome`). docs/ONBOARDING.md.
     pub welcome_completed: bool,
+    /// Synced settings this Mac keeps to itself (Sync with iCloud; the
+    /// keys' JSON names, `penguin_sync::settings::KEEP_HERE`): they are
+    /// neither sent nor replaced by another device's. Settings → General
+    /// "Only on this Mac" beside the theme. Never synced itself.
+    #[serde(deserialize_with = "lenient_keep_here")]
+    pub keep_here: Vec<String>,
 }
 
-/// One tab of the Split Inbox.
-#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
-#[serde(rename_all = "camelCase", default)]
-pub struct InboxSplit {
-    /// 1–64 of [A-Za-z0-9_-], chosen by the UI.
-    pub id: String,
-    /// Trimmed, ≤30 chars; blank = the query.
-    pub name: String,
-    /// What it holds, in the search language (≤500 chars).
-    pub query: String,
-    /// Leave the tab out while it has nothing in it.
-    pub hide_when_empty: bool,
+/// `keepHere`: synced setting names, each once; anything else is dropped.
+fn normalize_keep_here(keys: Vec<String>) -> Vec<String> {
+    let mut out: Vec<String> = Vec::new();
+    for k in keys {
+        if penguin_sync::settings::SYNCED_SETTINGS.contains(&k.as_str()) && !out.contains(&k) {
+            out.push(k);
+        }
+    }
+    out
 }
 
-pub const MAX_INBOX_SPLITS: usize = 12;
-const MAX_INBOX_SPLIT_NAME: usize = 30;
-
-/// The splits a new Split Inbox starts with (the UI's presets of the same
-/// names): Important (Gmail's own marker, minus bulk mail and invitations),
-/// Calendar and News. Other is always there.
-fn default_inbox_splits() -> Vec<InboxSplit> {
-    let split = |id: &str, name: &str, query: &str| InboxSplit {
-        id: id.into(),
-        name: name.into(),
-        query: query.into(),
-        hide_when_empty: false,
-    };
-    vec![
-        split(
-            "important",
-            "Important",
-            "is:important -is:newsletter -has:invite",
-        ),
-        split(
-            "calendar",
-            "Calendar",
-            "has:invite OR from:calendar-notification@google.com OR from:@calendly.com",
-        ),
-        split("news", "News", "is:newsletter"),
-    ]
+fn lenient_keep_here<'de, D: serde::Deserializer<'de>>(d: D) -> Result<Vec<String>, D::Error> {
+    let raw = serde_json::Value::deserialize(d)?;
+    let keys = raw
+        .as_array()
+        .map(|a| {
+            a.iter()
+                .filter_map(|v| v.as_str().map(str::to_string))
+                .collect()
+        })
+        .unwrap_or_default();
+    Ok(normalize_keep_here(keys))
 }
 
 /// The splits list; a malformed one loads as the defaults.
@@ -612,37 +589,6 @@ fn lenient_inbox_splits<'de, D: serde::Deserializer<'de>>(
 ) -> Result<Vec<InboxSplit>, D::Error> {
     let raw = serde_json::Value::deserialize(d)?;
     Ok(serde_json::from_value(raw).unwrap_or_else(|_| default_inbox_splits()))
-}
-
-/// Valid ids, deduped, names and queries trimmed and bounded, no empty
-/// query, at most `MAX_INBOX_SPLITS`.
-fn normalize_inbox_splits(splits: Vec<InboxSplit>) -> Vec<InboxSplit> {
-    let mut out: Vec<InboxSplit> = Vec::new();
-    for mut sp in splits {
-        let id_ok = (1..=64).contains(&sp.id.len())
-            && sp
-                .id
-                .chars()
-                .all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_');
-        let query: String = truncate_chars(
-            &sp.query.split_whitespace().collect::<Vec<_>>().join(" "),
-            MAX_CUSTOM_VIEW_QUERY,
-        );
-        if !id_ok || query.is_empty() || out.iter().any(|x| x.id == sp.id) {
-            continue;
-        }
-        let name = sp.name.split_whitespace().collect::<Vec<_>>().join(" ");
-        sp.name = truncate_chars(
-            if name.is_empty() { &query } else { &name },
-            MAX_INBOX_SPLIT_NAME,
-        );
-        sp.query = query;
-        out.push(sp);
-        if out.len() == MAX_INBOX_SPLITS {
-            break;
-        }
-    }
-    out
 }
 
 /// Which smart views the sidebar shows, in what order, and with a count.
@@ -791,47 +737,11 @@ impl Default for CalendarSettings {
     }
 }
 
-/// Settings → General → Notifications: macOS notifications for new mail
-/// (incremental sync only, never backfill). Sender and subject only.
-#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
-#[serde(rename_all = "camelCase", default)]
-pub struct NotificationSettings {
-    /// "Notify me about new mail". Off by default.
-    pub enabled: bool,
-    /// Per-account switches (account id → on). An account not listed
-    /// follows the default: on, except accounts hidden from All Inboxes.
-    #[serde(deserialize_with = "lenient_bool_map")]
-    pub accounts: BTreeMap<String, bool>,
-    /// Only mail from people I've emailed before (from any account).
-    pub known_senders_only: bool,
-}
-
-/// A map of booleans; entries that aren't booleans are skipped, and a value
-/// that isn't an object reads as empty.
-fn lenient_bool_map<'de, D: serde::Deserializer<'de>>(
-    d: D,
-) -> Result<BTreeMap<String, bool>, D::Error> {
-    let raw = serde_json::Value::deserialize(d)?;
-    Ok(raw
-        .as_object()
-        .map(|o| {
-            o.iter()
-                .filter_map(|(k, v)| v.as_bool().map(|b| (k.clone(), b)))
-                .collect()
-        })
-        .unwrap_or_default())
-}
-
 impl Settings {
     /// Whether new mail in `account_id` may notify (the master switch, then
     /// the account's own switch or its default).
     pub fn notifies_for(&self, account_id: &str) -> bool {
-        let n = &self.notifications;
-        n.enabled
-            && n.accounts
-                .get(account_id)
-                .copied()
-                .unwrap_or_else(|| !self.hidden_from_all.iter().any(|h| h == account_id))
+        self.notifications.notifies_for(account_id, &self.hidden_from_all)
     }
 }
 
@@ -896,88 +806,11 @@ impl Settings {
     }
 }
 
-/// A composer snippet. The body may use {first_name}, {last_name},
-/// {full_name}, {company}, {sender_name}, {my_name}, {my_first_name},
-/// {date} and {cursor}; the UI fills them in (features/compose/snippets.ts).
-#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
-#[serde(rename_all = "camelCase", default)]
-pub struct Snippet {
-    /// Stable id chosen by the UI: 1–64 of [A-Za-z0-9_-].
-    pub id: String,
-    /// Typed after ";": 1–32 of [a-z0-9_-], unique.
-    pub trigger: String,
-    pub title: String,
-    pub body: String,
-    pub uses: u32,
-    /// Subject it fills in when the message has none yet; empty = none. ≤ 200 chars.
-    pub subject: String,
-    /// Addresses ("Name <a@b.example>" or a bare address) it adds to Cc / Bcc. ≤ 20 each.
-    pub cc: Vec<String>,
-    pub bcc: Vec<String>,
-    /// Files it attaches (kept on this Mac by `save_snippet_file`). ≤ 10.
-    pub attachments: Vec<SnippetFile>,
-}
-
-/// A file kept with a snippet, stored at `<data dir>/snippets/<id>`
-/// (src/snippet_files.rs); `id` is the sha256 of its bytes.
-#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
-#[serde(rename_all = "camelCase", default)]
-pub struct SnippetFile {
-    /// 64 lowercase hex.
-    pub id: String,
-    pub filename: String,
-    pub mime_type: String,
-    pub size: u64,
-}
-
-/// Instant replies (Settings → Compose).
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
-#[serde(rename_all = "camelCase", default)]
-pub struct InstantReplies {
-    /// Offer the one-liners. On by default.
-    pub enabled: bool,
-    /// The one-liners, in order (⌃1…⌃9). ≤ 9, each ≤ 200 chars.
-    pub replies: Vec<String>,
-    /// Also suggest up to three replies to the conversation with Apple's
-    /// on-device model when a reply opens. Off by default.
-    pub ai_suggestions: bool,
-}
-
-impl Default for InstantReplies {
-    fn default() -> Self {
-        InstantReplies {
-            enabled: true,
-            replies: vec![
-                "Sounds good, thanks!".into(),
-                "Thanks, got it.".into(),
-                "Let me check and get back to you.".into(),
-            ],
-            ai_suggestions: false,
-        }
-    }
-}
-
-pub const MAX_INSTANT_REPLIES: usize = 9;
-const MAX_INSTANT_REPLY: usize = 200;
-
 fn lenient_instant_replies<'de, D: serde::Deserializer<'de>>(
     d: D,
 ) -> Result<InstantReplies, D::Error> {
     let raw = serde_json::Value::deserialize(d)?;
     Ok(serde_json::from_value(raw).unwrap_or_default())
-}
-
-/// Trimmed, non-empty, deduped, ≤ 200 chars each, at most nine.
-fn normalize_instant_replies(mut r: InstantReplies) -> InstantReplies {
-    let mut seen = HashSet::new();
-    r.replies = r
-        .replies
-        .into_iter()
-        .map(|t| truncate_chars(t.trim(), MAX_INSTANT_REPLY))
-        .filter(|t| !t.is_empty() && seen.insert(t.clone()))
-        .take(MAX_INSTANT_REPLIES)
-        .collect();
-    r
 }
 
 /// A composer signature. `html` only ever holds what
@@ -1080,17 +913,6 @@ fn normalize_signatures(
     (signatures, defaults)
 }
 
-pub const MAX_SNIPPETS: usize = 200;
-const MAX_SNIPPET_TITLE: usize = 80;
-const MAX_SNIPPET_BODY: usize = 10_000;
-pub const UNDO_SEND_CHOICES: [u8; 5] = [0, 5, 10, 20, 30];
-pub const UNDO_SEND_DEFAULT: u8 = 10;
-pub const SEND_LATER_HOURS: std::ops::RangeInclusive<u8> = 5..=11;
-pub const SEND_LATER_HOUR_DEFAULT: u8 = 8;
-const MAX_SNIPPET_SUBJECT: usize = 200;
-const MAX_SNIPPET_ADDRESSES: usize = 20;
-const MAX_SNIPPET_FILES: usize = 10;
-
 fn lenient_send_later_hour<'de, D: serde::Deserializer<'de>>(d: D) -> Result<u8, D::Error> {
     let raw = serde_json::Value::deserialize(d)?;
     Ok(raw
@@ -1098,42 +920,6 @@ fn lenient_send_later_hour<'de, D: serde::Deserializer<'de>>(d: D) -> Result<u8,
         .and_then(|n| u8::try_from(n).ok())
         .filter(|n| SEND_LATER_HOURS.contains(n))
         .unwrap_or(SEND_LATER_HOUR_DEFAULT))
-}
-
-/// Snippet addresses: trimmed, non-empty, ≤ 320 chars, deduped (case-blind), ≤ 20.
-fn normalize_snippet_addresses(list: Vec<String>) -> Vec<String> {
-    let mut seen = HashSet::new();
-    list.into_iter()
-        .map(|a| a.trim().to_string())
-        .filter(|a| !a.is_empty() && a.len() <= 320 && seen.insert(a.to_lowercase()))
-        .take(MAX_SNIPPET_ADDRESSES)
-        .collect()
-}
-
-/// Snippet files: a sha256 id, a display name, deduped, ≤ 10.
-fn normalize_snippet_files(list: Vec<SnippetFile>) -> Vec<SnippetFile> {
-    let mut seen = HashSet::new();
-    list.into_iter()
-        .filter_map(|mut f| {
-            let id_ok = f.id.len() == 64
-                && f.id
-                    .chars()
-                    .all(|c| c.is_ascii_digit() || ('a'..='f').contains(&c));
-            if !id_ok || !seen.insert(f.id.clone()) {
-                return None;
-            }
-            f.filename = truncate_chars(f.filename.trim(), 200);
-            if f.filename.is_empty() {
-                f.filename = "Attachment".into();
-            }
-            f.mime_type = truncate_chars(f.mime_type.trim(), 100);
-            if f.mime_type.is_empty() {
-                f.mime_type = "application/octet-stream".into();
-            }
-            Some(f)
-        })
-        .take(MAX_SNIPPET_FILES)
-        .collect()
 }
 
 fn lenient_undo_send_seconds<'de, D: serde::Deserializer<'de>>(d: D) -> Result<u8, D::Error> {
@@ -1145,64 +931,8 @@ fn lenient_undo_send_seconds<'de, D: serde::Deserializer<'de>>(d: D) -> Result<u
         .unwrap_or(UNDO_SEND_DEFAULT))
 }
 
-/// Fictional starters for a fresh install.
-fn default_snippets() -> Vec<Snippet> {
-    vec![
-        Snippet {
-            id: "thanks".into(),
-            trigger: "thx".into(),
-            title: "Thanks + next steps".into(),
-            body: "Thanks, {first_name}. Next steps on my side: {cursor}. I'll follow up by {day}.\n\n{my_name}".into(),
-            ..Default::default()
-        },
-        Snippet {
-            id: "review".into(),
-            trigger: "review".into(),
-            title: "Review checklist".into(),
-            body: "could you review the deck ahead of time and flag anything blocking by {day before}? That keeps the session focused on decisions.".into(),
-            ..Default::default()
-        },
-    ]
-}
-
 fn truncate_chars(s: &str, max: usize) -> String {
     s.chars().take(max).collect()
-}
-
-/// Drop snippets with a bad id or trigger, trim sizes, keep the first of any
-/// duplicate trigger, and cap the list.
-fn normalize_snippets(snippets: Vec<Snippet>) -> Vec<Snippet> {
-    let mut seen_ids = HashSet::new();
-    let mut seen_triggers = HashSet::new();
-    snippets
-        .into_iter()
-        .filter_map(|mut s| {
-            s.trigger = s.trigger.trim().to_lowercase();
-            let id_ok = (1..=64).contains(&s.id.len())
-                && s.id
-                    .chars()
-                    .all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_');
-            let trigger_ok = (1..=32).contains(&s.trigger.len())
-                && s.trigger
-                    .chars()
-                    .all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '-' || c == '_');
-            if !id_ok
-                || !trigger_ok
-                || !seen_ids.insert(s.id.clone())
-                || !seen_triggers.insert(s.trigger.clone())
-            {
-                return None;
-            }
-            s.title = truncate_chars(s.title.trim(), MAX_SNIPPET_TITLE);
-            s.body = truncate_chars(&s.body, MAX_SNIPPET_BODY);
-            s.subject = truncate_chars(s.subject.trim(), MAX_SNIPPET_SUBJECT);
-            s.cc = normalize_snippet_addresses(std::mem::take(&mut s.cc));
-            s.bcc = normalize_snippet_addresses(std::mem::take(&mut s.bcc));
-            s.attachments = normalize_snippet_files(std::mem::take(&mut s.attachments));
-            Some(s)
-        })
-        .take(MAX_SNIPPETS)
-        .collect()
 }
 
 /// "You": the user's own identity across every account (Settings → You).
@@ -1391,6 +1121,7 @@ impl Default for Settings {
             inbox_tabs: false,
             inbox_splits: default_inbox_splits(),
             get_to_zero: true,
+            get_to_zero_button: false,
             zero_celebration: true,
             remote_images: RemoteImages::default(),
             trusted_image_senders: Vec::new(),
@@ -1409,6 +1140,7 @@ impl Default for Settings {
             accent_color: AccentColor::default(),
             corners: CornerStyle::default(),
             dark_email_bodies: false,
+            thread_latest_first: true,
             mcp: McpSettings::default(),
             floe_mode: false,
             compose_font: ComposeFont::default(),
@@ -1444,6 +1176,7 @@ impl Default for Settings {
             pending_setups: Vec::new(),
             smart_views: SmartViewSettings::default(),
             welcome_completed: false,
+            keep_here: Vec::new(),
         }
     }
 }
@@ -1459,6 +1192,7 @@ pub struct SettingsPatch {
     /// Replaces the whole list (order included); normalized.
     pub inbox_splits: Option<Vec<InboxSplit>>,
     pub get_to_zero: Option<bool>,
+    pub get_to_zero_button: Option<bool>,
     pub zero_celebration: Option<bool>,
     pub remote_images: Option<RemoteImages>,
     pub trusted_image_senders: Option<Vec<String>>,
@@ -1480,6 +1214,7 @@ pub struct SettingsPatch {
     pub accent_color: Option<AccentColor>,
     pub corners: Option<CornerStyle>,
     pub dark_email_bodies: Option<bool>,
+    pub thread_latest_first: Option<bool>,
     /// Merged field by field (see McpPatch); never raises the level to send.
     pub mcp: Option<McpPatch>,
     pub floe_mode: Option<bool>,
@@ -1532,6 +1267,8 @@ pub struct SettingsPatch {
     /// Replaces the whole section; normalized (unknown ids dropped).
     pub smart_views: Option<SmartViewSettings>,
     pub welcome_completed: Option<bool>,
+    /// Replaces the whole list; only synced keys are kept.
+    pub keep_here: Option<Vec<String>>,
 }
 
 impl Settings {
@@ -1579,6 +1316,9 @@ impl Settings {
         }
         if let Some(v) = patch.get_to_zero {
             self.get_to_zero = v;
+        }
+        if let Some(v) = patch.get_to_zero_button {
+            self.get_to_zero_button = v;
         }
         if let Some(v) = patch.zero_celebration {
             self.zero_celebration = v;
@@ -1636,6 +1376,9 @@ impl Settings {
         }
         if let Some(v) = patch.dark_email_bodies {
             self.dark_email_bodies = v;
+        }
+        if let Some(v) = patch.thread_latest_first {
+            self.thread_latest_first = v;
         }
         if let Some(v) = patch.mcp {
             self.apply_mcp(v);
@@ -1745,6 +1488,9 @@ impl Settings {
         if let Some(v) = patch.smart_views {
             self.smart_views = v;
         }
+        if let Some(v) = patch.keep_here {
+            self.keep_here = normalize_keep_here(v);
+        }
         if let Some(v) = patch.welcome_completed {
             self.welcome_completed = v;
         }
@@ -1765,18 +1511,12 @@ impl Settings {
         self.normalize();
     }
 
-    /// Lowercase, trim, dedupe and bound the sender list; drop junk entries.
+    /// Lowercase, trim, dedupe and bound the sender list (penguin-core's
+    /// rule); drop junk entries.
     fn normalize(&mut self) {
-        let mut senders: Vec<String> = self
-            .trusted_image_senders
-            .iter()
-            .map(|s| s.trim().to_lowercase())
-            .filter(|s| s.contains('@') && s.len() <= 320 && !s.chars().any(char::is_whitespace))
-            .collect();
-        senders.sort();
-        senders.dedup();
-        senders.truncate(MAX_TRUSTED_SENDERS);
-        self.trusted_image_senders = senders;
+        self.trusted_image_senders = penguin_core::remote_images::normalize_trusted_senders(
+            std::mem::take(&mut self.trusted_image_senders),
+        );
         self.profiles = normalize_profiles(std::mem::take(&mut self.profiles));
         self.hidden_from_all = normalize_account_ids(
             std::mem::take(&mut self.hidden_from_all),
@@ -1787,13 +1527,7 @@ impl Settings {
         self.pending_setups = normalize_pending_setups(std::mem::take(&mut self.pending_setups));
         self.smart_views = normalize_smart_views(std::mem::take(&mut self.smart_views));
         self.inbox_splits = normalize_inbox_splits(std::mem::take(&mut self.inbox_splits));
-        let accounts = std::mem::take(&mut self.notifications.accounts);
-        self.notifications.accounts = accounts
-            .into_iter()
-            .map(|(k, v)| (k.trim().to_lowercase(), v))
-            .filter(|(k, _)| k.contains('@') && k.len() <= 320)
-            .take(MAX_NOTIFY_ACCOUNTS)
-            .collect();
+        self.notifications.normalize();
         let cal = &mut self.calendar;
         cal.past_months = cal
             .past_months
@@ -1848,7 +1582,8 @@ impl Settings {
         }
     }
 
-    /// Whether `m` renders with remote images on first open.
+    /// Whether `m` renders with remote images on first open
+    /// (penguin-core `remote_images::decide`, the iPhone's rule too).
     ///
     /// A trusted sender only counts when the message is authenticated as
     /// really coming from that address: From is attacker-controlled, and a
@@ -1859,23 +1594,7 @@ impl Settings {
     /// image there is how a spammer learns the address is read. Loading
     /// them by hand (load_remote_images) still works.
     pub fn remote_images_for(&self, m: &Message) -> RemoteImageDecision {
-        if m.label_ids.iter().any(|l| l == "SPAM") {
-            return RemoteImageDecision::Block;
-        }
-        match self.remote_images {
-            RemoteImages::Always => RemoteImageDecision::Load,
-            RemoteImages::Never => RemoteImageDecision::Block,
-            RemoteImages::Ask => {
-                let from = m.from.email.trim().to_lowercase();
-                if self.trusted_image_senders.binary_search(&from).is_err() {
-                    RemoteImageDecision::Block
-                } else if sender_authenticated(m) {
-                    RemoteImageDecision::Load
-                } else {
-                    RemoteImageDecision::BlockUnverifiedSender
-                }
-            }
-        }
+        penguin_core::remote_images::decide(self.remote_images, &self.trusted_image_senders, m)
     }
 
     /// Missing file → defaults. An unreadable or malformed file is logged and
@@ -1929,9 +1648,6 @@ impl Settings {
     }
 }
 
-/// Drop profiles without a valid id (and repeated ids), trim and bound names,
-/// fall back to the default color for anything not `#rrggbb`, dedupe members
-/// (lowercased, order kept) and keep at most MAX_PROFILES.
 /// One entry per address (the last one wins), newest first, bounded; bad
 /// addresses dropped, step and error text trimmed to size.
 /// Trimmed, lowercased, first occurrence kept, blanks and overlong ids
@@ -1972,73 +1688,6 @@ fn normalize_pending_setups(list: Vec<PendingSetup>) -> Vec<PendingSetup> {
     out
 }
 
-fn normalize_profiles(profiles: Vec<Profile>) -> Vec<Profile> {
-    let mut seen = HashSet::new();
-    let mut out = Vec::new();
-    for mut p in profiles {
-        let id_ok = !p.id.is_empty()
-            && p.id.len() <= 64
-            && p.id
-                .chars()
-                .all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_');
-        if !id_ok || !seen.insert(p.id.clone()) {
-            continue;
-        }
-        let name: String = p.name.split_whitespace().collect::<Vec<_>>().join(" ");
-        p.name = if name.is_empty() {
-            "Untitled".into()
-        } else {
-            name.chars().take(MAX_PROFILE_NAME).collect()
-        };
-        let hex = p.color.len() == 7
-            && p.color.starts_with('#')
-            && p.color[1..].chars().all(|c| c.is_ascii_hexdigit());
-        p.color = if hex {
-            p.color.to_ascii_lowercase()
-        } else {
-            DEFAULT_PROFILE_COLOR.into()
-        };
-        p.emoji = p
-            .emoji
-            .map(|e| e.trim().chars().take(MAX_EMOJI_CHARS).collect::<String>())
-            .filter(|e| {
-                !e.is_empty()
-                    && !e
-                        .chars()
-                        .any(|c| c.is_control() || c.is_ascii_alphanumeric())
-            });
-        let mut members = Vec::new();
-        for a in p.account_ids {
-            let a = a.trim().to_lowercase();
-            if !a.is_empty() && !members.contains(&a) {
-                members.push(a);
-            }
-        }
-        members.truncate(MAX_PROFILE_ACCOUNTS);
-        p.account_ids = members;
-        out.push(p);
-        if out.len() == MAX_PROFILES {
-            break;
-        }
-    }
-    out
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum RemoteImageDecision {
-    Load,
-    Block,
-    /// Trusted sender, but the message isn't authenticated as theirs.
-    BlockUnverifiedSender,
-}
-
-/// Whether Google authenticated the From address (DMARC pass, or aligned
-/// DKIM), per Gmail's receiving MX. Messages synced before this was recorded
-/// read as unauthenticated until they're re-fetched.
-fn sender_authenticated(m: &Message) -> bool {
-    m.sender_authenticated
-}
-
 impl Settings {
     /// The sync engine's view of the window settings.
     pub fn window_policy(&self) -> penguin_provider::window::WindowPolicy {
@@ -2054,6 +1703,11 @@ impl Settings {
     }
 }
 
+/// Runs on every local write of the settings, before the file is written,
+/// with the settings before and after: cross-device sync (src/cloud.rs)
+/// keeps other devices' accounts in `next` and records what changed.
+pub type SettingsHook = Box<dyn Fn(&Settings, &mut Settings) + Send + Sync>;
+
 /// The in-memory copy plus where it lives. Updates are serialized by the
 /// write lock, so two concurrent patches can't lose each other's fields.
 pub struct SettingsState {
@@ -2062,6 +1716,8 @@ pub struct SettingsState {
     /// The file on disk has no `welcomeCompleted` (missing, or written by a
     /// build from before the Welcome setup).
     predates_welcome: bool,
+    /// See [`SettingsHook`]; set once at startup.
+    hook: std::sync::OnceLock<SettingsHook>,
 }
 
 /// Whether settings.json at `path` was written before `welcomeCompleted`
@@ -2082,7 +1738,27 @@ impl SettingsState {
             predates_welcome: predates_welcome(&path),
             path,
             current: RwLock::new(current),
+            hook: std::sync::OnceLock::new(),
         }
+    }
+
+    /// Install the write hook (once; later calls are ignored).
+    pub fn set_hook(&self, hook: SettingsHook) {
+        let _ = self.hook.set(hook);
+    }
+
+    /// A local write: the hook, then the file, then the in-memory copy
+    /// (which changes only if the file was written).
+    fn commit(&self, current: &mut Settings, mut next: Settings) -> std::io::Result<Settings> {
+        if let Some(hook) = self.hook.get() {
+            if *current != next {
+                hook(current, &mut next);
+                next.normalize();
+            }
+        }
+        next.save(&self.path)?;
+        *current = next.clone();
+        Ok(next)
     }
 
     /// At startup, before anything reads `welcome_completed`: an install
@@ -2097,8 +1773,7 @@ impl SettingsState {
         let mut current = self.current.write().unwrap_or_else(|p| p.into_inner());
         let mut next = current.clone();
         next.welcome_completed = has_accounts;
-        next.save(&self.path)?;
-        *current = next;
+        self.commit(&mut current, next)?;
         Ok(())
     }
 
@@ -2115,9 +1790,7 @@ impl SettingsState {
         let mut current = self.current.write().unwrap_or_else(|p| p.into_inner());
         let mut next = current.clone();
         next.apply(patch);
-        next.save(&self.path)?;
-        *current = next.clone();
-        Ok(next)
+        self.commit(&mut current, next)
     }
 
     /// Raise the agent level to Send (Settings → Developer, after the user
@@ -2126,9 +1799,7 @@ impl SettingsState {
         let mut current = self.current.write().unwrap_or_else(|p| p.into_inner());
         let mut next = current.clone();
         next.mcp.set_access(AgentAccess::Send);
-        next.save(&self.path)?;
-        *current = next.clone();
-        Ok(next)
+        self.commit(&mut current, next)
     }
 
     /// Point `me.photo` at a stored photo id (or none); persisted like
@@ -2138,9 +1809,33 @@ impl SettingsState {
         let mut next = current.clone();
         let old = std::mem::replace(&mut next.me.photo, id);
         next.normalize();
+        let saved = self.commit(&mut current, next)?;
+        Ok((saved, old))
+    }
+
+    /// Write synced records that won a merge (settings, snippets,
+    /// signatures from another device) into the file, normalized like any
+    /// other write (signature HTML is sanitized again), without the hook:
+    /// they are records already. A value this build can't read is skipped.
+    /// Returns the new settings, or None when nothing changed.
+    pub fn apply_synced(
+        &self,
+        records: &[penguin_sync::Record],
+    ) -> std::io::Result<Option<Settings>> {
+        let mut current = self.current.write().unwrap_or_else(|p| p.into_inner());
+        let mut value = serde_json::to_value(&*current).map_err(std::io::Error::other)?;
+        let readable = |v: &serde_json::Value| serde_json::from_value::<Settings>(v.clone()).is_ok();
+        if !penguin_core::cloud::apply_settings_records(&mut value, records, readable) {
+            return Ok(None);
+        }
+        let mut next: Settings = serde_json::from_value(value).map_err(std::io::Error::other)?;
+        next.normalize();
+        if next == *current {
+            return Ok(None);
+        }
         next.save(&self.path)?;
         *current = next.clone();
-        Ok((next, old))
+        Ok(Some(next))
     }
 }
 
@@ -2268,6 +1963,86 @@ mod tests {
     }
 
     use super::*;
+
+    #[test]
+    fn the_write_hook_sees_local_writes_and_synced_records_bypass_it() {
+        use std::sync::{Arc, Mutex};
+        let dir = temp_dir("sync-hook");
+        let state = SettingsState::load(&dir);
+        let seen: Arc<Mutex<Vec<(u32, u32)>>> = Arc::default();
+        let s = seen.clone();
+        state.set_hook(Box::new(move |old, new| {
+            s.lock()
+                .unwrap()
+                .push((old.follow_up_days, new.follow_up_days));
+            // What cloud.rs does: carry another device's account over.
+            new.account_order.push("phone-only@x.example".into());
+        }));
+        let saved = state
+            .update(serde_json::from_str(r#"{"followUpDays":5}"#).unwrap())
+            .unwrap();
+        assert_eq!(*seen.lock().unwrap(), vec![(3, 5)]);
+        assert_eq!(saved.account_order, vec!["phone-only@x.example"]);
+        assert_eq!(
+            Settings::load(&dir.join(SETTINGS_FILE)).account_order,
+            vec!["phone-only@x.example"]
+        );
+        // A write that changes nothing doesn't reach the hook.
+        state
+            .update(serde_json::from_str(r#"{"followUpDays":5}"#).unwrap())
+            .unwrap();
+        assert_eq!(seen.lock().unwrap().len(), 1);
+
+        // Records from another device: normalized (signature HTML sanitized
+        // again), saved, and not handed to the hook.
+        let stamp = penguin_sync::memory::stamp(1, 0, "phone");
+        let records = vec![
+            penguin_sync::Record::intent(
+                penguin_sync::Kind::Setting,
+                "followUpDays",
+                stamp.clone(),
+                Some(serde_json::json!(7)),
+            ),
+            penguin_sync::Record::intent(
+                penguin_sync::Kind::Signature,
+                "g1",
+                stamp,
+                Some(serde_json::json!({
+                    "id": "g1", "name": "Work",
+                    "html": "<b>Ada</b><script>alert(1)</script>"
+                })),
+            ),
+        ];
+        let mut records = records;
+        // Profiles and notifications through penguin-core's types.
+        records.push(penguin_sync::Record::intent(
+            penguin_sync::Kind::Setting,
+            "profiles",
+            penguin_sync::memory::stamp(2, 0, "phone"),
+            Some(serde_json::json!([{"id": "work", "name": "Work", "color": "#4f7cff", "accountIds": ["ada@x.example"]}])),
+        ));
+        records.push(penguin_sync::Record::intent(
+            penguin_sync::Kind::Setting,
+            "notifications",
+            penguin_sync::memory::stamp(2, 0, "phone"),
+            Some(serde_json::json!({"enabled": true, "accounts": {"ada@x.example": false}, "knownSendersOnly": true})),
+        ));
+        let synced = state.apply_synced(&records).unwrap().expect("changed");
+        assert_eq!(synced.follow_up_days, 7);
+        assert_eq!(synced.profiles.len(), 1);
+        assert_eq!(synced.profiles[0].account_ids, vec!["ada@x.example"]);
+        assert!(synced.notifications.enabled && synced.notifications.known_senders_only);
+        assert_eq!(synced.notifications.accounts.get("ada@x.example"), Some(&false));
+        assert_eq!(synced.signatures.len(), 1);
+        assert!(!synced.signatures[0].html.contains("script"));
+        assert_eq!(seen.lock().unwrap().len(), 1);
+        assert_eq!(
+            Settings::load(&dir.join(SETTINGS_FILE)).follow_up_days,
+            7
+        );
+        assert!(state.apply_synced(&records).unwrap().is_none());
+        let _ = std::fs::remove_dir_all(dir);
+    }
 
     fn temp_dir(tag: &str) -> PathBuf {
         let dir =
@@ -2497,16 +2272,16 @@ mod tests {
         );
         assert_eq!(splits.as_array().map(Vec::len), Some(3));
         assert_eq!(
-            (obj.remove("getToZero"), obj.remove("zeroCelebration")),
-            (Some(serde_json::json!(true)), Some(serde_json::json!(true)))
+            (obj.remove("getToZero"), obj.remove("getToZeroButton"), obj.remove("zeroCelebration")),
+            (Some(serde_json::json!(true)), Some(serde_json::json!(false)), Some(serde_json::json!(true)))
         );
         assert_eq!(
             json,
             serde_json::json!({
                 "theme": "system", "density": "compact", "inboxTabs": false,
                 "remoteImages": "ask", "trustedImageSenders": [],
-                "profiles": [], "hiddenFromAll": [], "accountOrder": [], "swipeRight": "toggleRead", "swipeLeft": "archive", "swipeLeftLong": "trash",
-                "sidebarTheme": "graphite", "matchAccent": false, "darkShade": "black", "darkEmailBodies": false,
+                "profiles": [], "hiddenFromAll": [], "keepHere": [], "accountOrder": [], "swipeRight": "toggleRead", "swipeLeft": "archive", "swipeLeftLong": "trash",
+                "sidebarTheme": "graphite", "matchAccent": false, "darkShade": "black", "darkEmailBodies": false, "threadLatestFirst": true,
                 "accentColor": "blue", "corners": "rounded",
                 "mcp": { "access": "off", "enabled": false, "sendDelaySeconds": 60, "sendKnownOnly": true },
                 "floeMode": false, "composeFont": "inter", "composeFontSize": 15,
@@ -3142,6 +2917,18 @@ mod tests {
                 .count(),
             MAX_PENDING_ERROR_CHARS
         );
+    }
+
+    #[test]
+    fn keep_here_holds_only_synced_keys_once() {
+        let s: Settings =
+            serde_json::from_str(r#"{"keepHere": ["theme", "theme", "density", 4, "nope"]}"#).unwrap();
+        assert_eq!(s.keep_here, ["theme"], "density never syncs, so there's nothing to keep");
+        let s: Settings = serde_json::from_str(r#"{"keepHere": "theme"}"#).unwrap();
+        assert!(s.keep_here.is_empty());
+        let mut s = Settings::default();
+        s.apply(serde_json::from_str(r#"{"keepHere": ["swipeLeft", "keepHere", "theme"]}"#).unwrap());
+        assert_eq!(s.keep_here, ["swipeLeft", "theme"]);
     }
 
     #[test]

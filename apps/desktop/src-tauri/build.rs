@@ -34,6 +34,7 @@ const COMMANDS: &[&str] = &[
     "sanitize_compose_html",
     "save_attachment",
     "preview_attachment",
+    "quick_look_attachment",
     "preview_outgoing_file",
     "get_message_details",
     // Unsubscribe button (src/unsubscribe.rs).
@@ -65,6 +66,12 @@ const COMMANDS: &[&str] = &[
     "share_link_config_test",
     "share_file",
     "share_delete",
+    // Chat with Claude Code or Codex (src/agent_chat/).
+    "agent_chat_setup",
+    "agent_chat_config_set",
+    "agent_chat_api_key_set",
+    "agent_chat_send",
+    "agent_chat_stop",
     "save_draft",
     "quote_sources",
     "delete_draft",
@@ -72,6 +79,7 @@ const COMMANDS: &[&str] = &[
     "get_settings",
     "update_settings",
     "diagnostics",
+    "mail_stats",
     "diagnostics_table_sizes",
     "reveal_path",
     "optimize_index",
@@ -85,6 +93,14 @@ const COMMANDS: &[&str] = &[
     "reopen_sign_in",
     "set_ios_oauth_client",
     "clear_ios_oauth_client",
+    // Settings → Accounts → Pair iPhone (src/pair_iphone.rs).
+    "pair_iphone_start",
+    "pair_iphone_confirm",
+    "pair_iphone_cancel",
+    // Settings → General → Sync with iCloud (src/cloud.rs).
+    "cloud_status",
+    "set_cloud_sync",
+    "cloud_sync_now",
     // Add account: provider detection, the Microsoft client and non-Google
     // sign-in (src/providers/).
     "detect_provider",
@@ -100,6 +116,12 @@ const COMMANDS: &[&str] = &[
     "agent_activity",
     "agent_pending_sends",
     "agent_undo",
+    // Extensions: Settings → Extensions and the message-header buttons
+    // (src/extensions.rs).
+    "list_extensions",
+    "set_extension_allowed",
+    "run_extension_action",
+    "open_extensions_folder",
     "sync_window_estimate",
     "sync_coverage",
     "free_up_space",
@@ -159,6 +181,9 @@ const COMMANDS: &[&str] = &[
     "notification_permission",
     "request_notification_permission",
     "test_notification",
+    // Handoff with the iPhone (src/handoff.rs).
+    "set_handoff_activity",
+    "take_handoff_open",
     // Thread summaries with Apple's on-device model (src/summary/).
     "summary_availability",
     "cached_summary",

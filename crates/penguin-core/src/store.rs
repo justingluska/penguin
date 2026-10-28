@@ -432,6 +432,9 @@ const MIGRATIONS: &[&str] = &[
     SCHEMA_PEOPLE_WORDS,
     contacts::SCHEMA_TO_ME_PLUS,
     inline_repair::SCHEMA_INLINE_REPAIR,
+    sync::SCHEMA_SYNC,
+    sync::SCHEMA_SYNC_CLOUD,
+    outbox::SCHEMA_OUTBOX_SYNC,
 ];
 
 #[path = "store_drafts.rs"]
@@ -490,6 +493,10 @@ mod contacts;
 #[path = "store_triage.rs"]
 mod triage;
 
+#[path = "store_sync.rs"]
+mod sync;
+pub use sync::PendingListener;
+
 #[path = "store_semantic.rs"]
 mod semantic;
 pub use semantic::{SemanticRow, SemanticText};
@@ -513,6 +520,10 @@ pub(crate) use smart::{recurring_charges, Recurring};
 
 #[path = "store_split.rs"]
 mod split;
+
+#[path = "store_stats.rs"]
+mod stats;
+pub use stats::STATS_DAYS;
 pub use extracted::ExtractProgress;
 pub(crate) use extracted::{extract_now, read_fact, StoredFact, FACT_COLS};
 pub use invites::{
@@ -568,6 +579,8 @@ pub(crate) struct Inner {
     readers: Option<ReaderPool>,
     /// Bumped on every committed write; keys read-side caches.
     pub(crate) generation: AtomicU64,
+    /// Told after a write that queued synced records (store_sync.rs).
+    sync_listener: std::sync::RwLock<Option<sync::PendingListener>>,
     pub(crate) sent_to_cache: Mutex<Option<(u64, SentToMap)>>,
 }
 
@@ -661,6 +674,7 @@ impl Store {
         conn.pragma_update(None, "journal_mode", "WAL")?;
         configure_writer(&conn)?;
         migrate(&conn)?;
+        sync::seed(&conn)?;
         let store = Store::from_parts(
             conn,
             Some(ReaderPool {
@@ -678,6 +692,7 @@ impl Store {
         let conn = Connection::open_in_memory()?;
         configure_writer(&conn)?;
         migrate(&conn)?;
+        sync::seed(&conn)?;
         Ok(Store::from_parts(conn, None))
     }
 
@@ -689,6 +704,7 @@ impl Store {
                 writer_waiters: AtomicUsize::new(0),
                 readers,
                 generation: AtomicU64::new(1),
+                sync_listener: std::sync::RwLock::new(None),
                 sent_to_cache: Mutex::new(None),
             }),
         }
@@ -723,12 +739,20 @@ impl Store {
     }
 
     /// Run `f` inside an IMMEDIATE transaction on the writer connection.
+    /// A write that queued synced records tells the sync listener once
+    /// it has committed and the writer is free again.
     fn write<T>(&self, f: impl FnOnce(&Transaction) -> Result<T>) -> Result<T> {
         let mut conn = self.inner.lock_writer();
+        sync::take_queued();
         let tx = conn.transaction_with_behavior(TransactionBehavior::Immediate)?;
         let out = f(&tx)?;
         tx.commit()?;
         self.inner.generation.fetch_add(1, Ordering::Release);
+        let queued = sync::take_queued();
+        drop(conn);
+        if queued {
+            self.notify_sync_pending();
+        }
         Ok(out)
     }
 
@@ -808,8 +832,13 @@ impl Store {
                 ],
             )?;
             // A new address (or a changed one) changes what is "to me".
-            if !before.is_some_and(|e| e.eq_ignore_ascii_case(&account.email)) {
+            if !before.as_ref().is_some_and(|e| e.eq_ignore_ascii_case(&account.email)) {
                 contacts::refresh_to_me(tx, &account.email)?;
+            }
+            // Synced snoozes and dismissals waiting for this account (made
+            // on another device, or kept from before it was removed here).
+            if before.is_none() {
+                sync::project_account(tx, &account.id, triage::now_ms())?;
             }
             Ok(())
         })
@@ -1211,6 +1240,24 @@ impl Store {
             }
             for t in touched {
                 refresh_thread(tx, t)?;
+            }
+            Ok(())
+        })
+    }
+
+    /// Date server search hits by their conversation's newest stored message,
+    /// as local hits are: `last_date` = the thread's `last_date`, never older
+    /// than the hit's own `date`. Hits whose thread isn't stored keep `date`.
+    pub fn date_hits_by_thread(&self, hits: &mut [SearchHit]) -> Result<()> {
+        self.read(|c| {
+            let mut stmt = c.prepare_cached(
+                "SELECT last_date FROM threads WHERE account_id = ?1 AND thread_id = ?2",
+            )?;
+            for h in hits.iter_mut() {
+                let last: Option<i64> = stmt
+                    .query_row(params![h.account_id, h.thread_id], |r| r.get(0))
+                    .optional()?;
+                h.last_date = last.unwrap_or(0).max(h.date);
             }
             Ok(())
         })

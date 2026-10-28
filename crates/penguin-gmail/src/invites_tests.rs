@@ -1,9 +1,9 @@
+use crate::ics::parse_invite;
 use penguin_core::store::CalendarCursor;
 use penguin_core::{
     Account, AccountProvider, Address, AttachmentMeta, CalendarEvent, CalendarInfo, EventAttendee,
     InviteResponse, Message, Store,
 };
-use penguin_gmail::ics::parse_invite;
 
 use super::*;
 
@@ -224,6 +224,10 @@ fn card_uses_the_synced_event_and_rsvp_rules() {
     let card = invite_card(&s, &ctx(ME, true, false), &inv, NOW).unwrap();
     assert!(card.can_respond && card.rsvp_available);
     assert_eq!(card.route, "email");
+    // No calendar at all: Connect calendar is the one ask, not RSVP.
+    let card = invite_card(&s, &ctx(ME, false, false), &inv, NOW).unwrap();
+    assert!(card.can_respond && !card.rsvp_available);
+    assert_eq!(card.route, "email");
     // A past event, or a cancellation: read-only.
     assert!(
         !invite_card(&s, &ctx(ME, true, true), &inv, START + 2 * HOUR)
@@ -339,12 +343,9 @@ fn an_update_says_what_changed_and_keeps_what_you_sent() {
 // ---- a real Google Calendar thread, end to end ----------------------------
 
 const GUEST: &str = "alex.morgan@gmail.example";
-const FIXTURES: &str = concat!(
-    env!("CARGO_MANIFEST_DIR"),
-    "/../../../crates/penguin-gmail/tests/fixtures"
-);
+const FIXTURES: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/tests/fixtures");
 
-fn gmail_fixture(name: &str) -> penguin_gmail::convert::GmailMessage {
+fn gmail_fixture(name: &str) -> crate::convert::GmailMessage {
     let json = std::fs::read_to_string(format!("{FIXTURES}/{name}.json")).unwrap();
     serde_json::from_str(&json).unwrap()
 }
@@ -369,7 +370,7 @@ fn a_google_invitation_thread_goes_all_the_way_to_the_card_and_chip() {
         .collect();
     let messages: Vec<Message> = raw
         .iter()
-        .map(|gm| penguin_gmail::convert::to_message(GUEST, gm, &Default::default()))
+        .map(|gm| crate::convert::to_message(GUEST, gm, &Default::default()))
         .collect();
     s.upsert_messages(&messages).unwrap();
 
@@ -396,8 +397,7 @@ fn a_google_invitation_thread_goes_all_the_way_to_the_card_and_chip() {
     );
     // What get_attachment does for a `part:` id: re-read the message.
     let bytes =
-        penguin_gmail::convert::inline_part_bytes(&raw[1], part.id.strip_prefix("part:").unwrap())
-            .unwrap();
+        crate::convert::inline_part_bytes(&raw[1], part.id.strip_prefix("part:").unwrap()).unwrap();
     let inv = parse_invite(&String::from_utf8_lossy(&bytes), GUEST).unwrap();
     assert_eq!((inv.method_name(), inv.sequence), ("request", 1));
 
@@ -413,8 +413,7 @@ fn a_google_invitation_thread_goes_all_the_way_to_the_card_and_chip() {
             .find(|p| p.mime_type == "text/calendar")
             .unwrap();
         let bytes =
-            penguin_gmail::convert::inline_part_bytes(gm, part.id.strip_prefix("part:").unwrap())
-                .unwrap();
+            crate::convert::inline_part_bytes(gm, part.id.strip_prefix("part:").unwrap()).unwrap();
         let snap = parse_invite(&String::from_utf8_lossy(&bytes), GUEST)
             .unwrap()
             .to_snapshot();
@@ -502,4 +501,80 @@ fn calendar_is_connected_only_when_asked_for_and_granted() {
         &[],
         &scopes(&[GMAIL, CALENDAR_READONLY_SCOPE])
     ));
+}
+
+#[test]
+fn answers_are_checked_before_anything_is_sent() {
+    assert!(check_answer("maybe", None, None).is_err());
+    assert!(check_answer("accepted", None, Some((START, START))).is_err());
+    let a = check_answer("tentative", Some("  ".into()), None).unwrap();
+    assert_eq!(a.comment, None, "an empty note is no note");
+    let long = "x".repeat(3000);
+    let a = check_answer(
+        "accepted",
+        Some(format!("  {long}  ")),
+        Some((START, START + HOUR)),
+    )
+    .unwrap();
+    assert_eq!(a.comment.as_ref().map(|c| c.chars().count()), Some(2000));
+    assert_eq!(a.proposal, Some((START, START + HOUR)));
+
+    let s = store();
+    let inv = parse_invite(&invite_ics("REQUEST"), ME).unwrap();
+    let card = invite_card(&s, &ctx(ME, true, true), &inv, NOW).unwrap();
+    assert_eq!(can_answer(&card, &a), Ok(()));
+    let cancel = parse_invite(&invite_ics("CANCEL"), ME).unwrap();
+    let card = invite_card(&s, &ctx(ME, true, true), &cancel, NOW).unwrap();
+    assert_eq!(can_answer(&card, &a), Err("This event was cancelled"));
+}
+
+#[test]
+fn an_email_answer_goes_to_the_organizer_threaded_under_the_invitation() {
+    let inv = parse_invite(&invite_ics("REQUEST"), ME).unwrap();
+    let mut m = msg("m1", vec![]);
+    m.message_id_header = Some("<inv-1@linden.example>".into());
+    m.references = vec!["<older@linden.example>".into()];
+    let me = Address {
+        name: Some("Ada".into()),
+        email: ME.into(),
+    };
+    let answer = check_answer("declined", Some("Out that week".into()), None).unwrap();
+    let raw = String::from_utf8(email_answer(&me, &m, &inv, &answer, NOW).unwrap()).unwrap();
+    assert!(raw.contains("mike@linden.example"), "to the organizer");
+    assert!(raw.contains("<inv-1@linden.example>"), "threaded under it");
+    let record = response_record(&inv, &answer, "email", NOW);
+    assert_eq!(record.via, "email");
+    assert_eq!(record.response, "declined");
+    assert_eq!(record.comment.as_deref(), Some("Out that week"));
+    assert_eq!(record.proposed_start, None);
+
+    let mut no_org = inv.clone();
+    no_org.organizer = None;
+    assert!(email_answer(&me, &m, &no_org, &answer, NOW).is_err());
+}
+
+#[test]
+fn the_calendar_part_is_picked_and_parsed_from_bytes() {
+    let parts = vec![
+        att("invite.ics", "application/ics", 900),
+        att("cal", "text/calendar", 800),
+        att("photo.jpg", "image/jpeg", 50_000),
+    ];
+    assert_eq!(calendar_part(&parts).map(|p| p.id.as_str()), Some("cal"));
+    assert_eq!(calendar_part(&parts[2..]), None);
+    let inv = parse_part(invite_ics("REQUEST").as_bytes(), ME).unwrap();
+    assert_eq!(inv.uid.as_deref(), Some("q4@google.com"));
+    assert!(parse_part(b"not a calendar", ME).is_none());
+
+    // Remembering the card stores the row chip's snapshot.
+    let s = store();
+    let mut m = msg("m1", vec![att("cal", "text/calendar", 800)]);
+    m.label_ids = vec!["INBOX".into()];
+    s.upsert_messages(&[m.clone()]).unwrap();
+    let card = remember_and_card(&s, &ctx(ME, false, false), &m, &inv, NOW).unwrap();
+    assert!(card.can_respond);
+    assert_eq!(
+        s.invite_threads(ME, "q4@google.com").unwrap(),
+        vec!["t".to_string()]
+    );
 }

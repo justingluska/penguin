@@ -10,6 +10,7 @@ import { Icon } from "../../components/Icon";
 import { Avatar } from "../../components/Identity";
 import { isMe } from "../../app/store";
 import { PersonMeetings } from "../calendar/PersonMeetings";
+import { Timeline, useSharedTimeline } from "./Timeline";
 
 const cache = new Map<string, SearchResponse>();
 
@@ -53,6 +54,9 @@ export const ContextPanel = memo(function ContextPanel({ thread }: { thread: Thr
   }, [thread]);
 
   const history = useSenderHistory(person?.email ?? null);
+  // The full view hands its timeline over while this panel is on screen.
+  const tl = useSharedTimeline();
+  const ownTimeline = tl && tl.threadKey === `${thread.accountId}/${thread.threadId}` ? tl : null;
 
   const recent = useMemo(() => {
     if (!history) return [];
@@ -111,6 +115,12 @@ export const ContextPanel = memo(function ContextPanel({ thread }: { thread: Thr
           <Icon name="compose" size="xs" />
         </button>
       </div>
+
+      {ownTimeline && thread.messages.length > 1 && (
+        <div className="ctx-section ctx-timeline">
+          <Timeline msgs={thread.messages} shownId={ownTimeline.shownId} all={ownTimeline.all} onPick={ownTimeline.pick} onAll={ownTimeline.toggleAll} where="panel" />
+        </div>
+      )}
 
       <PersonMeetings email={person.email} variant="panel" />
 

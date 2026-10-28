@@ -9,13 +9,17 @@ license = "LicenseRef-PolyForm-Shield-1.0.0"
 license-file = "LICENSE"
 
 [workspace.dependencies]
+penguin-avatars = { path = "crates/penguin-avatars" }
 penguin-core = { path = "crates/penguin-core" }
 penguin-gmail = { path = "crates/penguin-gmail" }
 penguin-graph = { path = "crates/penguin-graph" }
 penguin-imap = { path = "crates/penguin-imap" }
+penguin-onboard = { path = "crates/penguin-onboard" }
+penguin-pair = { path = "crates/penguin-pair" }
 penguin-provider = { path = "crates/penguin-provider" }
 penguin-render = { path = "crates/penguin-render" }
 penguin-semantic = { path = "crates/penguin-semantic" }
+penguin-sync = { path = "crates/penguin-sync" }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 thiserror = "2"

@@ -8,10 +8,11 @@
 //   items that act on a window come to the focused one), text and context
 //   menus, the thread cache, kept current by mail-changed like the main
 //   window's, settings (lib/settings.ts follows settings-changed), the
-//   pickers, previews and toasts a conversation or composer needs.
+//   pickers, previews and toasts a conversation or composer needs, and what
+//   Handoff offers the iPhone (features/handoff).
 //
 //   Main window only: sync and its toasts, the list and its counts,
-//   notifications, the updater, the welcome flow, the shortcut coach,
+//   notifications, opening what the iPhone hands over, the updater, the welcome flow, the shortcut coach,
 //   profiles and Floe, rules toasts, scheduled-send and reminder toasts,
 //   demo mode switching, and in the mock the mock backend itself
 //   (lib/mockBridge.ts). A window that closes hands the main window what must
@@ -64,6 +65,7 @@ import { currentRemoteUndo, undoSerial } from "./actions";
 import { openThreadWindow } from "./windows";
 import { coalesce } from "./coalesce";
 import { useTheme } from "./theme";
+import { startHandoff } from "../features/handoff";
 import type { RemoteUndo } from "./remoteUndo";
 
 /** Commands whose change a closing window waits to see accepted (or refused). */
@@ -206,6 +208,8 @@ async function loadBasics() {
   const [accounts] = await Promise.all([api.listAccounts(), getSettings()]);
   setAccounts(accounts);
   void loadLabels();
+  // What this window shows is offered to the iPhone (features/handoff).
+  startHandoff();
 }
 
 /** The hosts both kinds of window mount (overlays show themselves from ui.overlay). */

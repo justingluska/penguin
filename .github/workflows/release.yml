@@ -18,6 +18,10 @@
 #   APPLE_API_ISSUER, APPLE_API_KEY, APPLE_API_KEY_P8  App Store Connect API key (notarization)
 #   TAURI_SIGNING_PRIVATE_KEY, TAURI_SIGNING_PRIVATE_KEY_PASSWORD  updater key (private half)
 #   R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY, R2_ENDPOINT  bucket-scoped upload key
+#   PENGUIN_MAC_PROVISION_PROFILE  optional: the Developer ID provisioning profile (base64) for the
+#     app's bundle id with iCloud (CloudKit) and Push Notifications; it is embedded and the
+#     entitlements are read from it (apps/desktop/scripts/mac-cloud-signing.sh), which turns on
+#     Sync with iCloud (docs/CROSS-DEVICE-STATE.md). Without it the app builds as before, sync off.
 name: release
 
 on:
@@ -157,6 +161,21 @@ jobs:
           printf '%s\n' "$APPLE_API_KEY_P8" > "$RUNNER_TEMP/AuthKey.p8"
           echo "APPLE_API_KEY_PATH=$RUNNER_TEMP/AuthKey.p8" >> "$GITHUB_ENV"
 
+      # Sync with iCloud: embed the provisioning profile and sign with the
+      # iCloud and push entitlements it allows.
+      - name: iCloud entitlements and provisioning profile
+        env:
+          PENGUIN_MAC_PROVISION_PROFILE: ${{ secrets.PENGUIN_MAC_PROVISION_PROFILE }}
+        run: |
+          if [ -z "$PENGUIN_MAC_PROVISION_PROFILE" ]; then
+            echo "::warning::No PENGUIN_MAC_PROVISION_PROFILE; this build has no Sync with iCloud"
+            exit 0
+          fi
+          printf '%s' "$PENGUIN_MAC_PROVISION_PROFILE" | base64 --decode > "$RUNNER_TEMP/penguin.provisionprofile"
+          bundle_id="$(node -p 'require("./apps/desktop/src-tauri/tauri.conf.json").identifier')"
+          apps/desktop/scripts/mac-cloud-signing.sh "$RUNNER_TEMP/penguin.provisionprofile" "$bundle_id" "$RUNNER_TEMP/cloud"
+          echo "CLOUD_CONFIG=$RUNNER_TEMP/cloud/tauri-macos.json" >> "$GITHUB_ENV"
+
       # Everyday builds (pushes to main, manual "fast") override Cargo.toml's
       # release profile with thin LTO over 16 codegen units, so the final
       # optimization runs in parallel instead of as one single-threaded job
@@ -182,11 +201,13 @@ jobs:
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         run: |
           # The update channel lives only in this build's config.
+          # Plus the iCloud entitlements and profile, when this build has them.
           conf="$(node -e '
             const e = process.env;
+            const cloud = e.CLOUD_CONFIG ? JSON.parse(require("fs").readFileSync(e.CLOUD_CONFIG, "utf8")) : {};
             process.stdout.write(JSON.stringify({
               version: e.VERSION,
-              bundle: { createUpdaterArtifacts: true },
+              bundle: { createUpdaterArtifacts: true, ...(cloud.bundle || {}) },
               plugins: { updater: { pubkey: e.UPDATER_PUBKEY, endpoints: [`${e.BASE_URL}/latest.json`] } },
             }));
           ')"
@@ -198,6 +219,12 @@ jobs:
           codesign --verify --deep --strict --verbose=2 "$app"
           spctl --assess --type execute --verbose=2 "$app"
           xcrun stapler validate "$app"
+          if [ -n "${CLOUD_CONFIG:-}" ]; then
+            # Signed with the iCloud entitlements, the profile inside.
+            codesign -d --entitlements - --xml "$app" > "$RUNNER_TEMP/signed.entitlements"
+            grep -q icloud-container-identifiers "$RUNNER_TEMP/signed.entitlements" || { echo "::error::the app isn't signed with the iCloud entitlements"; exit 1; }
+            [ -f "$app/Contents/embedded.provisionprofile" ] || { echo "::error::no embedded.provisionprofile in the app"; exit 1; }
+          fi
 
       - name: Write latest.json
         run: |
